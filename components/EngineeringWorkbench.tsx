@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { DesignMode, ModelState } from "@/lib/engineering/types";
+import type { DesignMode, ModelState, PresentationView } from "@/lib/engineering/types";
 import { solveModel } from "@/lib/engineering/solver";
 import { evaluateConstraints } from "@/lib/engineering/constraints";
 import { PARAMETER_MAP } from "@/lib/engineering/parameters";
@@ -12,8 +12,13 @@ import { ParameterControl } from "./ParameterControl";
 import { ForceTravelChart } from "./ForceTravelChart";
 import { ConstraintPanel } from "./ConstraintPanel";
 import { SpringStateIllustration } from "./SpringStateIllustration/SpringStateIllustration";
+import { Overview } from "./overview/Overview";
 
 const MODES: DesignMode[] = ["forward", "reverse", "explore"];
+const VIEWS: { id: PresentationView; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "engineering", label: "Engineering" },
+];
 const ENERGY_LENS_IDS = ["W_run", "eta", "KE", "v", "p"];
 const DIAMETER_IDS = ["D", "OD", "ID"] as const;
 
@@ -23,6 +28,7 @@ const DIAMETER_IDS = ["D", "OD", "ID"] as const;
  */
 export function EngineeringWorkbench() {
   const [mode, setMode] = useState<DesignMode>("forward");
+  const [view, setView] = useState<PresentationView>("overview");
   const [model, setModel] = useState<ModelState>(() => buildInitialState("forward"));
   const [selectedId, setSelectedId] = useState<string | null>("k");
   const [etaMode, setEtaMode] = useState<"unspecified" | "ideal" | "assumed" | "measured">("unspecified");
@@ -152,22 +158,52 @@ export function EngineeringWorkbench() {
             Spring Mechanism Explorer
           </h1>
 
-          <div className="flex overflow-hidden rounded-md border border-zinc-300 text-xs">
-            {MODES.map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => handleModeChange(m)}
-                title={MODE_INFO[m].blurb}
-                className={`px-3 py-1.5 font-medium transition-colors ${
-                  mode === m
-                    ? "bg-zinc-800 text-white"
-                    : "bg-white text-zinc-600 hover:bg-zinc-100"
-                }`}
-              >
-                {MODE_INFO[m].label}
-              </button>
-            ))}
+          {/* Presentation view — Overview (distilled) vs Engineering (full) */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+              View
+            </span>
+            <div className="flex overflow-hidden rounded-md border border-zinc-300 text-xs">
+              {VIEWS.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => setView(v.id)}
+                  aria-pressed={view === v.id}
+                  className={`px-3 py-1.5 font-medium transition-colors ${
+                    view === v.id
+                      ? "bg-blue-600 text-white"
+                      : "bg-white text-zinc-600 hover:bg-zinc-100"
+                  }`}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Design / solver mode — orthogonal to the view above */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+              Design
+            </span>
+            <div className="flex overflow-hidden rounded-md border border-zinc-300 text-xs">
+              {MODES.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => handleModeChange(m)}
+                  title={MODE_INFO[m].blurb}
+                  className={`px-3 py-1.5 font-medium transition-colors ${
+                    mode === m
+                      ? "bg-zinc-800 text-white"
+                      : "bg-white text-zinc-600 hover:bg-zinc-100"
+                  }`}
+                >
+                  {MODE_INFO[m].label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <button
@@ -193,14 +229,19 @@ export function EngineeringWorkbench() {
         </p>
       </header>
 
-      {/* ── Main workspace: Visual column | Logic map ── */}
-      <div
-        className={`flex flex-1 flex-col gap-3 p-3 xl:flex-row ${
-          inspectorPinned ? "xl:pr-[392px]" : ""
-        }`}
-      >
-        {/* Visual column: parametric illustration + force-travel graph */}
-        <div className="flex w-full min-w-0 shrink-0 flex-col gap-3 xl:w-[36%] xl:max-w-[560px]">
+      {/* ── Main workspace ── */}
+      <div className={`flex-1 p-3 ${inspectorPinned ? "xl:pr-[392px]" : ""}`}>
+        {view === "overview" ? (
+          <Overview
+            values={solve.values}
+            selectedId={selectedId}
+            constraints={constraints}
+            onSelect={handleSelect}
+          />
+        ) : (
+          <div className="flex flex-col gap-3 xl:flex-row">
+            {/* Visual column: parametric illustration + force-travel graph */}
+            <div className="flex w-full min-w-0 shrink-0 flex-col gap-3 xl:w-[36%] xl:max-w-[560px]">
           <SpringStateIllustration
             values={solve.values}
             selectedId={selectedId}
@@ -292,7 +333,8 @@ export function EngineeringWorkbench() {
             </div>
           </details>
         </div>
-
+          </div>
+        )}
       </div>
 
       {/* ── Parameter inspector: pop-out drawer (pinnable, collapsed by default) ── */}
@@ -344,6 +386,7 @@ export function EngineeringWorkbench() {
             onValueChange={handleValueChange}
             onTogglePin={handleTogglePin}
             onSetDiameterMode={handleSetDiameterMode}
+            variant={view === "overview" ? "overview" : "engineering"}
           />
         </div>
       </div>

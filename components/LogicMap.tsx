@@ -72,13 +72,14 @@ function BlockNode({ data }: NodeProps<BlockNodeType>) {
   const isConstraint = data.kind === "constraint";
   return (
     <div
-      className={`w-[215px] rounded-lg border bg-white shadow-sm ${
+      className={`pointer-events-auto w-[215px] rounded-lg border bg-white shadow-sm ${
         data.violated
           ? "border-red-400 ring-2 ring-red-100"
           : isConstraint
             ? "border-dashed border-zinc-300"
             : "border-zinc-300"
       }`}
+      style={{ pointerEvents: "auto" }}
     >
       <Handle type="target" position={Position.Left} className="!bg-zinc-400" />
       <Handle type="source" position={Position.Right} className="!bg-zinc-400" />

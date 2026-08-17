@@ -21,8 +21,8 @@ export const PARAMETERS: ParameterDefinition[] = [
     category: "requirement",
     source: "Assumed / measured upstream — not derived by this calculator",
     min: 0,
-    max: 50,
-    step: 0.5,
+    max: 1200,
+    step: 10,
     whatIfIncrease:
       "A higher breakaway resistance means the hammer event must deliver more momentum/energy margin. This tool cannot verify sufficiency because peak dynamic contact force is not uniquely determined by spring force.",
     note: "Treated as ASSUMED. Verify by test or upstream analysis.",
@@ -37,8 +37,8 @@ export const PARAMETERS: ParameterDefinition[] = [
     category: "requirement",
     source: "Assumed / measured upstream",
     min: 0,
-    max: 50,
-    step: 0.5,
+    max: 600,
+    step: 5,
     whatIfIncrease:
       "More work must be done across the latch travel; the spring must keep enough residual force (F3) and the hammer enough energy through the stroke.",
     note: "Treated as ASSUMED.",
@@ -171,7 +171,7 @@ export const PARAMETERS: ParameterDefinition[] = [
     whatIfIncrease:
       "More stored force and energy, but shear stress τ rises proportionally — check stress utilization.",
     min: 0,
-    max: 100,
+    max: 250,
     step: 0.1,
   },
   {
@@ -220,7 +220,7 @@ export const PARAMETERS: ParameterDefinition[] = [
     whatIfIncrease:
       "Force falls off faster with travel (steeper F–x line): higher F1 for the same deflection, but F2 and F3 drop faster over the stroke. Wire diameter dominates: doubling d multiplies k by 16; increasing mean diameter D softens the spring with a cube-power effect.",
     min: 1,
-    max: 200,
+    max: 400,
     step: 0.5,
   },
   {
@@ -307,7 +307,7 @@ export const PARAMETERS: ParameterDefinition[] = [
     whatIfIncrease:
       "Spring rate rises with the FOURTH power of wire diameter — a 10% thicker wire is ~46% stiffer. Stress drops (∝1/d³) but solid height grows.",
     min: 0.02,
-    max: 0.15,
+    max: 0.25,
     step: 0.001,
   },
   {

@@ -25,3 +25,10 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* React Flow nodes are rendered with pointer-events disabled by default; restore
+   interaction on the node frame and its content so param buttons remain clickable. */
+.react-flow__node,
+.react-flow__node * {
+  pointer-events: auto !important;
+}

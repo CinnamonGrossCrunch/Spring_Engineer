@@ -13,6 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { formatLengthValue, formatValue } from "./StatusBadge";
+import { overviewName, overviewSym } from "./overview/overviewLabels";
 
 /**
  * "Spring Force Through Mechanism Travel"
@@ -29,6 +30,7 @@ export function ForceTravelChart({
   y_latch,
   F_latch_avg,
   onSelect,
+  simplified = false,
 }: {
   F1: number | undefined;
   F2: number | undefined;
@@ -37,6 +39,8 @@ export function ForceTravelChart({
   y_latch: number | undefined;
   F_latch_avg: number | undefined;
   onSelect: (id: string) => void;
+  /** Overview mode: plain-language vocabulary, phase labels, no assumed-latch overlay. */
+  simplified?: boolean;
 }) {
   const ready =
     F1 !== undefined &&
@@ -65,6 +69,16 @@ export function ForceTravelChart({
   const yMax = ready ? Math.max(F1, 1) * 1.15 : 1;
   const yMin = ready ? Math.min(F3, 0) : 0;
   const hasLatch = F_latch_avg !== undefined && Number.isFinite(F_latch_avg) && F_latch_avg > 0;
+  // The assumed latch-resistance overlay is engineering-only — it must never
+  // share the spring-force axis in the simplified Overview.
+  const showLatch = hasLatch && !simplified;
+  const xAxisLabel = simplified
+    ? "Mechanism travel (in / mm)"
+    : "Mechanism travel from max spring deflection (in / mm)";
+  const latchAreaLabel = simplified ? "Additional latch travel" : "latch travel";
+  const contactLineLabel = simplified ? "Hammer contact" : "2 · hammer contact";
+  const dotLabel = (id: "F1" | "F2" | "F3", force: number, engLabel: string) =>
+    simplified ? `${overviewSym(id)} = ${formatValue(force)} lbf` : engLabel;
 
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-4">
@@ -94,7 +108,7 @@ export function ForceTravelChart({
                   ticks={xTicks}
                   tickFormatter={(t: number) => formatLengthValue(t)}
                   label={{
-                    value: "Mechanism travel from max spring deflection (in / mm)",
+                    value: xAxisLabel,
                     position: "insideBottom",
                     offset: -8,
                     style: { fontSize: 11, fill: "#71717a" },
@@ -120,6 +134,20 @@ export function ForceTravelChart({
                   labelFormatter={(l) => `travel = ${formatLengthValue(Number(l))}`}
                   contentStyle={{ fontSize: 12 }}
                 />
+                {/* Hammer run-up phase (simplified view only) */}
+                {simplified && (
+                  <ReferenceArea
+                    x1={0}
+                    x2={s_h}
+                    fill="#3b82f6"
+                    fillOpacity={0.06}
+                    label={{
+                      value: "Hammer run-up",
+                      position: "insideTop",
+                      style: { fontSize: 10, fill: "#1d4ed8" },
+                    }}
+                  />
+                )}
                 {/* Latch-travel region */}
                 <ReferenceArea
                   x1={s_h}
@@ -127,7 +155,7 @@ export function ForceTravelChart({
                   fill="#f59e0b"
                   fillOpacity={0.08}
                   label={{
-                    value: "latch travel",
+                    value: latchAreaLabel,
                     position: "insideTop",
                     style: { fontSize: 10, fill: "#b45309" },
                   }}
@@ -137,13 +165,13 @@ export function ForceTravelChart({
                   stroke="#a1a1aa"
                   strokeDasharray="4 3"
                   label={{
-                    value: "2 · hammer contact",
+                    value: contactLineLabel,
                     position: "top",
                     style: { fontSize: 10, fill: "#52525b" },
                   }}
                 />
                 {F3 < 0 && <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="2 2" />}
-                {hasLatch && (
+                {showLatch && (
                   <ReferenceLine
                     y={F_latch_avg}
                     stroke="#7c3aed"
@@ -170,7 +198,7 @@ export function ForceTravelChart({
                   fill="#2563eb"
                   stroke="#fff"
                   label={{
-                    value: `F1 = ${formatValue(F1)} lbf (1 · max working deflection)`,
+                    value: dotLabel("F1", F1, `F1 = ${formatValue(F1)} lbf (1 · max working deflection)`),
                     position: "right",
                     style: { fontSize: 10, fill: "#1e40af" },
                   }}
@@ -182,7 +210,7 @@ export function ForceTravelChart({
                   fill="#059669"
                   stroke="#fff"
                   label={{
-                    value: `F2 = ${formatValue(F2)} lbf (2 · spring force at hammer contact)`,
+                    value: dotLabel("F2", F2, `F2 = ${formatValue(F2)} lbf (2 · spring force at hammer contact)`),
                     position: "top",
                     style: { fontSize: 10, fill: "#065f46" },
                   }}
@@ -194,7 +222,7 @@ export function ForceTravelChart({
                   fill="#b45309"
                   stroke="#fff"
                   label={{
-                    value: `F3 = ${formatValue(F3)} lbf (3 · latch follow-through)`,
+                    value: dotLabel("F3", F3, `F3 = ${formatValue(F3)} lbf (3 · latch follow-through)`),
                     position: "left",
                     style: { fontSize: 10, fill: "#92400e" },
                   }}
@@ -204,15 +232,15 @@ export function ForceTravelChart({
           </div>
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-500">
             <button className="hover:text-zinc-800" onClick={() => onSelect("F1")} type="button">
-              ● F1 · 1 max working deflection
+              ● {simplified ? `${overviewName("F1")} (${overviewSym("F1")})` : "F1 · 1 max working deflection"}
             </button>
             <button className="hover:text-zinc-800" onClick={() => onSelect("F2")} type="button">
-              ● F2 · 2 spring force at hammer contact
+              ● {simplified ? `${overviewName("F2")} (${overviewSym("F2")})` : "F2 · 2 spring force at hammer contact"}
             </button>
             <button className="hover:text-zinc-800" onClick={() => onSelect("F3")} type="button">
-              ● F3 · 3 latch follow-through
+              ● {simplified ? `${overviewName("F3")} (${overviewSym("F3")})` : "F3 · 3 latch follow-through"}
             </button>
-            {hasLatch && (
+            {showLatch && (
               <button
                 className="text-violet-600 hover:text-violet-800"
                 onClick={() => onSelect("F_latch_avg")}

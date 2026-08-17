@@ -108,3 +108,10 @@ export interface SolveResult {
 }
 
 export type DesignMode = "forward" | "reverse" | "explore";
+
+/**
+ * Presentation mode — orthogonal to DesignMode. Controls how the shared model
+ * is presented (distilled Overview vs. full Engineering workbench). Switching
+ * this NEVER mutates the model, solver state, statuses, equations or pins.
+ */
+export type PresentationView = "overview" | "engineering";

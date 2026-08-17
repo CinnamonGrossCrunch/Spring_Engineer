@@ -24,14 +24,28 @@ export function ParametricCompressionSpring({
   const geo = buildSpringPath(spec, centerX, bottomY, pxPerUnit);
   if (!geo) return null;
   return (
-    <path
-      d={geo.path}
-      fill="none"
-      stroke={stroke}
-      strokeWidth={geo.strokeWidthPx}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      opacity={highlighted ? 1 : 0.9}
-    />
+    <g opacity={highlighted ? 1 : 0.9}>
+      {/* Active coils: continuous wire with round joins/caps. */}
+      <path
+        d={geo.interiorPath}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={geo.strokeWidthPx}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Closed-and-ground terminal seats: flat, squared ends (butt caps). */}
+      {geo.seatPaths.map((seat, i) => (
+        <path
+          key={i}
+          d={seat}
+          fill="none"
+          stroke={stroke}
+          strokeWidth={geo.strokeWidthPx}
+          strokeLinecap="butt"
+          strokeLinejoin="round"
+        />
+      ))}
+    </g>
   );
 }
