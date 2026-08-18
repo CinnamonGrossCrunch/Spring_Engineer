@@ -175,8 +175,8 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
   const stateCards = ready
     ? [
         { n: 1, title: "Maximum Working Deflection", sub: "Starting state", accent: COLORS.force[0], forceLabel: "Starting force", F: F1, Fid: "F1", Fsym: "F1", L: L1, Lid: "L_min", Lsym: "L1" },
-        { n: 2, title: "Hammer Contact", sub: "after s_h run-up", accent: COLORS.force[1], forceLabel: "Spring force at contact", F: F2, Fid: "F2", Fsym: "F2", L: L2, Lid: "L2", Lsym: "L2" },
-        { n: 3, title: "HF Latch Follow-Through", sub: "additional y_latch travel", accent: COLORS.force[2], forceLabel: "After latch travel", F: F3, Fid: "F3", Fsym: "F3", L: L3, Lid: "L3", Lsym: "L3" },
+        { n: 2, title: "Hammer Contact", sub: "after sₕ run-up stroke", accent: COLORS.force[1], forceLabel: "Spring force at contact", F: F2, Fid: "F2", Fsym: "F2", L: L2, Lid: "L2", Lsym: "L2" },
+        { n: 3, title: "HF Latch Follow-Through", sub: "additional yₗ follow-through travel", accent: COLORS.force[2], forceLabel: "After latch follow-through", F: F3, Fid: "F3", Fsym: "F3", L: L3, Lid: "L3", Lsym: "L3" },
       ]
     : [];
 
@@ -434,7 +434,7 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
             ))}
           </div>
 
-          {/* Transition travel: s_h run-up (1→2) and additional latch travel (2→3) */}
+          {/* Transition travel: sₕ run-up stroke (1→2) and yₗ follow-through travel (2→3) */}
           <div className="relative mt-1.5 h-7">
             <button
               type="button"
@@ -459,7 +459,7 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
               }`}
             >
               <span className="text-zinc-400">─</span>
-              <span className="font-mono">+ y_latch = {inch(y_latch)}</span>
+              <span className="font-mono">+ yₗ = {inch(y_latch)}</span>
               <span aria-hidden className="text-zinc-400">▶</span>
             </button>
           </div>

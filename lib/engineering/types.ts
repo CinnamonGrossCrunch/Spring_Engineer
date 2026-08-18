@@ -115,3 +115,13 @@ export type DesignMode = "forward" | "reverse" | "explore";
  * this NEVER mutates the model, solver state, statuses, equations or pins.
  */
 export type PresentationView = "overview" | "engineering";
+
+/**
+ * Top-level workspace version — orthogonal to both DesignMode and
+ * PresentationView. V1 is the existing explorer (Overview / Engineering over a
+ * shared ModelState); V2 is a separate optimization workbench with its own
+ * scenario state (see lib/v2). Switching workspaces never mutates the other
+ * workspace's state. NOTE: this is deliberately NOT part of PresentationView —
+ * V2 is not a third presentation of the V1 ModelState.
+ */
+export type WorkspaceVersion = "v1" | "v2";

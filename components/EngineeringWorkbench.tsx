@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { DesignMode, ModelState, PresentationView } from "@/lib/engineering/types";
+import type { DesignMode, ModelState, PresentationView, WorkspaceVersion } from "@/lib/engineering/types";
 import { solveModel } from "@/lib/engineering/solver";
 import { evaluateConstraints } from "@/lib/engineering/constraints";
 import { PARAMETER_MAP } from "@/lib/engineering/parameters";
@@ -20,6 +20,7 @@ import { ForceTravelChart } from "./ForceTravelChart";
 import { ConstraintPanel } from "./ConstraintPanel";
 import { SpringStateIllustration } from "./SpringStateIllustration/SpringStateIllustration";
 import { Overview } from "./overview/Overview";
+import { V2Workbench } from "./v2/V2Workbench";
 
 const MODES: DesignMode[] = ["forward", "reverse", "explore"];
 const PRESETS: PresetId[] = ["literalSketch", "reconciledCandidate"];
@@ -35,6 +36,7 @@ const DIAMETER_IDS = ["D", "OD", "ID"] as const;
  * map, inspector, force-travel chart, constraint panel and energy lens.
  */
 export function EngineeringWorkbench() {
+  const [workspace, setWorkspace] = useState<WorkspaceVersion>("v1");
   const [mode, setMode] = useState<DesignMode>("forward");
   const [preset, setPreset] = useState<PresetId>(DEFAULT_PRESET);
   const [view, setView] = useState<PresentationView>("overview");
@@ -167,6 +169,21 @@ export function EngineeringWorkbench() {
     setModel(buildInitialState(mode, preset));
   }, [mode, preset]);
 
+  /**
+   * Explicit V2 → V1 bridge. Maps a selected V2 candidate (already built into a
+   * V1 ModelState by the caller) into the V1 workspace for auditing in the
+   * Engineering dependency graph. This is the ONLY path that lets V2 overwrite
+   * V1 state, and it only runs on an explicit user action.
+   */
+  const applyV2Candidate = useCallback((next: ModelState) => {
+    setModel(next);
+    setMode("explore");
+    setView("engineering");
+    setWorkspace("v1");
+    setSelectedId("k");
+    setInspectorOpen(true);
+  }, []);
+
   const display = (id: string) =>
     model[id]?.status === "derived" ? solve.values[id] : (model[id]?.value ?? solve.values[id]);
 
@@ -179,6 +196,36 @@ export function EngineeringWorkbench() {
             Spring Mechanism Explorer
           </h1>
 
+          {/* Workspace version — V1 Explorer vs V2 Optimize. Switching preserves
+              both workspaces' state (neither is unmounted). */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+              Workspace
+            </span>
+            <div className="flex overflow-hidden rounded-md border border-zinc-300 text-xs">
+              {([
+                { id: "v1", label: "V1 Explorer" },
+                { id: "v2", label: "V2 Optimize" },
+              ] as { id: WorkspaceVersion; label: string }[]).map((w) => (
+                <button
+                  key={w.id}
+                  type="button"
+                  onClick={() => setWorkspace(w.id)}
+                  aria-pressed={workspace === w.id}
+                  className={`px-3 py-1.5 font-medium transition-colors ${
+                    workspace === w.id
+                      ? "bg-violet-600 text-white"
+                      : "bg-white text-zinc-600 hover:bg-zinc-100"
+                  }`}
+                >
+                  {w.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {workspace === "v1" && (
+            <>
           {/* Presentation view — Overview (distilled) vs Engineering (full) */}
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
@@ -264,17 +311,28 @@ export function EngineeringWorkbench() {
           <span className="rounded border border-zinc-200 bg-zinc-50 px-2 py-1 font-mono text-[10.5px] text-zinc-500">
             Units: Imperial (in · lbf · psi · lbm · ft/s)
           </span>
+            </>
+          )}
 
           <span className="ml-auto text-[11px] italic text-zinc-400">
             Conceptual engineering model — verify final spring design with supplier
           </span>
         </div>
-        <p className="mt-1.5 text-[11px] text-zinc-500">
-          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">{exampleDataLabel(preset)}</span>
-          <span className="ml-2">{MODE_INFO[mode].blurb}</span>
-        </p>
+        {workspace === "v1" ? (
+          <p className="mt-1.5 text-[11px] text-zinc-500">
+            <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">{exampleDataLabel(preset)}</span>
+            <span className="ml-2">{MODE_INFO[mode].blurb}</span>
+          </p>
+        ) : (
+          <p className="mt-1.5 text-[11px] text-zinc-500">
+            Optimization workbench with its own scenario state — the V1 explorer&apos;s state is
+            preserved while you work here.
+          </p>
+        )}
       </header>
 
+      {/* ── V1 workspace body (kept mounted so V1 state persists on switch) ── */}
+      <div className={workspace === "v1" ? "contents" : "hidden"}>
       {/* ── Main workspace ── */}
       <div className={`flex-1 p-3 ${inspectorPinned ? "xl:pr-[392px]" : ""}`}>
         {view === "overview" ? (
@@ -502,6 +560,12 @@ export function EngineeringWorkbench() {
           </div>
         </div>
       )}
+      </div>
+
+      {/* ── V2 workspace body (kept mounted so V2 scenario state persists) ── */}
+      <div className={workspace === "v2" ? "contents" : "hidden"}>
+        <V2Workbench onInspectCandidate={applyV2Candidate} />
+      </div>
     </div>
   );
 }

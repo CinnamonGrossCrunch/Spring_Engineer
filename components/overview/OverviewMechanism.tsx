@@ -178,8 +178,8 @@ export function OverviewMechanism({ values, selectedId, constraints, onSelect, p
 
   const stateTitles = [
     { n: 1, title: "Maximum Working Deflection", sub: "Starting state", accent: FORCE_COLORS[0] },
-    { n: 2, title: "Hammer Contact", sub: "After hammer run-up", accent: FORCE_COLORS[1] },
-    { n: 3, title: "HF Latch Follow-Through", sub: "After additional latch travel", accent: FORCE_COLORS[2] },
+    { n: 2, title: "Hammer Contact", sub: "After hammer run-up stroke", accent: FORCE_COLORS[1] },
+    { n: 3, title: "HF Latch Follow-Through", sub: "After additional latch follow-through travel", accent: FORCE_COLORS[2] },
   ];
 
   const stateCallouts = [

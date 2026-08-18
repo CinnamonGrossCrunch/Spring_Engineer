@@ -1,4 +1,5 @@
 import type { ParameterDefinition } from "./types";
+import { canonicalName, canonicalSym } from "./nomenclature";
 
 /**
  * Parameter catalog for the spring-driven hammer/latch mechanism.
@@ -45,8 +46,8 @@ export const PARAMETERS: ParameterDefinition[] = [
   },
   {
     id: "y_latch",
-    symbol: "y_latch",
-    name: "Latch release travel",
+    symbol: canonicalSym("y_latch"),
+    name: canonicalName("y_latch"),
     description:
       "Additional travel after hammer contact needed to fully release the latch. The spring is assumed to keep driving the hammer through this travel (V1 assumption).",
     unit: "in",
@@ -76,8 +77,8 @@ export const PARAMETERS: ParameterDefinition[] = [
   },
   {
     id: "s_h",
-    symbol: "s_h",
-    name: "Hammer run-up stroke",
+    symbol: canonicalSym("s_h"),
+    name: canonicalName("s_h"),
     description:
       "Distance the spring accelerates the hammer before it reaches the latch contact point. V1 assumes 1:1 spring-to-hammer displacement.",
     unit: "in",
@@ -108,8 +109,8 @@ export const PARAMETERS: ParameterDefinition[] = [
   },
   {
     id: "W_run",
-    symbol: "W_run",
-    name: "Spring work over run-up",
+    symbol: canonicalSym("W_run"),
+    name: canonicalName("W_run"),
     description:
       "Work done by the (linear) spring on the hammer during the run-up stroke: the area under the force-deflection line from F1 to F2.",
     unit: "in·lbf",

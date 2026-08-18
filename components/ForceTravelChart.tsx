@@ -75,7 +75,7 @@ export function ForceTravelChart({
   const xAxisLabel = simplified
     ? "Mechanism travel (in / mm)"
     : "Mechanism travel from max spring deflection (in / mm)";
-  const latchAreaLabel = simplified ? "Additional latch travel" : "latch travel";
+  const latchAreaLabel = "Latch follow-through travel";
   const contactLineLabel = simplified ? "Hammer contact" : "2 · hammer contact";
   const dotLabel = (id: "F1" | "F2" | "F3", force: number, engLabel: string) =>
     simplified ? `${overviewSym(id)} = ${formatValue(force)} lbf` : engLabel;
@@ -142,7 +142,7 @@ export function ForceTravelChart({
                     fill="#3b82f6"
                     fillOpacity={0.06}
                     label={{
-                      value: "Hammer run-up",
+                      value: "Hammer run-up stroke",
                       position: "insideTop",
                       style: { fontSize: 10, fill: "#1d4ed8" },
                     }}

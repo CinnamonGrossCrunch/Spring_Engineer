@@ -24,6 +24,11 @@ import {
   type SpringPathResult,
   type SpringPathSpec,
 } from "../../components/SpringStateIllustration/springSvgGeometry";
+import { evaluateV2Candidate, classifyStressBand } from "../v2/evaluateCandidate";
+import { sweepV2DesignSpace, buildRange } from "../v2/sweepDesignSpace";
+import { computePareto } from "../v2/pareto";
+import { DEFAULT_V2_SCENARIO, computeHistoricalReference } from "../v2/defaults";
+import type { V2Candidate, V2Scenario } from "../v2/types";
 
 let failures = 0;
 
@@ -352,6 +357,174 @@ console.log("\n── Determinism ───────────────�
   const a = solveModel(buildInitialState("forward", "literalSketch"));
   const b = solveModel(buildInitialState("forward", "literalSketch"));
   assert("determinism", JSON.stringify(a) === JSON.stringify(b));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// V2 OPTIMIZATION WORKBENCH
+// V2 is a separate workflow. These tests never touch the V1 model above.
+// ═════════════════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────────────────────────────────
+// V2 (a) — Candidate geometry / packaging / force / work relationships.
+// A single representative candidate is checked against every governing
+// relationship (all self-consistent with the shared spring helpers).
+// ─────────────────────────────────────────────────────────────────────────
+console.log("\n── V2 (a) Candidate evaluator relationships ──────────────────");
+{
+  const sc = DEFAULT_V2_SCENARIO;
+  const d = 0.147;
+  const Na = 3.5;
+  const c = evaluateV2Candidate(sc, d, Na);
+  const OD = sc.outerDiameter;
+  const B = sc.axialBudget;
+  const y = sc.latchTravel;
+
+  // Geometry (OD locked)
+  check("V2 D = OD − d", c.D, OD - d, 0.001);
+  check("V2 ID = OD − 2d", c.ID, OD - 2 * d, 0.001);
+  check("V2 Nt = Na + 2", c.Nt, Na + 2, 0.001);
+
+  // Solid height
+  check("V2 Hs_nom = Nt·d", c.HsNom, c.Nt * d, 0.001);
+  check("V2 Hs_max = 1.05·Hs_nom", c.HsMax, 1.05 * c.HsNom, 0.001);
+  check("V2 Lc = Hs_max + c_extra", c.Lc, c.HsMax + sc.extraSolidClearance, 0.001);
+
+  // Axial budget: Lc + s = B (within floating tolerance)
+  assert("V2 Lc + s = B (1.150)", Math.abs(c.Lc + c.s - B) < 1e-9);
+  check("V2 B constant → L2 = B", c.L2, B, 0.001);
+  check("V2 L3 = B + y", c.L3, B + y, 0.001);
+
+  // Starting deflection + free length (F0 evaluated AT the cap)
+  check("V2 F0 = force cap", c.F0, sc.forceCap, 0.001);
+  check("V2 x0 = F0/k", c.x0, c.F0 / c.k, 0.001);
+  check("V2 Lf = Lc + x0", c.Lf, c.Lc + c.x0, 0.001);
+
+  // Forces
+  check("V2 F2 = F0 − k·s", c.F2, c.F0 - c.k * c.s, 0.001);
+  check("V2 F3 = F0 − k·(s+y)", c.F3, c.F0 - c.k * (c.s + y), 0.001);
+
+  // Work
+  check("V2 W_hammer = F0·s − ½·k·s²", c.Whammer, c.F0 * c.s - 0.5 * c.k * c.s * c.s, 0.001);
+  check("V2 W_latch = F2·y − ½·k·y²", c.Wlatch, c.F2 * y - 0.5 * c.k * y * y, 0.001);
+  check("V2 W_release_ideal = W_hammer + W_latch", c.WreleaseIdeal, c.Whammer + c.Wlatch, 0.001);
+
+  // Force-equivalent proxies (ideal, NOT contact force)
+  check("V2 F_eq_avg_ideal = W_release/y", c.FeqAvgIdeal, c.WreleaseIdeal / y, 0.001);
+  check("V2 F_eq_tri_peak = 2·F_eq_avg", c.FeqTriPeakIdeal, 2 * c.FeqAvgIdeal, 0.001);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// V2 (b) — Historical whiteboard reconstruction lands near ~450 / ~900.
+// Using F0=140, k=280, s=0.250, y=0.070. Not required to hit exactly.
+// ─────────────────────────────────────────────────────────────────────────
+console.log("\n── V2 (b) Historical whiteboard reconstruction ──────────────");
+{
+  const h = computeHistoricalReference();
+  check("V2 historical W_hammer", h.Whammer, 26.25, 1);
+  check("V2 historical W_latch", h.Wlatch, 4.214, 1);
+  assert(
+    `V2 historical F_eq_avg_ideal ≈ 450 neighborhood (got ${h.FeqAvgIdeal.toFixed(1)})`,
+    h.FeqAvgIdeal > 400 && h.FeqAvgIdeal < 480,
+  );
+  assert(
+    `V2 historical F_eq_tri_peak ≈ 900 neighborhood (got ${h.FeqTriPeakIdeal.toFixed(1)})`,
+    h.FeqTriPeakIdeal > 800 && h.FeqTriPeakIdeal < 960,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// V2 (c) — Lee stress-guidance band classification (design guidance, NOT
+// yield/ultimate). Boundaries: ≤40% low · >40–60% set · >60% redesign.
+// ─────────────────────────────────────────────────────────────────────────
+console.log("\n── V2 (c) Stress band classification ────────────────────────");
+{
+  assert("V2 stress 30% → low", classifyStressBand(0.3) === "low");
+  assert("V2 stress 40% (boundary) → low", classifyStressBand(0.4) === "low");
+  assert("V2 stress 50% → set", classifyStressBand(0.5) === "set");
+  assert("V2 stress 60% (boundary) → set", classifyStressBand(0.6) === "set");
+  assert("V2 stress 70% → redesign", classifyStressBand(0.7) === "redesign");
+
+  // The default sweep spans enough of the space to produce every band.
+  const sweep = sweepV2DesignSpace(DEFAULT_V2_SCENARIO);
+  const bands = new Set(sweep.candidates.map((c) => c.feasibility.stressBand));
+  assert("V2 sweep produces a low-stress region", bands.has("low"));
+  assert("V2 sweep produces a set (40–60%) region", bands.has("set"));
+  assert("V2 sweep produces a redesign (>60%) region", bands.has("redesign"));
+  assert(
+    "V2 feasible set excludes every >60% redesign candidate",
+    sweep.feasible.every((c) => c.feasibility.stressBand !== "redesign"),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// V2 (d) — Pareto frontier on a tiny synthetic set: dominated points removed.
+// Dimensions are (W_hammer, W_latch).
+// ─────────────────────────────────────────────────────────────────────────
+console.log("\n── V2 (d) Pareto frontier ───────────────────────────────────");
+{
+  const mk = (key: string, Whammer: number, Wlatch: number): V2Candidate =>
+    ({ key, Whammer, Wlatch } as unknown as V2Candidate);
+  const set = [
+    mk("A", 10, 1), // frontier (max hammer work)
+    mk("B", 1, 10), // frontier (max latch work)
+    mk("C", 5, 5), // frontier (not dominated by A or B)
+    mk("D", 4, 4), // dominated by C (5≥4, 5≥4, strictly better)
+  ];
+  const front = computePareto(set);
+  assert("V2 pareto keeps A", front.has("A"));
+  assert("V2 pareto keeps B", front.has("B"));
+  assert("V2 pareto keeps C", front.has("C"));
+  assert("V2 pareto removes dominated D", !front.has("D"));
+  assert("V2 pareto frontier size = 3", front.size === 3);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// V2 (e) — Sweep grid + determinism. Same scenario → identical results/order.
+// ─────────────────────────────────────────────────────────────────────────
+console.log("\n── V2 (e) Sweep grid + determinism ──────────────────────────");
+{
+  const r = buildRange(0.12, 0.18, 0.001);
+  assert("V2 buildRange inclusive count (0.120→0.180 @0.001 = 61)", r.length === 61);
+  check("V2 buildRange first = 0.120", r[0], 0.12, 0.001);
+  check("V2 buildRange last = 0.180", r[r.length - 1], 0.18, 0.001);
+
+  const a = sweepV2DesignSpace(DEFAULT_V2_SCENARIO);
+  const b = sweepV2DesignSpace(DEFAULT_V2_SCENARIO);
+  assert("V2 sweep count = wire × coils", a.totalCount === a.wireValues.length * a.coilValues.length);
+  assert("V2 sweep is deterministic (identical results + order)", JSON.stringify(a) === JSON.stringify(b));
+  assert("V2 sweep finds feasible candidates", a.feasibleCount > 0);
+  assert("V2 sweep suggests a default candidate", a.defaultKey !== null);
+
+  // The suggested default is the feasible candidate with max ideal release equiv.
+  const def = a.candidates.find((c) => c.key === a.defaultKey);
+  assert("V2 default candidate is feasible", def?.feasibility.feasible === true);
+  const maxFeq = Math.max(...a.feasible.map((c) => c.FeqAvgIdeal));
+  assert(
+    "V2 default candidate maximizes ideal release equivalent",
+    def !== undefined && Math.abs(def.FeqAvgIdeal - maxFeq) < 1e-9,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// V2 (f) — Independence from V1: the 900/450 lbf latch numbers are NEVER used
+// as constraints, and V2 does not read the V1 required_clearance / tau_allow.
+// ─────────────────────────────────────────────────────────────────────────
+console.log("\n── V2 (f) V1 independence ───────────────────────────────────");
+{
+  // Changing OD alone (a study assumption) shifts the feasible set — proving V2
+  // derives everything from its own scenario, not V1 pins.
+  const wide: V2Scenario = { ...DEFAULT_V2_SCENARIO, outerDiameter: 1.3 };
+  const base = sweepV2DesignSpace(DEFAULT_V2_SCENARIO);
+  const alt = sweepV2DesignSpace(wide);
+  assert("V2 responds to its own scenario (OD change alters feasible count)", base.feasibleCount !== alt.feasibleCount);
+
+  // extraSolidClearance eats the axial budget → fewer positive-run-up candidates.
+  const tight: V2Scenario = { ...DEFAULT_V2_SCENARIO, extraSolidClearance: 0.2 };
+  const tightSweep = sweepV2DesignSpace(tight);
+  assert(
+    "V2 extra clearance reduces the run-up budget (feasible count drops)",
+    tightSweep.feasibleCount < base.feasibleCount,
+  );
 }
 
 if (failures > 0) {

@@ -20,6 +20,15 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Engineering nomenclature
+
+To keep V1/V2 terminology consistent, UI labels and symbols should use the shared
+canonical map in `lib/engineering/nomenclature.ts`.
+
+- Use `canonicalName(id)` for human-readable parameter names.
+- Use `canonicalSym(id)` for display symbols (including unicode subscripts).
+- Do not duplicate ad-hoc label/symbol strings when a canonical mapping exists.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
