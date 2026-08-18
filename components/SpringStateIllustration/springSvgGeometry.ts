@@ -3,8 +3,15 @@
  *
  * This module contains NO engineering equations — it only maps
  * already-solved engineering values (wire diameter, mean diameter, total
- * coils, current loaded length) into an SVG path. The engineering model
+ * coils, current loaded length) into SVG path segments. The engineering model
  * (lib/engineering) remains the single source of truth.
+ *
+ * The helix is decomposed into alternating FRONT and BACK half-turn segments so
+ * the renderer can draw the back-facing wire first and the front-facing wire on
+ * top — giving a woven, overlapping look with real depth. A closed-and-ground
+ * compression spring contains NO straight wire spanning the diameter, so no
+ * horizontal full-width "seat" element is produced; flat ground faces come from
+ * clipping the terminal coils at the seating planes (see topSeatY / bottomSeatY).
  */
 
 export interface SpringPathSpec {
@@ -28,37 +35,48 @@ export function isRenderableSpring(spec: SpringPathSpec): boolean {
 
 export interface SpringPathResult {
   /**
-   * SVG path data for the active (interior) helix. Rendered with round joins
-   * and caps so the wire reads as a continuous coil.
+   * Half-turn segments whose wire faces AWAY from the viewer (depth z > 0).
+   * Drawn FIRST so the front-facing wire overlaps them.
    */
-  interiorPath: string;
+  backSegments: string[];
   /**
-   * Flat, closed-and-ground terminal seats: [bottomSeat, topSeat]. Rendered
-   * with BUTT line caps so the ends read as squared ground faces rather than
-   * bulbous rounded tips. The bottom seat lies exactly on the datum (bottomY).
+   * Half-turn segments whose wire faces the viewer (depth z < 0).
+   * Drawn AFTER the back segments so overlapping turns read correctly.
    */
-  seatPaths: string[];
+  frontSegments: string[];
   /**
    * Rendered wire thickness in px. Visual-only clamp: a minimum of 1.25 px
-   * keeps very thin wire visible on screen. This clamp NEVER feeds back
-   * into the engineering model — it is purely presentational.
+   * keeps very thin wire visible on screen. This clamp NEVER feeds back into
+   * the engineering model — it is purely presentational.
    */
   strokeWidthPx: number;
+  /** Y of the top seating plane (top of the spring at the current length). */
+  topSeatY: number;
+  /** Y of the bottom seating plane (the datum the spring rests on). */
+  bottomSeatY: number;
+  /** Left edge x of the clip band (coil left extreme minus wire radius). */
+  leftX: number;
+  /** Right edge x of the clip band (coil right extreme plus wire radius). */
+  rightX: number;
 }
 
+const sgn = (z: number): 1 | -1 => (z >= 0 ? 1 : -1);
+
 /**
- * Build a stylized elevation of a compression spring.
+ * Build a stylized elevation of a closed-and-ground compression spring.
  *
- * The active coils are drawn as a sinusoidal centerline:
+ * Helix centerline:
  *
- *   x(φ) = centerX + (D/2)·px · sin(2π·φ)      φ ∈ [0, N_t]
- *   y(φ) = bottomY − height(φ)·px
+ *   x(φ) = centerX + (D/2)·px · sin(2π·φ)          φ ∈ [0, N_t]
+ *   y(φ) = bottomY − cumulativePitch(φ)·px
+ *   z(φ) = cos(2π·φ)         (depth: >0 back, <0 front)
  *
- * inset from the extreme ends by a small `seatRise`. Closed-and-ground ends
- * are then represented by SEPARATE flat terminal seats: a horizontal ground
- * face at the datum (bottom) and at the top plane, each finished with a butt
- * cap so the ends look squared/flat rather than rounded. The drawn turn count
- * always equals N_t (never distorted), and the bottom seat sits on the datum.
+ * The pitch is reduced over the first and last ~0.75 turn so the closed-and-
+ * ground terminal coils nest toward the seating planes. The bottom terminal
+ * coil centerline reaches the datum (bottomY) and the top terminal coil reaches
+ * the top plane (bottomY − L·px); the renderer clips at those planes to produce
+ * flat ground faces WITHOUT drawing any horizontal diameter-spanning wire. The
+ * drawn turn count always equals N_t (never distorted).
  *
  * Returns null when the spec is invalid or would produce NaN/Infinity.
  */
@@ -73,62 +91,98 @@ export function buildSpringPath(
 
   const amplitude = (D / 2) * pxPerUnit;
   const totalH = L * pxPerUnit;
-  if (totalH <= 0) return null;
+  if (!Number.isFinite(amplitude) || !Number.isFinite(totalH) || totalH <= 0) return null;
   const strokeWidthPx = Math.max(1.25, d * pxPerUnit);
 
-  // Vertical span consumed by each flat ground seat (near-solid terminal coil).
-  // Kept small so the seats hug the datum / top plane.
-  const seatRise = Math.min(Math.max(strokeWidthPx * 0.9, 3), totalH * 0.16);
-  const bodyH = Math.max(totalH - 2 * seatRise, totalH * 0.4);
-
-  // Active-coil easing: compress ~0.75 coil at each end toward the seat so the
-  // helix transitions smoothly into the flat ground faces. Interior coils share
-  // the remaining body height uniformly. Turn count stays N_t.
+  // Reduced-pitch closed-and-ground ends: ~0.75 turn at each end winds down to
+  // a low residual pitch so the terminal coils sit close together (nested).
   const endCoils = Math.min(0.75, Nt / 4);
-  const endH = Math.min(strokeWidthPx, bodyH / 4);
-  const innerCoils = Nt - 2 * endCoils;
-  const innerH = bodyH - 2 * endH;
-
-  const easeH = (phi: number): number => {
-    if (innerCoils <= 0 || innerH <= 0) return (phi / Nt) * bodyH; // fallback: uniform pitch
-    if (phi <= endCoils) return (phi / endCoils) * endH;
-    if (phi >= Nt - endCoils) {
-      return bodyH - endH + ((phi - (Nt - endCoils)) / endCoils) * endH;
-    }
-    return endH + ((phi - endCoils) / innerCoils) * innerH;
+  const END_PITCH = 0.18; // residual pitch fraction inside the end regions
+  const pitchAt = (phi: number): number => {
+    if (Nt <= 2 * endCoils || endCoils <= 0) return 1;
+    if (phi < endCoils) return END_PITCH + (1 - END_PITCH) * (phi / endCoils);
+    if (phi > Nt - endCoils)
+      return END_PITCH + (1 - END_PITCH) * ((Nt - phi) / endCoils);
+    return 1;
   };
 
-  const samples = Math.max(64, Math.ceil(Nt * 28));
-  const pts: string[] = [];
-  for (let i = 0; i <= samples; i++) {
-    const phi = (i / samples) * Nt;
-    const x = centerX + amplitude * Math.sin(2 * Math.PI * phi);
-    const y = bottomY - (seatRise + easeH(phi)); // height in px above datum
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-    pts.push(`${x.toFixed(2)},${y.toFixed(2)}`);
+  const samples = Math.max(120, Math.ceil(Nt * 36));
+  const dphi = Nt / samples;
+
+  // Trapezoidal cumulative pitch, normalized so y spans exactly [top, datum].
+  const cum: number[] = new Array(samples + 1);
+  cum[0] = 0;
+  let prevP = pitchAt(0);
+  for (let i = 1; i <= samples; i++) {
+    const p = pitchAt(i * dphi);
+    cum[i] = cum[i - 1] + ((prevP + p) / 2) * dphi;
+    prevP = p;
   }
+  const totalCum = cum[samples];
+  if (!Number.isFinite(totalCum) || totalCum <= 0) return null;
 
-  const bottomSeatY = bottomY; // flat ground face on the datum
-  const topSeatY = bottomY - totalH; // flat ground face at the top plane
-  const bodyBottomY = bottomY - seatRise;
-  const bodyTopY = topSeatY + seatRise;
-  const xTop = centerX + amplitude * Math.sin(2 * Math.PI * Nt); // body top endpoint x
+  const pointAt = (i: number): { x: number; y: number; z: number } => {
+    const phi = i * dphi;
+    const x = centerX + amplitude * Math.sin(2 * Math.PI * phi);
+    const y = bottomY - (cum[i] / totalCum) * totalH;
+    const z = Math.cos(2 * Math.PI * phi);
+    return { x, y, z };
+  };
 
-  const left = (centerX - amplitude).toFixed(2);
-  const right = (centerX + amplitude).toFixed(2);
-  const cx = centerX.toFixed(2);
+  // Crossing point where depth changes sign (z = 0) between samples i-1 and i.
+  const crossing = (i: number, z0: number, z1: number) => {
+    const t = z0 / (z0 - z1);
+    const phi0 = (i - 1) * dphi;
+    const phiC = phi0 + t * dphi;
+    const hC = cum[i - 1] + t * (cum[i] - cum[i - 1]);
+    return {
+      x: centerX + amplitude * Math.sin(2 * Math.PI * phiC),
+      y: bottomY - (hC / totalCum) * totalH,
+    };
+  };
 
-  // Each seat = a flat ground face + a short curl connecting it to the body.
-  const bottomSeatPath =
-    `M ${left} ${bottomSeatY.toFixed(2)} L ${right} ${bottomSeatY.toFixed(2)} ` +
-    `M ${right} ${bottomSeatY.toFixed(2)} Q ${right} ${bodyBottomY.toFixed(2)} ${cx} ${bodyBottomY.toFixed(2)}`;
-  const topSeatPath =
-    `M ${left} ${topSeatY.toFixed(2)} L ${right} ${topSeatY.toFixed(2)} ` +
-    `M ${right} ${topSeatY.toFixed(2)} Q ${right} ${bodyTopY.toFixed(2)} ${xTop.toFixed(2)} ${bodyTopY.toFixed(2)}`;
+  const backSegments: string[] = [];
+  const frontSegments: string[] = [];
+
+  const first = pointAt(0);
+  if (!Number.isFinite(first.x) || !Number.isFinite(first.y)) return null;
+
+  let curSign = sgn(first.z);
+  let curPts: string[] = [`${first.x.toFixed(2)},${first.y.toFixed(2)}`];
+
+  const flush = (sign: 1 | -1, pts: string[]) => {
+    if (pts.length < 2) return; // a lone point draws nothing
+    const path = `M ${pts.join(" L ")}`;
+    (sign > 0 ? backSegments : frontSegments).push(path);
+  };
+
+  let prev = first;
+  for (let i = 1; i <= samples; i++) {
+    const p = pointAt(i);
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return null;
+    const s = sgn(p.z);
+    if (s !== curSign) {
+      // Insert the exact depth-crossing point so segments meet seamlessly.
+      const c = crossing(i, prev.z, p.z);
+      const cStr = `${c.x.toFixed(2)},${c.y.toFixed(2)}`;
+      curPts.push(cStr);
+      flush(curSign, curPts);
+      curSign = s;
+      curPts = [cStr, `${p.x.toFixed(2)},${p.y.toFixed(2)}`];
+    } else {
+      curPts.push(`${p.x.toFixed(2)},${p.y.toFixed(2)}`);
+    }
+    prev = p;
+  }
+  flush(curSign, curPts);
 
   return {
-    interiorPath: `M ${pts.join(" L ")}`,
-    seatPaths: [bottomSeatPath, topSeatPath],
+    backSegments,
+    frontSegments,
     strokeWidthPx,
+    topSeatY: bottomY - totalH,
+    bottomSeatY: bottomY,
+    leftX: centerX - amplitude - strokeWidthPx,
+    rightX: centerX + amplitude + strokeWidthPx,
   };
 }

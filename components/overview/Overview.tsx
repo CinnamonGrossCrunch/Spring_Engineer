@@ -1,6 +1,7 @@
 "use client";
 
 import type { ConstraintResult } from "@/lib/engineering/types";
+import type { PresetId } from "@/data/exampleModel";
 import { ForceTravelChart } from "../ForceTravelChart";
 import { OverviewMechanism } from "./OverviewMechanism";
 import { OverviewConceptCards } from "./OverviewConceptCards";
@@ -18,11 +19,13 @@ export function Overview({
   selectedId,
   constraints,
   onSelect,
+  presetId,
 }: {
   values: Record<string, number | undefined>;
   selectedId: string | null;
   constraints: ConstraintResult[];
   onSelect: (id: string) => void;
+  presetId: PresetId;
 }) {
   return (
     <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-3">
@@ -31,6 +34,7 @@ export function Overview({
         selectedId={selectedId}
         constraints={constraints}
         onSelect={onSelect}
+        presetId={presetId}
       />
 
       <ForceTravelChart

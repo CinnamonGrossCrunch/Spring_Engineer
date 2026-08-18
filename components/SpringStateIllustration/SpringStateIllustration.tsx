@@ -29,9 +29,13 @@ const BOTTOM_PAD = 46;
 
 const COLORS = {
   spring: "#3f3f46",
+  springSteelFront: "#52525b",
+  springSteelBack: "#71717a",
   springNear: "#d97706",
   springViolated: "#dc2626",
+  springViolatedBack: "#f87171",
   springSelected: "#1d4ed8",
+  springSelectedBack: "#60a5fa",
   dim: "#71717a",
   dimSelected: "#1d4ed8",
   hammerFill: "#ccfbf1",
@@ -142,18 +146,20 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
     return { hammerH, hammerW, latchH, latchW, colW, pxPerUnit, baselineY };
   })();
 
-  // Coil-bind visual status sourced from the existing constraint (display only).
-  const springColor = (() => {
-    if (coilBind && !coilBind.ok) return COLORS.springViolated;
-    if (
-      L1 !== undefined &&
-      Hs !== undefined &&
-      L1 - Hs < 2 * reqClear // near solid height → amber (display heuristic only)
-    )
-      return COLORS.springNear;
+  // Near-solid-height advisory (display only). A near-limit spring is NOT
+  // recolored bright amber — it stays neutral steel and surfaces a small badge.
+  const solidMargin = L1 !== undefined && Hs !== undefined ? L1 - Hs : undefined;
+  const nearSolid =
+    (!coilBind || coilBind.ok) && solidMargin !== undefined && solidMargin < 2 * reqClear;
+
+  // Default is neutral steel with cylindrical depth shading. Only an actual
+  // coil-bind failure (red) or an active geometry selection (blue) recolors it.
+  const springPalette = (() => {
+    if (coilBind && !coilBind.ok)
+      return { front: COLORS.springViolated, back: COLORS.springViolatedBack };
     if (selectedId && ["d", "D", "OD", "ID", "Nt", "Na"].includes(selectedId))
-      return COLORS.springSelected;
-    return COLORS.spring;
+      return { front: COLORS.springSelected, back: COLORS.springSelectedBack };
+    return { front: COLORS.springSteelFront, back: COLORS.springSteelBack };
   })();
 
   const geometryItems = [
@@ -188,6 +194,11 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
           {coilBind && !coilBind.ok && (
             <span className="rounded border border-red-300 bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
               Coil bind
+            </span>
+          )}
+          {nearSolid && solidMargin !== undefined && (
+            <span className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+              Solid-height margin: {formatValue(solidMargin)} in
             </span>
           )}
         </div>
@@ -271,7 +282,7 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
                             centerX={cx}
                             bottomY={baselineY}
                             pxPerUnit={pxPerUnit}
-                            stroke={springColor}
+                            colors={springPalette}
                             highlighted={selectedId === s.Lid}
                           />
                         </g>

@@ -3,50 +3,46 @@ import type { DesignMode, ModelState, ParameterStatus } from "@/lib/engineering/
 /**
  * Example values — NOT design recommendations.
  *
- * Generic illustrative numbers chosen to produce a valid spring model.
- * They are deliberately NOT tied to any real project.
+ * Two side-by-side concepts are provided and never conflated:
+ *
+ *   A. "Bokaie Original Sketch — Literal"  (default, historical reference)
+ *      The whiteboard read faithfully. Geometry is fed literally and the
+ *      spring RATE / FORCES are DERIVED from it. The separately-written
+ *      performance targets (k ≈ 280 lbf/in, F₁ ≈ 140 lbf) are intentionally
+ *      NOT pinned, so the tool can expose whether the literal geometry
+ *      actually produces them — it does not.
+ *
+ *   B. "Reconciled Candidate"
+ *      One equation-consistent design that DOES meet the performance targets
+ *      within the stress and solid-height limits (thinner wire, more coils).
+ *      This is NOT "what Michael sketched"; it is one feasible candidate.
+ *
+ * See PRESET_PROVENANCE for the explicit three-tier split (original sketch
+ * value vs. solver-derived value vs. reconciled-candidate value).
  */
 
 type Preset = Record<string, { value?: number; status: ParameterStatus }>;
 
-/**
- * "Bokaie Nominal — Functional Concept" preset.
- *
- * The FORCE / TRAVEL values are the primary nominal functional concept. The
- * rough whiteboard radial geometry (ID ≈ 0.780, OD ≈ 1.110, wire ≈ 0.17 in) is
- * intentionally NOT forced in — a 0.17 in wire cannot simultaneously satisfy
- * k ≈ 280 lbf/in AND clear solid height at the 0.900 in loaded length
- * (H_s ≈ N_t·d would exceed L_min → coil bind). The geometry below is therefore
- * RECONCILED to the spring equations, material properties, stress limit and
- * solid-height constraint. See PRESET_PROVENANCE for the explicit split between:
- *   1. functional requirement   (primary — force & travel targets)
- *   2. rough sketch geometry     (whiteboard radial targets, not authoritative)
- *   3. solver-reconciled geometry (what actually satisfies the equations)
- */
-const BASE_INPUTS: Preset = {
-  // ── (1) ASSUMED upstream latch resistance — NOT derived by this calculator ──
+export type PresetId = "literalSketch" | "reconciledCandidate";
+export const DEFAULT_PRESET: PresetId = "literalSketch";
+
+/** Upstream / installation assumptions shared by both concepts. */
+const COMMON_INPUTS: Preset = {
+  // ── ASSUMED upstream latch resistance — NOT derived by this calculator ──
   F_latch_peak: { value: 900, status: "assumed" },
   F_latch_avg: { value: 450, status: "assumed" },
 
-  // ── (1) FUNCTIONAL travel requirements ──
-  y_latch: { value: 0.07, status: "assumed" }, // additional latch travel
+  // ── Travel requirements ──
+  y_latch: { value: 0.07, status: "variable" }, // additional latch travel
   s_h: { value: 0.25, status: "variable" }, // hammer run-up before contact
 
   // Hammer / impact regime
   m: { value: 0.28, status: "variable" },
   eta: { value: 0.9, status: "assumed" },
 
-  // ── (1) FUNCTIONAL installation / deflection requirements ──
+  // ── Installation / deflection requirements ──
   L_free: { value: 1.4, status: "variable" }, // free length
   x1: { value: 0.5, status: "variable" }, // max working deflection → L_min = 0.900 in
-
-  // ── (3) RECONCILED spring geometry (see header note + PRESET_PROVENANCE) ──
-  // Reconciled to hit k ≈ 280 lbf/in and F1 ≈ 140 lbf while keeping solid
-  // height clear of the 0.900 in loaded length. The sketch wire (≈0.17 in) is
-  // deliberately thinned to ≈0.147 in so the design is physically feasible.
-  d: { value: 0.147, status: "variable" },
-  D: { value: 0.88, status: "variable" },
-  Na: { value: 3.5, status: "variable" },
 
   // Material / stress property
   G: { value: 11.5e6, status: "assumed" },
@@ -55,6 +51,52 @@ const BASE_INPUTS: Preset = {
   // Constraint margin
   required_clearance: { value: 0.05, status: "variable" },
 };
+
+/**
+ * A — BOKAIE ORIGINAL SKETCH (LITERAL).
+ *
+ * Radial source of truth: wire d + inside diameter ID → D = ID + d, and OD is
+ * DERIVED (OD ≈ 1.120 in vs the sketched ≈ 1.110 in — the three rough
+ * diameters do not round-trip exactly; the small discrepancy is surfaced
+ * rather than distorting the spring).
+ *
+ * Coil source of truth: TOTAL coils N_t ≈ 3.5 (as sketched). Under the
+ * closed-&-ground approximation N_t ≈ N_a + 2, the ACTIVE coils are DERIVED as
+ * N_a ≈ 1.5. (The earlier interpretation error treated N_a ≈ 3.5 → N_t ≈ 5.5;
+ * that is corrected here.)
+ *
+ * k, F₁, F₂, F₃ are all DERIVED from the literal geometry. They will NOT match
+ * the stated ≈280 / ≈140 targets — that inconsistency is the point.
+ */
+const LITERAL_SKETCH: Preset = {
+  ...COMMON_INPUTS,
+  d: { value: 0.17, status: "variable" }, // rough sketch wire diameter
+  ID: { value: 0.78, status: "variable" }, // radial source of truth (with d)
+  // D and OD are derived: D = ID + d, OD = D + d.
+  Nt: { value: 3.5, status: "variable" }, // TOTAL coils — coil source of truth
+  // N_a is derived: N_a ≈ N_t − 2 (closed & ground).
+};
+
+/**
+ * B — RECONCILED CANDIDATE.
+ *
+ * Equation-consistent geometry that meets k ≈ 280 lbf/in and F₁ ≈ 140 lbf
+ * within the stress and solid-height limits. It needs a THINNER wire
+ * (≈0.147 in) and MORE coils (N_t ≈ 5.5) than the literal sketch.
+ */
+const RECONCILED_CANDIDATE: Preset = {
+  ...COMMON_INPUTS,
+  d: { value: 0.147, status: "variable" },
+  D: { value: 0.88, status: "variable" }, // radial source of truth
+  // OD and ID are derived: OD = D + d, ID = D − d.
+  Nt: { value: 5.5, status: "variable" }, // TOTAL coils primary; N_a ≈ 3.5 derived
+};
+
+function baseInputs(preset: PresetId): Preset {
+  return preset === "reconciledCandidate"
+    ? { ...RECONCILED_CANDIDATE }
+    : { ...LITERAL_SKETCH };
+}
 
 /** Everything computed by the engine. */
 const DERIVED_IDS = [
@@ -65,10 +107,12 @@ const DERIVED_IDS = [
   "L_min",
   "L2",
   "L3",
+  "D",
   "OD",
   "ID",
   "C",
   "Nt",
+  "Na",
   "Hs",
   "Kw",
   "tau",
@@ -95,19 +139,23 @@ function withDerived(preset: Preset): ModelState {
  * Forward Design: enter geometry/material, derive rate, forces, stress,
  * solid height, clearance.
  */
-function forwardPreset(): ModelState {
-  return withDerived({ ...BASE_INPUTS });
+function forwardPreset(preset: PresetId): ModelState {
+  return withDerived(baseInputs(preset));
 }
 
 /**
  * Reverse Design: pin mechanism requirements (force at contact, travels) and
  * let the engine work backward — here it solves k, then wire diameter d from
  * the rate equation given D, N_a and G.
+ *
+ * Reverse always uses the reconciled radial basis (D as the free diameter,
+ * wire d derived) because the literal sketch fixes ID → D = ID + d, which would
+ * make "solve d from the rate" circular. Coils stay N_t-primary / N_a-derived.
  */
 function reversePreset(): ModelState {
   const preset: Preset = {
-    ...BASE_INPUTS,
-    // Pin the primary functional requirements for the Bokaie concept.
+    ...RECONCILED_CANDIDATE,
+    // Pin the primary functional requirements for the concept.
     F2: { value: 70, status: "fixed" }, // spring force at hammer contact
     s_h: { value: 0.25, status: "fixed" }, // hammer run-up
     y_latch: { value: 0.07, status: "fixed" }, // additional latch travel
@@ -119,18 +167,21 @@ function reversePreset(): ModelState {
 }
 
 /** Explore: nothing pinned — freely pin and vary to see sensitivities. */
-function explorePreset(): ModelState {
-  return withDerived({ ...BASE_INPUTS });
+function explorePreset(preset: PresetId): ModelState {
+  return withDerived(baseInputs(preset));
 }
 
-export function buildInitialState(mode: DesignMode): ModelState {
+export function buildInitialState(
+  mode: DesignMode,
+  preset: PresetId = DEFAULT_PRESET,
+): ModelState {
   switch (mode) {
     case "forward":
-      return forwardPreset();
+      return forwardPreset(preset);
     case "reverse":
       return reversePreset();
     case "explore":
-      return explorePreset();
+      return explorePreset(preset);
   }
 }
 
@@ -152,37 +203,94 @@ export const MODE_INFO: Record<DesignMode, { label: string; blurb: string }> = {
   },
 };
 
-export const EXAMPLE_DATA_LABEL =
-  "Bokaie Nominal — Functional Concept — force/travel targets are primary; geometry reconciled to the spring equations";
+/** Preset picker metadata — the two concepts are kept explicitly separate. */
+export const PRESET_INFO: Record<
+  PresetId,
+  { label: string; short: string; blurb: string }
+> = {
+  literalSketch: {
+    label: "Bokaie Original Sketch — Literal",
+    short: "Original sketch",
+    blurb:
+      "The whiteboard read faithfully: N_t ≈ 3.5 total coils, 0.170 in wire, ID ≈ 0.780 in. Rate and forces are DERIVED from this geometry, so the tool exposes that it does not match the separately stated ≈280 lbf/in / ≈140 lbf.",
+  },
+  reconciledCandidate: {
+    label: "Reconciled Candidate",
+    short: "Reconciled candidate",
+    blurb:
+      "One equation-consistent design that meets k ≈ 280 lbf/in and F₁ ≈ 140 lbf within the stress and solid-height limits — it needs a thinner 0.147 in wire and more coils (N_t ≈ 5.5). Not what was sketched; one feasible candidate.",
+  },
+};
+
+export function exampleDataLabel(preset: PresetId): string {
+  return preset === "reconciledCandidate"
+    ? "Reconciled Candidate — equation-consistent geometry that meets the ≈280 lbf/in / ≈140 lbf targets"
+    : "Bokaie Original Sketch (Literal) — geometry read faithfully; rate & forces derived, inconsistencies exposed";
+}
+
+/** @deprecated use exampleDataLabel(presetId) */
+export const EXAMPLE_DATA_LABEL = exampleDataLabel(DEFAULT_PRESET);
 
 /**
- * Explicit provenance for the concept preset, so the three tiers are never
- * conflated in the UI: functional requirement vs. rough sketch geometry vs.
- * solver-reconciled geometry (the live, equation-consistent values shown in the
- * illustration and Spring Details).
+ * Explicit provenance so the three tiers are never conflated in the UI:
+ *   1. ORIGINAL SKETCH VALUE     — exactly what the whiteboard says
+ *   2. SOLVER-DERIVED VALUE      — what the equations produce from that literal geometry
+ *   3. RECONCILED CANDIDATE VALUE — an equation-consistent alternative
+ *
+ * Discrepancies are surfaced, not hidden.
  */
 export const PRESET_PROVENANCE = {
-  title: "Bokaie Nominal — Functional Concept",
-  functional: [
-    { label: "Free length L_f", value: "1.400 in" },
-    { label: "Max working deflection x₁", value: "0.500 in" },
-    { label: "Starting loaded length L₁", value: "0.900 in" },
-    { label: "Target spring rate k", value: "≈ 280 lbf/in" },
-    { label: "Starting spring force F₁", value: "≈ 140 lbf" },
-    { label: "Hammer run-up sₕ", value: "0.250 in" },
-    { label: "Spring force at contact F₂", value: "≈ 70 lbf" },
-    { label: "Additional latch travel y_latch", value: "0.070 in" },
-    { label: "Spring force after latch F₃", value: "≈ 50.4 lbf" },
+  sketchTitle: "Bokaie original sketch (literal)",
+  reconciledTitle: "Reconciled candidate",
+
+  // ── Tier 1: exactly what the whiteboard says ──
+  sketch: {
+    performance: [
+      { label: "Stated spring rate k", value: "≈ 280 lbf/in" },
+      { label: "Stated starting force F₁", value: "≈ 140 lbf" },
+      { label: "Force at contact F₂", value: "≈ 70 lbf" },
+      { label: "Force after latch F₃", value: "≈ 50.4 lbf" },
+    ],
+    travel: [
+      { label: "Free length L_f", value: "≈ 1.400 in" },
+      { label: "Max working deflection x₁", value: "≈ 0.500 in" },
+      { label: "Starting loaded length L₁", value: "≈ 0.900 in" },
+      { label: "Hammer run-up sₕ", value: "0.250 in" },
+      { label: "Additional latch travel y_latch", value: "0.070 in" },
+    ],
+    geometry: [
+      { label: "Wire diameter d", value: "≈ 0.170 in" },
+      { label: "Inside diameter ID", value: "≈ 0.780 in" },
+      { label: "Outside diameter OD", value: "≈ 1.110 in" },
+      { label: "Total coils N_t", value: "≈ 3.5" },
+    ],
+    assumed: [
+      { label: "Peak latch resistance", value: "≈ 900 lbf" },
+      { label: "Average latch resistance", value: "≈ 450 lbf" },
+    ],
+  },
+
+  // ── Tier 2: what the equations imply from that LITERAL geometry ──
+  implications: [
+    { label: "Active coils N_a", sketch: "—", model: "≈ 1.5  (N_t − 2, closed & ground)" },
+    { label: "Mean diameter D", sketch: "—", model: "≈ 0.950 in  (ID + d)" },
+    { label: "Outside diameter OD", sketch: "≈ 1.110 in", model: "≈ 1.120 in  (D + d)" },
+    { label: "Spring rate k", sketch: "≈ 280 lbf/in", model: "≈ 934 lbf/in  (G·d⁴ / 8D³N_a)" },
+    { label: "Starting force F₁", sketch: "≈ 140 lbf", model: "≈ 467 lbf  (k·x₁)" },
+    { label: "Shear stress τ", sketch: "—", model: "≈ 293,000 psi → ~195% of τ_allow" },
   ],
-  assumed: [
-    { label: "Peak latch resistance", value: "≈ 900 lbf" },
-    { label: "Average latch resistance", value: "≈ 450 lbf" },
+
+  // ── Tier 3: an equation-consistent alternative ──
+  reconciled: [
+    { label: "Wire diameter d", value: "0.147 in" },
+    { label: "Mean diameter D", value: "0.880 in" },
+    { label: "Outside diameter OD", value: "1.027 in" },
+    { label: "Inside diameter ID", value: "0.733 in" },
+    { label: "Total coils N_t", value: "≈ 5.5  (N_a ≈ 3.5)" },
+    { label: "Spring rate k", value: "≈ 281 lbf/in" },
+    { label: "Starting force F₁", value: "≈ 141 lbf" },
   ],
-  sketch: [
-    { label: "Inside diameter ID", value: "≈ 0.780 in" },
-    { label: "Outside diameter OD", value: "≈ 1.110 in" },
-    { label: "Wire diameter d", value: "≈ 0.17 in" },
-  ],
-  note:
-    "Force and travel values are the primary nominal concept. The rough sketch diameters are whiteboard targets only: a 0.17 in wire cannot satisfy k ≈ 280 lbf/in and still clear solid height at the 0.900 in loaded length (with N_t ≈ N_a + 2), so the live geometry is reconciled to a thinner wire. The reconciled, equation-consistent geometry is what the illustration and Spring Details display.",
+
+  conclusion:
+    "The original sketch assumptions are not mutually consistent under the closed-and-ground linear spring model. The sketched geometry (0.170 in wire, N_t ≈ 3.5 → N_a ≈ 1.5) implies a spring rate of roughly 934 lbf/in and ~195% stress utilization — it does NOT match the separately stated ≈280 lbf/in / ≈140 lbf. Achieving the stated performance within the stress and solid-height limits requires a thinner wire and more coils (the Reconciled Candidate). Both concepts are kept side by side rather than silently merged.",
 } as const;

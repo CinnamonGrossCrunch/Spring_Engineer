@@ -5,7 +5,14 @@ import type { DesignMode, ModelState, PresentationView } from "@/lib/engineering
 import { solveModel } from "@/lib/engineering/solver";
 import { evaluateConstraints } from "@/lib/engineering/constraints";
 import { PARAMETER_MAP } from "@/lib/engineering/parameters";
-import { buildInitialState, MODE_INFO, EXAMPLE_DATA_LABEL } from "@/data/exampleModel";
+import {
+  buildInitialState,
+  MODE_INFO,
+  PRESET_INFO,
+  DEFAULT_PRESET,
+  exampleDataLabel,
+  type PresetId,
+} from "@/data/exampleModel";
 import { LogicMap } from "./LogicMap";
 import { ParameterInspector } from "./ParameterInspector";
 import { ParameterControl } from "./ParameterControl";
@@ -15,6 +22,7 @@ import { SpringStateIllustration } from "./SpringStateIllustration/SpringStateIl
 import { Overview } from "./overview/Overview";
 
 const MODES: DesignMode[] = ["forward", "reverse", "explore"];
+const PRESETS: PresetId[] = ["literalSketch", "reconciledCandidate"];
 const VIEWS: { id: PresentationView; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "engineering", label: "Engineering" },
@@ -28,8 +36,9 @@ const DIAMETER_IDS = ["D", "OD", "ID"] as const;
  */
 export function EngineeringWorkbench() {
   const [mode, setMode] = useState<DesignMode>("forward");
+  const [preset, setPreset] = useState<PresetId>(DEFAULT_PRESET);
   const [view, setView] = useState<PresentationView>("overview");
-  const [model, setModel] = useState<ModelState>(() => buildInitialState("forward"));
+  const [model, setModel] = useState<ModelState>(() => buildInitialState("forward", DEFAULT_PRESET));
   const [selectedId, setSelectedId] = useState<string | null>("k");
   const [etaMode, setEtaMode] = useState<"unspecified" | "ideal" | "assumed" | "measured">("unspecified");
   const [inspectorOpen, setInspectorOpen] = useState(false);
@@ -117,7 +126,7 @@ export function EngineeringWorkbench() {
         if (!cur) return prev;
         if (cur.status === "fixed") {
           // Unpin: return to the parameter's default role in this mode.
-          const defaults = buildInitialState(mode);
+          const defaults = buildInitialState(mode, preset);
           const fallback = defaults[id]?.status === "fixed" ? "variable" : (defaults[id]?.status ?? "variable");
           return {
             ...prev,
@@ -133,18 +142,30 @@ export function EngineeringWorkbench() {
         return { ...prev, [id]: { status: "fixed", value: pinValue } };
       });
     },
-    [mode, solve.values],
+    [mode, preset, solve.values],
   );
 
-  const handleModeChange = useCallback((next: DesignMode) => {
-    setMode(next);
-    setModel(buildInitialState(next));
-    setSelectedId(next === "reverse" ? "F2" : "k");
-  }, []);
+  const handleModeChange = useCallback(
+    (next: DesignMode) => {
+      setMode(next);
+      setModel(buildInitialState(next, preset));
+      setSelectedId(next === "reverse" ? "F2" : "k");
+    },
+    [preset],
+  );
+
+  const handlePresetChange = useCallback(
+    (next: PresetId) => {
+      setPreset(next);
+      setModel(buildInitialState(mode, next));
+      setSelectedId(mode === "reverse" ? "F2" : "k");
+    },
+    [mode],
+  );
 
   const handleReset = useCallback(() => {
-    setModel(buildInitialState(mode));
-  }, [mode]);
+    setModel(buildInitialState(mode, preset));
+  }, [mode, preset]);
 
   const display = (id: string) =>
     model[id]?.status === "derived" ? solve.values[id] : (model[id]?.value ?? solve.values[id]);
@@ -206,6 +227,31 @@ export function EngineeringWorkbench() {
             </div>
           </div>
 
+          {/* Concept preset — Bokaie original sketch (literal) vs reconciled candidate */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+              Concept
+            </span>
+            <div className="flex overflow-hidden rounded-md border border-zinc-300 text-xs">
+              {PRESETS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => handlePresetChange(p)}
+                  aria-pressed={preset === p}
+                  title={PRESET_INFO[p].blurb}
+                  className={`px-3 py-1.5 font-medium transition-colors ${
+                    preset === p
+                      ? "bg-amber-600 text-white"
+                      : "bg-white text-zinc-600 hover:bg-zinc-100"
+                  }`}
+                >
+                  {PRESET_INFO[p].short}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={handleReset}
@@ -224,7 +270,7 @@ export function EngineeringWorkbench() {
           </span>
         </div>
         <p className="mt-1.5 text-[11px] text-zinc-500">
-          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">{EXAMPLE_DATA_LABEL}</span>
+          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">{exampleDataLabel(preset)}</span>
           <span className="ml-2">{MODE_INFO[mode].blurb}</span>
         </p>
       </header>
@@ -237,6 +283,7 @@ export function EngineeringWorkbench() {
             selectedId={selectedId}
             constraints={constraints}
             onSelect={handleSelect}
+            presetId={preset}
           />
         ) : (
           <div className="flex flex-col gap-3 xl:flex-row">

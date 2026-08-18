@@ -7,7 +7,7 @@ import { formatValue, inchesToMm } from "../StatusBadge";
 import { ParametricCompressionSpring } from "../SpringStateIllustration/ParametricCompressionSpring";
 import { isRenderableSpring } from "../SpringStateIllustration/springSvgGeometry";
 import { overviewName, overviewSym } from "./overviewLabels";
-import { PRESET_PROVENANCE } from "@/data/exampleModel";
+import { PRESET_PROVENANCE, PRESET_INFO, type PresetId } from "@/data/exampleModel";
 
 /**
  * Overview three-state mechanism illustration.
@@ -53,9 +53,13 @@ const DIM = {
 
 const COLORS = {
   spring: "#3f3f46",
+  springSteelFront: "#52525b",
+  springSteelBack: "#71717a",
   springNear: "#d97706",
   springViolated: "#dc2626",
+  springViolatedBack: "#f87171",
   springSelected: "#1d4ed8",
+  springSelectedBack: "#60a5fa",
   dim: "#71717a",
   dimSelected: "#1d4ed8",
   leader: "#a1a1aa",
@@ -71,6 +75,7 @@ interface Props {
   selectedId: string | null;
   constraints: ConstraintResult[];
   onSelect: (id: string) => void;
+  presetId: PresetId;
 }
 
 /** Accessible clickable SVG callout group. */
@@ -103,7 +108,7 @@ function SvgButton({
   );
 }
 
-export function OverviewMechanism({ values, selectedId, constraints, onSelect }: Props) {
+export function OverviewMechanism({ values, selectedId, constraints, onSelect, presetId }: Props) {
   const num = (id: string): number | undefined => {
     const v = values[id];
     return v !== undefined && Number.isFinite(v) ? v : undefined;
@@ -149,13 +154,21 @@ export function OverviewMechanism({ values, selectedId, constraints, onSelect }:
     F3 !== undefined &&
     [L1, L2, L3].every((L) => isRenderableSpring({ wireDiameter: d, meanDiameter: D, totalCoils: Nt, currentLength: L }));
 
-  // Spring stroke color mirrors the engineering view's display heuristic.
+  // Near-solid-height advisory (display only). A near-limit spring is NOT
+  // repainted bright amber — it stays neutral steel and surfaces a small badge.
+  const solidMargin = L1 !== undefined && Hs !== undefined ? L1 - Hs : undefined;
+  const nearSolid =
+    (!coilBind || coilBind.ok) && solidMargin !== undefined && solidMargin < 2 * reqClear;
+
+  // Default is neutral steel with cylindrical depth shading. Only a real
+  // coil-bind failure (red) or an active geometry selection (blue) recolors it.
   const springSelectedIds = ["d", "D", "OD", "ID", "Nt", "Na"];
-  const springColor = (() => {
-    if (coilBind && !coilBind.ok) return COLORS.springViolated;
-    if (L1 !== undefined && Hs !== undefined && L1 - Hs < 2 * reqClear) return COLORS.springNear;
-    if (selectedId && springSelectedIds.includes(selectedId)) return COLORS.springSelected;
-    return COLORS.spring;
+  const springPalette = (() => {
+    if (coilBind && !coilBind.ok)
+      return { front: COLORS.springViolated, back: COLORS.springViolatedBack };
+    if (selectedId && springSelectedIds.includes(selectedId))
+      return { front: COLORS.springSelected, back: COLORS.springSelectedBack };
+    return { front: COLORS.springSteelFront, back: COLORS.springSteelBack };
   })();
 
   // Grid column template shared by the title / callout rows so they align
@@ -222,6 +235,11 @@ export function OverviewMechanism({ values, selectedId, constraints, onSelect }:
           {coilBind && !coilBind.ok && (
             <span className="rounded border border-red-300 bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
               Coil bind
+            </span>
+          )}
+          {nearSolid && solidMargin !== undefined && (
+            <span className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+              Solid-height margin: {formatValue(solidMargin)} in
             </span>
           )}
         </div>
@@ -328,7 +346,7 @@ export function OverviewMechanism({ values, selectedId, constraints, onSelect }:
                             centerX={centerX}
                             bottomY={baselineY}
                             pxPerUnit={pxPerUnit}
-                            stroke={springColor}
+                            colors={springPalette}
                             highlighted={selectedId === s.Lid}
                           />
                         </g>
@@ -362,8 +380,8 @@ export function OverviewMechanism({ values, selectedId, constraints, onSelect }:
 
                   {/* ══ STATE-1 PROFESSIONAL DIMENSIONS ══ */}
 
-                  {/* Coil-count bracket — N_a primary (editable), N_t derived */}
-                  <SvgButton paramId="Na" onSelect={onSelect}>
+                  {/* Coil-count bracket — N_t primary (editable), N_a derived */}
+                  <SvgButton paramId="Nt" onSelect={onSelect}>
                     {(() => {
                       const bx = springLeft - 78;
                       const tick = 7;
@@ -381,16 +399,16 @@ export function OverviewMechanism({ values, selectedId, constraints, onSelect }:
                           />
                           <line x1={bx} y1={mid} x2={bx + tick} y2={mid} stroke={col} strokeWidth={coilSel ? 1.8 : 1.3} />
                           <text x={bx - 7} y={mid - 9} fontSize={10.5} textAnchor="end" fontWeight={700} fill={col} fontFamily="var(--font-geist-mono), monospace">
-                            Nₐ = {coils(Na)}
+                            Nₜ = {coils(Nt)}
                           </text>
                           <text x={bx - 7} y={mid + 2} fontSize={8} textAnchor="end" fill="#94a3b8">
-                            active coils · editable
+                            total coils · editable
                           </text>
                           <text x={bx - 7} y={mid + 16} fontSize={9} textAnchor="end" fill={col} fontFamily="var(--font-geist-mono), monospace">
-                            Nₜ = Nₐ+2 ≈ {coils(Nt)}
+                            Nₐ = Nₜ−2 ≈ {coils(Na)}
                           </text>
                           <text x={bx - 7} y={mid + 27} fontSize={8} textAnchor="end" fontStyle="italic" fill="#94a3b8">
-                            closed &amp; ground ends
+                            derived · closed &amp; ground
                           </text>
                         </g>
                       );
@@ -603,25 +621,34 @@ export function OverviewMechanism({ values, selectedId, constraints, onSelect }:
             })}
           </div>
 
-          {/* Concept provenance — keep the three tiers explicit and un-conflated */}
+          {/* Concept provenance — three tiers kept explicit and un-conflated:
+              original sketch value · solver-derived value · reconciled candidate value */}
           <details className="mt-3 rounded-md border border-amber-200 bg-amber-50/60 px-2.5 py-1.5">
             <summary className="cursor-pointer text-[11.5px] font-semibold text-amber-800">
-              About this concept — requirement vs. rough sketch vs. reconciled geometry
+              Provenance — original sketch vs. what the equations imply vs. reconciled candidate
             </summary>
+            <p className="mt-1.5 text-[10px] text-zinc-600">
+              Currently showing:{" "}
+              <span className="font-semibold text-zinc-800">{PRESET_INFO[presetId].label}</span>
+            </p>
             <div className="mt-2 grid gap-3 sm:grid-cols-3">
+              {/* Tier 1 — exactly what the whiteboard says */}
               <div>
                 <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-700">
-                  1 · Functional requirement
+                  1 · Original sketch value
                 </div>
-                <div className="text-[9px] leading-tight text-zinc-400">Primary nominal concept</div>
+                <div className="text-[9px] leading-tight text-zinc-400">As written on the whiteboard</div>
                 <dl className="mt-1 space-y-0.5">
-                  {PRESET_PROVENANCE.functional.map((r) => (
+                  {[
+                    ...PRESET_PROVENANCE.sketch.geometry,
+                    ...PRESET_PROVENANCE.sketch.performance,
+                  ].map((r) => (
                     <div key={r.label} className="flex justify-between gap-2">
                       <dt className="text-[10px] text-zinc-600">{r.label}</dt>
                       <dd className="shrink-0 font-mono text-[10px] text-zinc-800">{r.value}</dd>
                     </div>
                   ))}
-                  {PRESET_PROVENANCE.assumed.map((r) => (
+                  {PRESET_PROVENANCE.sketch.assumed.map((r) => (
                     <div key={r.label} className="flex justify-between gap-2">
                       <dt className="text-[10px] text-zinc-500">{r.label} (assumed)</dt>
                       <dd className="shrink-0 font-mono text-[10px] text-zinc-700">{r.value}</dd>
@@ -629,36 +656,36 @@ export function OverviewMechanism({ values, selectedId, constraints, onSelect }:
                   ))}
                 </dl>
               </div>
+
+              {/* Tier 2 — what the equations imply from that literal geometry */}
               <div>
                 <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-700">
-                  2 · Rough sketch geometry
+                  2 · What the equations imply
                 </div>
-                <div className="text-[9px] leading-tight text-zinc-400">Whiteboard targets — not authoritative</div>
-                <dl className="mt-1 space-y-0.5">
-                  {PRESET_PROVENANCE.sketch.map((r) => (
-                    <div key={r.label} className="flex justify-between gap-2">
-                      <dt className="text-[10px] text-zinc-600">{r.label}</dt>
-                      <dd className="shrink-0 font-mono text-[10px] text-zinc-400 line-through decoration-zinc-300">
-                        {r.value}
+                <div className="text-[9px] leading-tight text-zinc-400">Solver-derived from the literal geometry</div>
+                <dl className="mt-1 space-y-1">
+                  {PRESET_PROVENANCE.implications.map((r) => (
+                    <div key={r.label} className="flex flex-col">
+                      <dt className="text-[10px] font-medium text-zinc-700">{r.label}</dt>
+                      <dd className="font-mono text-[9.5px] leading-tight text-zinc-500">
+                        sketch: {r.sketch}
+                      </dd>
+                      <dd className="font-mono text-[9.5px] font-medium leading-tight text-amber-700">
+                        model: {r.model}
                       </dd>
                     </div>
                   ))}
                 </dl>
               </div>
+
+              {/* Tier 3 — an equation-consistent alternative */}
               <div>
                 <div className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">
-                  3 · Reconciled geometry
+                  3 · Reconciled candidate value
                 </div>
-                <div className="text-[9px] leading-tight text-zinc-400">Solver-derived — equation-consistent (live)</div>
+                <div className="text-[9px] leading-tight text-zinc-400">Equation-consistent alternative (not the sketch)</div>
                 <dl className="mt-1 space-y-0.5">
-                  {[
-                    { label: "Wire diameter d", value: inch(d) },
-                    { label: "Outside diameter OD", value: inch(OD) },
-                    { label: "Inside diameter ID", value: inch(ID) },
-                    { label: "Mean diameter D", value: inch(D) },
-                    { label: "Spring rate k", value: `${formatValue(num("k"))} lbf/in` },
-                    { label: "Active / total coils", value: `${coils(Na)} / ${coils(Nt)}` },
-                  ].map((r) => (
+                  {PRESET_PROVENANCE.reconciled.map((r) => (
                     <div key={r.label} className="flex justify-between gap-2">
                       <dt className="text-[10px] text-zinc-600">{r.label}</dt>
                       <dd className="shrink-0 font-mono text-[10px] font-medium text-emerald-700">{r.value}</dd>
@@ -667,7 +694,9 @@ export function OverviewMechanism({ values, selectedId, constraints, onSelect }:
                 </dl>
               </div>
             </div>
-            <p className="mt-2 text-[10px] leading-snug text-zinc-500">{PRESET_PROVENANCE.note}</p>
+            <p className="mt-2 border-t border-amber-200/70 pt-1.5 text-[10px] leading-snug text-zinc-600">
+              {PRESET_PROVENANCE.conclusion}
+            </p>
           </details>
 
           {/* Optional spring details */}
