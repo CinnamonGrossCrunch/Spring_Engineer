@@ -34,8 +34,8 @@ const LEFT_PAD = 150; // left annotation gutter: State-1 loaded-length + coil-co
 const RIGHT_PAD = 16;
 const STATE_W = (SVG_W - LEFT_PAD - RIGHT_PAD) / 3; // three tightly-grouped state columns
 const SVG_H = 392;
-const TOP_PAD = 30;
-const BOTTOM_PAD = 100; // OD / ID / wire-diameter dimensions live below the datum (State 1)
+const TOP_PAD = 12;
+const BOTTOM_PAD = 110; // OD / ID / wire-diameter dimensions live below the datum (State 1)
 
 const FORCE_COLORS = ["#2563eb", "#059669", "#b45309"]; // F1 blue · F2 green/teal · F3 orange
 
@@ -287,13 +287,15 @@ export function OverviewMechanism({ values, selectedId, constraints, onSelect, p
             aria-label="Three-state mechanism sequence: maximum working deflection, hammer contact, latch follow-through"
           >
             {(() => {
-              const hammerH = 0.42 * OD!;
-              const hammerW = 1.6 * OD!;
-              const latchH = 0.34 * OD!;
-              const latchW = 2.0 * OD!;
+              const hammerH = 0.1 * OD!;
+              const latchH = 0.1 * OD!;
               const envelope = L3! + hammerH + latchH;
               const availH = SVG_H - TOP_PAD - BOTTOM_PAD;
-              const pxPerUnit = Math.min(availH / envelope, (STATE_W * 0.84) / Math.max(latchW, OD!));
+              // Keep default layout compact while remaining responsive as the
+              // mechanism gets taller: fit to vertical envelope and to the
+              // actual spring visual width (OD plus wire stroke allowance).
+              const maxVisualWidthUnits = OD! + d!;
+              const pxPerUnit = Math.min(availH / envelope, (STATE_W * 0.84) / maxVisualWidthUnits);
               const baselineY = SVG_H - BOTTOM_PAD;
               const toY = (units: number) => baselineY - units * pxPerUnit;
               const cx = (i: number) => LEFT_PAD + STATE_W * (i + 0.5);
@@ -309,6 +311,9 @@ export function OverviewMechanism({ values, selectedId, constraints, onSelect, p
               const odHalf = (OD! / 2) * pxPerUnit;
               const idHalf = (ID! / 2) * pxPerUnit;
               const strokePx = Math.max(1.25, d! * pxPerUnit);
+              // Match actuator block widths to the full painted spring silhouette
+              // (coil OD plus visible wire stroke thickness).
+              const springGraphicWidthPx = OD! * pxPerUnit + strokePx;
               const springTopY = toY(L1!);
               const springLeft = cx1 - odHalf;
               const springRight = cx1 + odHalf;
@@ -353,9 +358,9 @@ export function OverviewMechanism({ values, selectedId, constraints, onSelect, p
 
                         {/* hammer (identical geometry; only position changes) */}
                         <rect
-                          x={centerX - (hammerW / 2) * pxPerUnit}
+                          x={centerX - springGraphicWidthPx / 2}
                           y={toY(s.hammerBottom + hammerH)}
-                          width={hammerW * pxPerUnit}
+                          width={springGraphicWidthPx}
                           height={hammerH * pxPerUnit}
                           rx={2}
                           fill={COLORS.hammerFill}
@@ -365,9 +370,9 @@ export function OverviewMechanism({ values, selectedId, constraints, onSelect, p
 
                         {/* HF latch (identical geometry; stationary until contact) */}
                         <rect
-                          x={centerX - (latchW / 2) * pxPerUnit}
+                          x={centerX - springGraphicWidthPx / 2}
                           y={toY(s.latchBottom + latchH)}
-                          width={latchW * pxPerUnit}
+                          width={springGraphicWidthPx}
                           height={latchH * pxPerUnit}
                           rx={2}
                           fill={COLORS.latchFill}
@@ -508,51 +513,88 @@ export function OverviewMechanism({ values, selectedId, constraints, onSelect, p
                     })()}
                   </SvgButton>
 
-                  {/* ── Transition arrows in the gaps between states ── */}
-                  {[
-                    { id: "s_h", label: "Hammer Run-Up", value: `${overviewSym("s_h")} = ${inch(s_h)}`, boundary: 1 },
-                    { id: "y_latch", label: "Additional Latch Travel", value: `+ ${inch(y_latch)}`, boundary: 2 },
-                  ].map((t) => {
-                    const bx = LEFT_PAD + STATE_W * t.boundary;
-                    const midY = toY(envelope * 0.5);
-                    const sel = selectedId === t.id;
-                    const stroke = sel ? COLORS.dimSelected : "#52525b";
-                    return (
-                      <SvgButton key={t.id} paramId={t.id} onSelect={onSelect}>
+                  {/* ── Transition callouts (refined layout) ── */}
+                  <SvgButton paramId="s_h" onSelect={onSelect}>
+                    {(() => {
+                      const sel = selectedId === "s_h";
+                      const stroke = sel ? COLORS.dimSelected : "#0f766e";
+                      const text = sel ? COLORS.dimSelected : "#52525b";
+
+                      // Left-side callout: leader ends at a vertical cap that spans
+                      // exactly the gap between the lower green block and upper orange block.
+                      const yGapTop = toY(latchBottom0);
+                      const yGapBottom = toY(L1! + hammerH);
+                      const yGuide = (yGapTop + yGapBottom) / 2;
+                      // Keep label text safely inside the SVG and shorten
+                      // the leader so the callout reads tighter.
+                      const xLabel = Math.max(16, springLeft - 150);
+                      const xLeaderStart = xLabel + 74;
+                      const xLeaderEnd = springLeft - 6;
+
+                      return (
                         <g>
-                          <rect x={bx - 40} y={midY - 30} width={80} height={54} fill="transparent" />
-                          <text
-                            x={bx}
-                            y={midY - 16}
-                            fontSize={9.5}
-                            textAnchor="middle"
-                            fontWeight={sel ? 700 : 600}
-                            fill={sel ? COLORS.dimSelected : "#71717a"}
-                          >
-                            {t.label}
+                          <rect x={xLabel - 12} y={yGuide - 30} width={xLeaderEnd - xLabel + 24} height={46} fill="transparent" />
+                          <text x={xLabel} y={yGuide - 11} fontSize={9.5} textAnchor="start" fontWeight={700} fill={text}>
+                            Hammer Stroke
                           </text>
                           <text
-                            x={bx}
-                            y={midY - 4}
+                            x={xLabel}
+                            y={yGuide + 1}
                             fontSize={10.5}
-                            textAnchor="middle"
+                            textAnchor="start"
                             fontFamily="var(--font-geist-mono), monospace"
                             fontWeight={700}
-                            fill={stroke}
+                            fill={text}
                           >
-                            {t.value}
+                            {`${overviewSym("s_h")} = ${inch(s_h)}`}
                           </text>
-                          <line x1={bx - 22} y1={midY + 8} x2={bx + 18} y2={midY + 8} stroke={stroke} strokeWidth={sel ? 2.4 : 1.8} />
-                          <path
-                            d={`M ${bx + 12} ${midY + 4} L ${bx + 20} ${midY + 8} L ${bx + 12} ${midY + 12}`}
-                            fill="none"
-                            stroke={stroke}
-                            strokeWidth={sel ? 2.4 : 1.8}
-                          />
+                          <line x1={xLeaderStart} y1={yGuide - 2} x2={xLeaderEnd} y2={yGuide - 2} stroke={stroke} strokeWidth={sel ? 2.6 : 2.0} />
+                          <line x1={xLeaderEnd} y1={yGapTop} x2={xLeaderEnd} y2={yGapBottom} stroke={stroke} strokeWidth={sel ? 2.6 : 2.0} />
                         </g>
-                      </SvgButton>
-                    );
-                  })}
+                      );
+                    })()}
+                  </SvgButton>
+
+                  <SvgButton paramId="y_latch" onSelect={onSelect}>
+                    {(() => {
+                      const sel = selectedId === "y_latch";
+                      const stroke = sel ? COLORS.dimSelected : "#52525b";
+                      const label = sel ? COLORS.dimSelected : "#64748b";
+                      const value = sel ? COLORS.dimSelected : "#374151";
+
+                      // Anchor this callout to the right-state graphic so the arrow
+                      // reads directly against the right latch position.
+                      const rightCx = cx(2);
+                      const yTopLatch = toY(svgStates[2].latchBottom + latchH);
+                      const rightSpringLeft = rightCx - springGraphicWidthPx / 2;
+                      const arrowX = rightSpringLeft - 2;
+                      const textX = arrowX - 8;
+                      const arrowBottomY = yTopLatch + 14;
+                      const arrowTopY = yTopLatch - 20;
+
+                      return (
+                        <g>
+                          <rect x={textX - 10} y={arrowTopY - 8} width={130} height={54} fill="transparent" />
+                          <text x={textX} y={arrowTopY + 10} fontSize={9.5} textAnchor="end" fontWeight={700} fill={label}>
+                            Latch Travel
+                          </text>
+                          <text
+                            x={textX}
+                            y={arrowTopY + 23}
+                            fontSize={10.5}
+                            textAnchor="end"
+                            fontFamily="var(--font-geist-mono), monospace"
+                            fontWeight={700}
+                            fill={value}
+                          >
+                            {`+ ${inch(y_latch)}`}
+                          </text>
+                          <line x1={arrowX} y1={arrowBottomY} x2={arrowX} y2={arrowTopY} stroke={stroke} strokeWidth={sel ? 2.6 : 2.0} />
+                          {arrowHead(arrowX, arrowTopY, "up", stroke, 4.8)}
+                        </g>
+                      );
+                    })()}
+                  </SvgButton>
                 </>
               );
             })()}
