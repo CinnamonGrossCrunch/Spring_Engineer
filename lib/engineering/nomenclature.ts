@@ -19,6 +19,7 @@ export const CANONICAL_NOMENCLATURE: Record<string, CanonicalLabel> = {
   Nt: { name: "Total Coils", sym: "Nₜ" },
   C: { name: "Spring Index", sym: "C" },
   Hs: { name: "Solid Height", sym: "Hₛ" },
+  Hs_max: { name: "Max Solid Height", sym: "Hₛ,max" },
   HsNom: { name: "Nominal Solid Height", sym: "Hₛ,nom" },
   HsMax: { name: "Max Solid Height", sym: "Hₛ,max" },
 
@@ -35,6 +36,7 @@ export const CANONICAL_NOMENCLATURE: Record<string, CanonicalLabel> = {
   s: { name: "Hammer Run-Up Stroke", sym: "s" },
   y_latch: { name: "Latch Follow-Through Travel", sym: "yₗ" },
   y: { name: "Latch Follow-Through Travel", sym: "y" },
+  B: { name: "Axial Budget", sym: "B" },
 
   // Forces + behavior
   k: { name: "Spring Rate", sym: "k" },
@@ -44,6 +46,7 @@ export const CANONICAL_NOMENCLATURE: Record<string, CanonicalLabel> = {
   F1: { name: "Starting Spring Force", sym: "F₁" },
   F2: { name: "Spring Force at Hammer Contact", sym: "F₂" },
   F3: { name: "Spring Force After Follow-Through", sym: "F₃" },
+  F1_cap: { name: "Starting Force Cap", sym: "F₁,cap" },
 
   // Work / energy
   W_run: { name: "Hammer Run-Up Work", sym: "Wᵣᵤₙ" },
@@ -64,7 +67,11 @@ export const CANONICAL_NOMENCLATURE: Record<string, CanonicalLabel> = {
   G: { name: "Shear Modulus", sym: "G" },
   Kw: { name: "Wahl Factor", sym: "K_w" },
   tau: { name: "Shear Stress", sym: "τ" },
-  tau_allow: { name: "Allowable Shear Stress", sym: "τ_allow" },
+  TS_conservative: { name: "Conservative Tensile Strength", sym: "TS_low" },
+  TS_upper: { name: "Upper Tensile Strength", sym: "TS_high" },
+  TS_basis: { name: "Active TS Basis", sym: "TS_basis" },
+  solid_tolerance: { name: "Solid-Height Tolerance", sym: "tol_solid" },
+  c_extra: { name: "Additional Operating Clearance", sym: "c_extra" },
   stressPctConservative: { name: "Stress Percent of TS (Conservative)", sym: "%TS" },
 };
 

@@ -6,12 +6,11 @@
  *        or: npx tsx lib/engineering/validate.ts
  * Exits non-zero on failure.
  *
- * These tests intentionally encode the *literal Bokaie sketch* as the default
- * historical reference. The literal geometry is NOT internally consistent with
- * the separately written ~280 lbf/in / ~140 lbf whiteboard estimates — the
- * literal spring is over-stressed. That inconsistency is expected and is
- * asserted here rather than "fixed". The separate "Reconciled Candidate" preset
- * is the equation-consistent alternative.
+ * These tests retain the historical presets while validating the current V1
+ * default ("Current Candidate — Elgiloy Optimization") semantics:
+ *   - stress guidance uses τ / TS_basis (TS is tensile, not allowable shear)
+ *   - Lee solid-height tolerance boundary uses H_s,max + c_extra
+ *   - mechanism boundaries include F1 cap and axial budget B
  */
 import { solveModel } from "./solver";
 import { evaluateConstraints } from "./constraints";
@@ -94,6 +93,10 @@ console.log("\n── (1) Closed-and-ground coil relation ───────�
   check("reconciled: N_t (input)", recon.values.Nt, 5.5, 0.5);
   check("reconciled: N_a = N_t − 2 (derived)", recon.values.Na, 3.5, 0.5);
 
+  const cur = solveModel(buildInitialState("forward", "currentCandidate"));
+  check("current: N_t (input)", cur.values.Nt, 5.1, 0.5);
+  check("current: N_a = N_t − 2 (derived)", cur.values.Na, 3.1, 0.5);
+
   // Reverse direction: pin active coils, derive total coils (N_t = N_a + 2).
   const rev: ModelState = buildInitialState("forward", "literalSketch");
   rev.Na = { value: 1.5, status: "fixed" };
@@ -104,10 +107,10 @@ console.log("\n── (1) Closed-and-ground coil relation ───────�
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Test group 2 — Literal preset retains N_t ≈ 3.5 (NOT 5.5) and is geometry-
-// driven / over-stressed; reconciled preset is equation-consistent.
+// Test group 2 — Historical presets remain intact; current candidate aligns to
+// Elgiloy + Lee + mechanism-boundary semantics.
 // ─────────────────────────────────────────────────────────────────────────
-console.log("\n── (2) Literal vs reconciled presets ────────────────────────");
+console.log("\n── (2) Literal / reconciled / current presets ─────────────────");
 {
   const r = solveModel(buildInitialState("forward", "literalSketch"));
   const v = r.values;
@@ -147,13 +150,51 @@ console.log("\n── (2) Literal vs reconciled presets ────────
   check("reconciled OD = D + d (derived)", v.OD, 1.027, 1);
   check("reconciled ID = D − d (derived)", v.ID, 0.733, 1);
   check("reconciled k ≈ 280 (equation-consistent)", v.k, 281.4, 2);
-  check("reconciled F1 ≈ 140", v.F1, 140.7, 2);
+  check("reconciled F1 ≈ 140", v.F1, 140.0, 2);
   assert("reconciled: fully resolved", r.unresolved.length === 0);
   assert("reconciled: no conflicts", r.conflicts.length === 0);
 
-  // Reconciled candidate should pass every physical constraint.
+  // Reconciled candidate remains equation-consistent, but with the updated
+  // mechanism boundary semantics it now sits slightly above the F1 cap.
   const c = evaluateConstraints(v);
-  assert("reconciled: all constraints satisfied", c.every((x) => x.ok));
+  const failed = c.filter((x) => !x.ok);
+  assert("reconciled: only start-force cap is violated", failed.length === 1 && failed[0]?.id === "start_force_cap");
+}
+{
+  const r = solveModel(buildInitialState("forward", "currentCandidate"));
+  const v = r.values;
+  check("current d (input)", v.d, 0.137, 0.5);
+  check("current D (input)", v.D, 0.963, 0.5);
+  check("current OD = D + d (derived)", v.OD, 1.1, 0.5);
+  check("current ID = D − d (derived)", v.ID, 0.826, 0.5);
+  check("current N_t (input)", v.Nt, 5.1, 0.5);
+  check("current N_a (derived)", v.Na, 3.1, 0.5);
+  check("current k", v.k, 190.9, 1);
+  check("current H_s,nom", v.Hs, 0.6987, 0.5);
+  check("current H_s,max", v.Hs_max, 0.733635, 0.5);
+  check("current L_min", v.L_min, 0.733635, 0.5);
+  check("current s_h", v.s_h, 0.416365, 0.5);
+  check("current x1", v.x1, 0.733491, 0.5);
+  check("current L_f", v.L_free, 1.467126, 0.5);
+  check("current F1", v.F1, 140, 0.6);
+  check("current F2", v.F2, 60.53, 1);
+  check("current F3", v.F3, 47.17, 1);
+  check("current W_run", v.W_run, 41.75, 1);
+  check("current τ", v.tau, 161_806, 1);
+  check("current τ / TS_basis", v.utilization, 0.599, 1);
+  assert("current: conflict-free", r.conflicts.length === 0);
+  assert(
+    "current: optional hammer/latch unknowns can remain unresolved",
+    r.unresolved.every((id) => ["KE", "v", "p"].includes(id)),
+  );
+
+  const c = evaluateConstraints(v);
+  const stress = c.find((x) => x.id === "stress");
+  const cap = c.find((x) => x.id === "start_force_cap");
+  const budget = c.find((x) => x.id === "axial_budget");
+  assert("current: stress ratio is set/preset band (passes)", stress?.ok === true && stress?.severity === "warning");
+  assert("current: starting-force cap passes (F1 <= 140)", cap?.ok === true);
+  assert("current: axial budget boundary passes", budget?.ok === true);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -302,15 +343,13 @@ console.log("\n── (5) Warning visualization invariants ───────
   assert("viz: literal stress fails (badge is red)", litStress?.ok === false);
   assert("viz: literal coil geometry OK → spring not repainted red", litBind?.ok === true);
 
-  // Reconciled: passes stress, but solid-height clearance is a small positive
-  // margin (near limit). coil_bind stays OK → amber *badge* only, no full
-  // amber/red spring.
+  // Reconciled: passes stress and keeps a small positive Lee-boundary margin.
   const recV = solveModel(buildInitialState("forward", "reconciledCandidate")).values;
   const recC = evaluateConstraints(recV);
   const recBind = recC.find((x) => x.id === "coil_bind");
-  const clearance = (recV.L_min as number) - (recV.Hs as number);
-  const required = (recV.required_clearance as number) ?? 0;
-  assert("viz: reconciled clearance is a small positive margin (near limit)", clearance > required && clearance - required < 0.1);
+  const clearance = (recV.L_min as number) - (recV.Hs_max as number);
+  const cExtra = (recV.c_extra as number) ?? 0;
+  assert("viz: reconciled clearance is a small positive margin (near limit)", clearance > cExtra && clearance - cExtra < 0.1);
   assert("viz: reconciled near-limit is NOT a geometry failure → spring stays neutral", recBind?.ok === true);
 }
 
@@ -507,7 +546,7 @@ console.log("\n── V2 (e) Sweep grid + determinism ────────�
 
 // ─────────────────────────────────────────────────────────────────────────
 // V2 (f) — Independence from V1: the 900/450 lbf latch numbers are NEVER used
-// as constraints, and V2 does not read the V1 required_clearance / tau_allow.
+// as constraints, and V2 does not read the V1 c_extra / TS_basis semantics.
 // ─────────────────────────────────────────────────────────────────────────
 console.log("\n── V2 (f) V1 independence ───────────────────────────────────");
 {

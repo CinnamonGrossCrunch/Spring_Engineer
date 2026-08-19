@@ -19,7 +19,7 @@ export const DEFAULT_V2_SCENARIO: V2Scenario = {
   latchTravel: 0.07, // y = HF latch follow-through [in]
 
   // Fixed for this study
-  outerDiameter: 1.11, // OD ≈ 1.110 in (first-pass study assumption)
+  outerDiameter: 1.10, // OD ≈ 1.100 in (first-pass study assumption)
   lockOuterDiameter: true,
   materialId: DEFAULT_MATERIAL_ID,
 

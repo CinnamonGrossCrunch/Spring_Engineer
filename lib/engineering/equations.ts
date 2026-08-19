@@ -64,6 +64,18 @@ export const EQUATIONS: Equation[] = [
     note: "V1 assumes 1:1 spring-to-hammer displacement.",
   },
   {
+    id: "axial_budget",
+    name: "Axial budget",
+    expression: "B = L_min + s_h",
+    variables: ["B", "L_min", "s_h"],
+    solvers: {
+      B: (v) => v.L_min + v.s_h,
+      L_min: (v) => v.B - v.s_h,
+      s_h: (v) => v.B - v.L_min,
+    },
+    note: "Mechanism boundary: compressed spring length + hammer run-up.",
+  },
+  {
     id: "loaded_length_release",
     name: "Loaded length after latch travel",
     expression: "L3 = L2 + y_latch",
@@ -190,8 +202,8 @@ export const EQUATIONS: Equation[] = [
   },
   {
     id: "solid_height",
-    name: "Solid height (closed & ground approx.)",
-    expression: "H_s ≈ N_t·d",
+    name: "Nominal solid height (closed & ground approx.)",
+    expression: "H_s,nom ≈ N_t·d",
     variables: ["Hs", "Nt", "d"],
     solvers: {
       Hs: (v) => v.Nt * v.d,
@@ -200,14 +212,25 @@ export const EQUATIONS: Equation[] = [
     },
   },
   {
+    id: "solid_height_max",
+    name: "Maximum solid height (Lee tolerance)",
+    expression: "H_s,max = (1 + tol)·H_s,nom",
+    variables: ["Hs_max", "Hs", "solid_tolerance"],
+    solvers: {
+      Hs_max: (v) => (1 + v.solid_tolerance) * v.Hs,
+      Hs: (v) => v.Hs_max / (1 + v.solid_tolerance),
+      solid_tolerance: (v) => v.Hs_max / v.Hs - 1,
+    },
+  },
+  {
     id: "solid_clearance",
     name: "Clearance above solid",
-    expression: "c_solid = L_min − H_s",
-    variables: ["clearance", "L_min", "Hs"],
+    expression: "c_solid = L_min − H_s,max",
+    variables: ["clearance", "L_min", "Hs_max"],
     solvers: {
-      clearance: (v) => v.L_min - v.Hs,
-      L_min: (v) => v.clearance + v.Hs,
-      Hs: (v) => v.L_min - v.clearance,
+      clearance: (v) => v.L_min - v.Hs_max,
+      L_min: (v) => v.clearance + v.Hs_max,
+      Hs_max: (v) => v.L_min - v.clearance,
     },
   },
 
@@ -235,11 +258,11 @@ export const EQUATIONS: Equation[] = [
   {
     id: "stress_utilization",
     name: "Stress utilization",
-    expression: "utilization = τ / τ_allow",
-    variables: ["utilization", "tau", "tau_allow"],
+    expression: "utilization = τ / TS_basis",
+    variables: ["utilization", "tau", "TS_basis"],
     solvers: {
-      utilization: (v) => v.tau / v.tau_allow,
-      tau_allow: (v) => v.tau / v.utilization,
+      utilization: (v) => v.tau / v.TS_basis,
+      TS_basis: (v) => v.tau / v.utilization,
     },
   },
 
