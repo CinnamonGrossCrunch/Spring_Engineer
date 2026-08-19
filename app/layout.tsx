@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Spring Mechanism Explorer",
+  title: "Sigma Aerospace Spring Engine",
   description:
     "Interactive engineering calculator and explainer for a spring-driven hammer/latch mechanism. Conceptual model — verify final spring design with supplier.",
 };
