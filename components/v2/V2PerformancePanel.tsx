@@ -15,6 +15,8 @@ import {
 } from "./v2format";
 import { formatValue } from "../StatusBadge";
 import { canonicalName, canonicalSym } from "@/lib/engineering/nomenclature";
+import { canGenerateCad } from "@/lib/cad/validation";
+import { CadGenerationModal } from "./CadGenerationModal";
 
 interface Props {
   candidate: V2Candidate;
@@ -58,15 +60,30 @@ export function V2PerformancePanel({
   onToggleShortlist,
   onInspectInV1,
 }: Props) {
+  const [cadOpen, setCadOpen] = useState(false);
   const [etaMode, setEtaMode] = useState<V2EtaMode>("unspecified");
   const [etaValue, setEtaValue] = useState(0.9);
-  const [mass, setMass] = useState(0.28);
+  const [massMode, setMassMode] = useState<"specified" | "undefined">("specified");
+  const [massValue, setMassValue] = useState(0.28);
+  const mass = massMode === "undefined" ? undefined : massValue;
 
   const band = STRESS_BAND_META[c.feasibility.stressBand];
   const hist = computeHistoricalReference();
   const lens = applyImpactLens(c, etaMode, etaValue, mass);
 
+  // Geometry validity only. Stress band, Pareto status and shortlist membership
+  // are engineering judgements, not reasons a solid cannot be built.
+  const cadAvailable = canGenerateCad({
+    wireDiameterIn: c.d,
+    meanDiameterIn: c.D,
+    outerDiameterIn: c.OD,
+    innerDiameterIn: c.ID,
+    activeCoils: c.Na,
+    totalCoils: c.Nt,
+  });
+
   return (
+    <>
     <div className="flex flex-col rounded-lg border border-zinc-200 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 px-3 py-2">
         <div>
@@ -76,6 +93,33 @@ export function V2PerformancePanel({
           </p>
         </div>
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setCadOpen(true)}
+            disabled={!cadAvailable}
+            title={
+              cadAvailable
+                ? "Generate nominal squared & ground B-rep STEP geometry for this candidate"
+                : "This candidate's geometry is internally inconsistent, so CAD cannot be generated"
+            }
+            className="inline-flex items-center gap-1.5 rounded bg-gradient-to-b from-violet-600 to-blue-600 px-2.5 py-1 text-[11px] font-medium text-white shadow-sm transition-all hover:from-violet-500 hover:to-blue-500 hover:-translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-3.5 w-3.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.75}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 2.6 20.5 7v10L12 21.4 3.5 17V7z" />
+              <path d="M3.5 7 12 11.6 20.5 7" />
+              <path d="M12 11.6v9.8" />
+            </svg>
+            Generate CAD Model
+          </button>
           <button
             type="button"
             onClick={onToggleShortlist}
@@ -260,20 +304,44 @@ export function V2PerformancePanel({
 
           <div className="flex items-center gap-2">
             <label className="text-[11px] text-zinc-600">Hammer mass (secondary)</label>
+            <div className="flex items-center gap-1">
+              {(["specified", "undefined"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMassMode(m)}
+                  className={`rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+                    massMode === m ? "border-zinc-800 bg-zinc-800 text-white" : "border-zinc-300 text-zinc-500 hover:bg-zinc-100"
+                  }`}
+                >
+                  {m === "specified" ? "Specified" : "Undefined"}
+                </button>
+              ))}
+            </div>
             <input
               type="number"
-              value={mass}
+              value={massMode === "undefined" ? "" : massValue}
               step={0.01}
               min={0}
-              onChange={(e) => setMass(Number.parseFloat(e.target.value) || 0)}
-              className="w-[70px] rounded border border-zinc-300 px-1.5 py-1 text-right font-mono text-[12px] focus:border-blue-500 focus:outline-none"
+              disabled={massMode === "undefined"}
+              onChange={(e) => {
+                const next = Number.parseFloat(e.target.value);
+                if (Number.isFinite(next)) setMassValue(next);
+              }}
+              className="w-[70px] rounded border border-zinc-300 px-1.5 py-1 text-right font-mono text-[12px] focus:border-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
             />
             <span className="text-[10px] text-zinc-400">lbm</span>
           </div>
           <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
             <Row label="Hammer KE" value={lens.KE === undefined ? "—" : `${formatValue(lens.KE)} ft·lbf`} />
-            <Row label="Hammer velocity" value={lens.velocity === undefined ? "—" : `${formatValue(lens.velocity)} ft/s`} />
-            <Row label="Hammer momentum" value={lens.momentum === undefined ? "—" : `${formatValue(lens.momentum)} lbm·ft/s`} />
+            <Row
+              label="Hammer velocity"
+              value={massMode === "undefined" ? "No Mass Applied" : lens.velocity === undefined ? "—" : `${formatValue(lens.velocity)} ft/s`}
+            />
+            <Row
+              label="Hammer momentum"
+              value={massMode === "undefined" ? "No Mass Applied" : lens.momentum === undefined ? "—" : `${formatValue(lens.momentum)} lbm·ft/s`}
+            />
           </div>
           <p className="text-[9.5px] italic leading-tight text-zinc-400">
             Hammer mass is not needed for the spring geometry optimization; it only feeds these
@@ -282,5 +350,13 @@ export function V2PerformancePanel({
         </div>
       </details>
     </div>
+
+    <CadGenerationModal
+      candidate={c}
+      material={material}
+      isOpen={cadOpen}
+      onClose={() => setCadOpen(false)}
+    />
+    </>
   );
 }

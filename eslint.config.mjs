@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The CAD service's Python virtualenv vendors third-party JS inside
+    // site-packages; it is not ours to lint.
+    "cad-service/.venv/**",
   ]),
 ]);
 
