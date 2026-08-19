@@ -59,7 +59,7 @@ export const OVERVIEW_LABELS: Record<string, OverviewLabel> = {
 
   // Material
   G: { name: canonicalName("G"), sym: canonicalSym("G") },
-  tau_allow: { name: canonicalName("tau_allow"), sym: canonicalSym("tau_allow") },
+  TS_basis: { name: canonicalName("TS_basis"), sym: canonicalSym("TS_basis") },
 };
 
 /** Human-readable name for a parameter, falling back to the engineering name. */

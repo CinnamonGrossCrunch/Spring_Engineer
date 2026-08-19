@@ -177,18 +177,18 @@ export function V2CandidateMechanism({ candidate: c }: Props) {
                         <line x1={bx + tick} y1={yLc} x2={leaderX} y2={yLc} stroke={COLORS.ext} strokeWidth={1} strokeDasharray="3 3" />
                         <line x1={bx + tick} y1={yB} x2={leaderX} y2={yB} stroke={COLORS.ext} strokeWidth={1} strokeDasharray="3 3" />
                         {/* Lc portion */}
-                        <text x={bx - 6} y={midLc - 3} fontSize={9.5} textAnchor="end" fontWeight={700} fill={COLORS.spring} fontFamily="var(--font-geist-mono), monospace">
+                        <text x={bx - 6} y={midLc - 3} fontSize={9.5} textAnchor="end" fontWeight={700} fill={COLORS.budget} fontFamily="var(--font-geist-mono), monospace">
                           Lc = {inch(Lc)}
                         </text>
                         <text x={bx - 6} y={midLc + 8} fontSize={8} textAnchor="end" fill="#94a3b8">
-                          compressed spring
+                          compressed spring length
                         </text>
                         <text
                           x={bx - 6}
                           y={midLc + 20}
                           fontSize={9}
                           textAnchor="end"
-                          fill={COLORS.od}
+                          fill={COLORS.budget}
                           fontFamily="var(--font-geist-mono), monospace"
                         >
                           Nₜ = {Nt.toFixed(2)}
@@ -198,7 +198,7 @@ export function V2CandidateMechanism({ candidate: c }: Props) {
                           y={midLc + 31}
                           fontSize={9}
                           textAnchor="end"
-                          fill={COLORS.od}
+                          fill={COLORS.budget}
                           fontFamily="var(--font-geist-mono), monospace"
                         >
                           Nₐ = {Na.toFixed(2)}
@@ -208,14 +208,14 @@ export function V2CandidateMechanism({ candidate: c }: Props) {
                           s = {inch(s)}
                         </text>
                         <text x={bx - 6} y={midS + 8} fontSize={8} textAnchor="end" fill="#94a3b8">
-                          hammer stroke
+                          run-up stroke
                         </text>
                         {/* Total */}
-                        <text x={bx + tick + 4} y={yB - 6} fontSize={9.5} textAnchor="start" fontWeight={700} fill={COLORS.budget} fontFamily="var(--font-geist-mono), monospace">
+                        <text x={bx - 6} y={yB - 8} fontSize={9.5} textAnchor="end" fontWeight={700} fill={COLORS.spring} fontFamily="var(--font-geist-mono), monospace">
                           B = {inch(B)}
                         </text>
-                        <text x={bx + tick + 4} y={yB + 4} fontSize={8} textAnchor="start" fill="#94a3b8">
-                          spring + stroke
+                        <text x={bx - 6} y={yB + 2} fontSize={8} textAnchor="end" fill="#94a3b8">
+                          axial budget total
                         </text>
                       </g>
                     );

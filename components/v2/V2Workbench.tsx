@@ -89,9 +89,6 @@ export function V2Workbench({
             Searching wire diameter × active coils. Thinner wire → lower rate &amp; solid height →
             more hammer run-up, but higher stress.
           </span>
-          <span className="ml-auto text-[10.5px] italic text-amber-600">
-            450 / 900 lbf are not latch requirements.
-          </span>
         </div>
       </div>
 
@@ -112,11 +109,66 @@ export function V2Workbench({
             onMetricChange={setMetric}
             selectedKey={selected?.key ?? null}
             onSelect={setSelectedKey}
+            shortlist={shortlist}
+            onToggleShortlist={toggleShortlist}
           />
         </div>
         {selected && (
-          <div className="min-w-0 xl:col-span-3">
+          <div className="min-w-0 space-y-3 xl:col-span-3">
             <V2CandidateMechanism candidate={selected} />
+            {shortlistCandidates.length > 0 && (
+              <div className="rounded-lg border border-zinc-200 bg-white p-3">
+                <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+                  Shortlist ({shortlistCandidates.length}/{MAX_SHORTLIST})
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {shortlistCandidates.map((c) => {
+                    const isSelected = selected?.key === c.key;
+                    return (
+                      <div
+                        key={c.key}
+                        onClick={() => setSelectedKey(c.key)}
+                        className={`min-w-[168px] flex-1 cursor-pointer rounded border p-2 transition-colors ${
+                          isSelected
+                            ? "border-blue-300 bg-blue-50"
+                            : "border-zinc-200 bg-zinc-50 hover:bg-zinc-100"
+                        }`}
+                      >
+                        <div className="mb-1 flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedKey(c.key);
+                            }}
+                            className="font-mono text-[11px] font-semibold text-zinc-800 hover:text-blue-600"
+                          >
+                            d={c.d.toFixed(3)} · Na={c.Na.toFixed(2)}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleShortlist(c.key);
+                            }}
+                            className="text-zinc-400 hover:text-red-500"
+                            aria-label="Remove from shortlist"
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <dl className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-zinc-500">
+                          <dt>{canonicalName("FeqAvgIdeal")}</dt><dd className="text-right font-mono text-zinc-700">{fmtLbf(c.FeqAvgIdeal)}</dd>
+                          <dt>{canonicalName("F3")} {canonicalSym("F3")}</dt><dd className="text-right font-mono text-zinc-700">{fmtLbf(c.F3)}</dd>
+                          <dt>Stress %TS</dt><dd className="text-right font-mono text-zinc-700">{(c.stressPctConservative * 100).toFixed(0)}%</dd>
+                          <dt>{canonicalName("s")} {canonicalSym("s")}</dt><dd className="text-right font-mono text-zinc-700">{c.s.toFixed(3)} in</dd>
+                        </dl>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -139,44 +191,6 @@ export function V2Workbench({
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-6 text-center text-sm text-amber-800">
           No feasible candidate to display. Adjust the scenario or search bounds — see the
           feasibility summary below for the most common exclusions.
-        </div>
-      )}
-
-      {/* Shortlist compare strip */}
-      {shortlistCandidates.length > 0 && (
-        <div className="rounded-lg border border-zinc-200 bg-white p-3">
-          <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-zinc-500">
-            Shortlist ({shortlistCandidates.length}/{MAX_SHORTLIST})
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {shortlistCandidates.map((c) => (
-              <div key={c.key} className="min-w-[168px] flex-1 rounded border border-zinc-200 bg-zinc-50 p-2">
-                <div className="mb-1 flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedKey(c.key)}
-                    className="font-mono text-[11px] font-semibold text-zinc-800 hover:text-blue-600"
-                  >
-                    d={c.d.toFixed(3)} · Na={c.Na.toFixed(2)}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => toggleShortlist(c.key)}
-                    className="text-zinc-400 hover:text-red-500"
-                    aria-label="Remove from shortlist"
-                  >
-                    ×
-                  </button>
-                </div>
-                <dl className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-zinc-500">
-                  <dt>{canonicalName("FeqAvgIdeal")}</dt><dd className="text-right font-mono text-zinc-700">{fmtLbf(c.FeqAvgIdeal)}</dd>
-                  <dt>{canonicalName("F3")} {canonicalSym("F3")}</dt><dd className="text-right font-mono text-zinc-700">{fmtLbf(c.F3)}</dd>
-                  <dt>Stress %TS</dt><dd className="text-right font-mono text-zinc-700">{(c.stressPctConservative * 100).toFixed(0)}%</dd>
-                  <dt>{canonicalName("s")} {canonicalSym("s")}</dt><dd className="text-right font-mono text-zinc-700">{c.s.toFixed(3)} in</dd>
-                </dl>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 

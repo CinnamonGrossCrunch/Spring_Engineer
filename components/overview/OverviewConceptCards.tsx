@@ -185,7 +185,7 @@ export function OverviewConceptCards({ values, constraints, selectedId, onSelect
       {/* Card 4 — Latch Release */}
       <Card accent="#b45309" eyebrow="4 · Latch Release" title="Latch Release" question="What must the hammer ultimately accomplish?">
         <div className="mb-0.5 inline-flex w-fit items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9.5px] font-medium text-amber-700">
-          Assumed mechanism requirement
+          Historical / optional reference input
         </div>
         <Row id="F_latch_peak" values={values} unit="lbf" selectedId={selectedId} onSelect={onSelect} />
         <Row id="F_latch_avg" values={values} unit="lbf" selectedId={selectedId} onSelect={onSelect} />

@@ -108,8 +108,8 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
   const F1 = num("F1");
   const F2 = num("F2");
   const F3 = num("F3");
-  const Hs = num("Hs");
-  const reqClear = num("required_clearance") ?? 0;
+  const HsMax = num("Hs_max");
+  const cExtra = num("c_extra") ?? 0;
 
   const coilBind = constraints.find((c) => c.id === "coil_bind");
   const stress = constraints.find((c) => c.id === "stress");
@@ -148,9 +148,11 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
 
   // Near-solid-height advisory (display only). A near-limit spring is NOT
   // recolored bright amber — it stays neutral steel and surfaces a small badge.
-  const solidMargin = L1 !== undefined && Hs !== undefined ? L1 - Hs : undefined;
+  const solidMargin = L1 !== undefined && HsMax !== undefined ? L1 - HsMax : undefined;
   const nearSolid =
-    (!coilBind || coilBind.ok) && solidMargin !== undefined && solidMargin < 2 * reqClear;
+    (!coilBind || coilBind.ok) &&
+    solidMargin !== undefined &&
+    solidMargin < Math.max(0.01, 2 * cExtra);
 
   // Default is neutral steel with cylindrical depth shading. Only an actual
   // coil-bind failure (red) or an active geometry selection (blue) recolors it.

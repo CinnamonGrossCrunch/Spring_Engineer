@@ -1,16 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { DesignMode, ModelState, PresentationView, WorkspaceVersion } from "@/lib/engineering/types";
+import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import type { DesignMode, ModelState, WorkspaceVersion } from "@/lib/engineering/types";
 import { solveModel } from "@/lib/engineering/solver";
 import { evaluateConstraints } from "@/lib/engineering/constraints";
 import { PARAMETER_MAP } from "@/lib/engineering/parameters";
 import {
   buildInitialState,
   MODE_INFO,
-  PRESET_INFO,
-  DEFAULT_PRESET,
-  exampleDataLabel,
   type PresetId,
 } from "@/data/exampleModel";
 import { LogicMap } from "./LogicMap";
@@ -19,15 +19,10 @@ import { ParameterControl } from "./ParameterControl";
 import { ForceTravelChart } from "./ForceTravelChart";
 import { ConstraintPanel } from "./ConstraintPanel";
 import { SpringStateIllustration } from "./SpringStateIllustration/SpringStateIllustration";
-import { Overview } from "./overview/Overview";
 import { V2Workbench } from "./v2/V2Workbench";
 
 const MODES: DesignMode[] = ["forward", "reverse", "explore"];
-const PRESETS: PresetId[] = ["literalSketch", "reconciledCandidate"];
-const VIEWS: { id: PresentationView; label: string }[] = [
-  { id: "overview", label: "Overview" },
-  { id: "engineering", label: "Engineering" },
-];
+const ACTIVE_PRESET: PresetId = "currentCandidate";
 const ENERGY_LENS_IDS = ["W_run", "eta", "KE", "v", "p"];
 const DIAMETER_IDS = ["D", "OD", "ID"] as const;
 
@@ -35,16 +30,17 @@ const DIAMETER_IDS = ["D", "OD", "ID"] as const;
  * Primary engineering workbench: shared calculator state, the dependency
  * map, inspector, force-travel chart, constraint panel and energy lens.
  */
-export function EngineeringWorkbench() {
-  const [workspace, setWorkspace] = useState<WorkspaceVersion>("v1");
+interface EngineeringWorkbenchProps {
+  initialWorkspace?: WorkspaceVersion;
+}
+
+export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWorkbenchProps) {
+  const router = useRouter();
+  const [workspace, setWorkspace] = useState<WorkspaceVersion>(initialWorkspace);
   const [mode, setMode] = useState<DesignMode>("forward");
-  const [preset, setPreset] = useState<PresetId>(DEFAULT_PRESET);
-  const [view, setView] = useState<PresentationView>("overview");
-  const [model, setModel] = useState<ModelState>(() => buildInitialState("forward", DEFAULT_PRESET));
-  const [selectedId, setSelectedId] = useState<string | null>("k");
+  const [model, setModel] = useState<ModelState>(() => buildInitialState("forward", ACTIVE_PRESET));
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [etaMode, setEtaMode] = useState<"unspecified" | "ideal" | "assumed" | "measured">("unspecified");
-  const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [inspectorPinned, setInspectorPinned] = useState(false);
   const [constraintsOpen, setConstraintsOpen] = useState(false);
 
   const solve = useMemo(() => solveModel(model), [model]);
@@ -72,15 +68,13 @@ export function EngineeringWorkbench() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (constraintsOpen) setConstraintsOpen(false);
-      else if (inspectorOpen && !inspectorPinned) setInspectorOpen(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [constraintsOpen, inspectorOpen, inspectorPinned]);
+  }, [constraintsOpen]);
 
   const handleSelect = useCallback((id: string) => {
     setSelectedId(id);
-    setInspectorOpen(true);
   }, []);
 
   const handleSetDiameterMode = useCallback((editableId: "D" | "OD" | "ID") => {
@@ -128,7 +122,7 @@ export function EngineeringWorkbench() {
         if (!cur) return prev;
         if (cur.status === "fixed") {
           // Unpin: return to the parameter's default role in this mode.
-          const defaults = buildInitialState(mode, preset);
+          const defaults = buildInitialState(mode, ACTIVE_PRESET);
           const fallback = defaults[id]?.status === "fixed" ? "variable" : (defaults[id]?.status ?? "variable");
           return {
             ...prev,
@@ -144,30 +138,22 @@ export function EngineeringWorkbench() {
         return { ...prev, [id]: { status: "fixed", value: pinValue } };
       });
     },
-    [mode, preset, solve.values],
+    [mode, solve.values],
   );
 
   const handleModeChange = useCallback(
     (next: DesignMode) => {
       setMode(next);
-      setModel(buildInitialState(next, preset));
-      setSelectedId(next === "reverse" ? "F2" : "k");
+      setModel(buildInitialState(next, ACTIVE_PRESET));
+      setSelectedId(null);
     },
-    [preset],
-  );
-
-  const handlePresetChange = useCallback(
-    (next: PresetId) => {
-      setPreset(next);
-      setModel(buildInitialState(mode, next));
-      setSelectedId(mode === "reverse" ? "F2" : "k");
-    },
-    [mode],
+    [],
   );
 
   const handleReset = useCallback(() => {
-    setModel(buildInitialState(mode, preset));
-  }, [mode, preset]);
+    setModel(buildInitialState(mode, ACTIVE_PRESET));
+    setSelectedId(null);
+  }, [mode]);
 
   /**
    * Explicit V2 → V1 bridge. Maps a selected V2 candidate (already built into a
@@ -178,11 +164,10 @@ export function EngineeringWorkbench() {
   const applyV2Candidate = useCallback((next: ModelState) => {
     setModel(next);
     setMode("explore");
-    setView("engineering");
     setWorkspace("v1");
-    setSelectedId("k");
-    setInspectorOpen(true);
-  }, []);
+    router.push("/engineer");
+    setSelectedId(null);
+  }, [router]);
 
   const display = (id: string) =>
     model[id]?.status === "derived" ? solve.values[id] : (model[id]?.value ?? solve.values[id]);
@@ -192,26 +177,31 @@ export function EngineeringWorkbench() {
       {/* ── Header ── */}
       <header className="border-b border-zinc-200 bg-white px-4 py-2.5">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <h1 className="text-base font-bold tracking-tight text-zinc-900">
-            Spring Mechanism Explorer
-          </h1>
+          <div className="flex items-center gap-2">
+            <Image
+              src="/Sigma%20Logo_80x80.png"
+              alt="Sigma logo"
+              width={40}
+              height={40}
+              className="h-10 w-10 object-contain"
+              priority
+            />
+            <h1 className="text-base font-bold tracking-tight text-zinc-900">
+              Sigma Aerospace Spring Engine
+            </h1>
+          </div>
 
-          {/* Workspace version — V1 Explorer vs V2 Optimize. Switching preserves
-              both workspaces' state (neither is unmounted). */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
-              Workspace
-            </span>
-            <div className="flex overflow-hidden rounded-md border border-zinc-300 text-xs">
-              {([
-                { id: "v1", label: "V1 Explorer" },
-                { id: "v2", label: "V2 Optimize" },
-              ] as { id: WorkspaceVersion; label: string }[]).map((w) => (
-                <button
+           <div className="flex overflow-hidden rounded-md border border-zinc-300 text-xs">
+             {([
+               { id: "v1", label: "Engineer", href: "/engineer" },
+               { id: "v2", label: "Optimize", href: "/optimize" },
+             ] as { id: WorkspaceVersion; label: string; href: string }[]).map((w) => (
+                <Link
                   key={w.id}
-                  type="button"
                   onClick={() => setWorkspace(w.id)}
                   aria-pressed={workspace === w.id}
+                  href={w.href}
                   className={`px-3 py-1.5 font-medium transition-colors ${
                     workspace === w.id
                       ? "bg-violet-600 text-white"
@@ -219,37 +209,13 @@ export function EngineeringWorkbench() {
                   }`}
                 >
                   {w.label}
-                </button>
+                </Link>
               ))}
             </div>
           </div>
 
           {workspace === "v1" && (
             <>
-          {/* Presentation view — Overview (distilled) vs Engineering (full) */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
-              View
-            </span>
-            <div className="flex overflow-hidden rounded-md border border-zinc-300 text-xs">
-              {VIEWS.map((v) => (
-                <button
-                  key={v.id}
-                  type="button"
-                  onClick={() => setView(v.id)}
-                  aria-pressed={view === v.id}
-                  className={`px-3 py-1.5 font-medium transition-colors ${
-                    view === v.id
-                      ? "bg-blue-600 text-white"
-                      : "bg-white text-zinc-600 hover:bg-zinc-100"
-                  }`}
-                >
-                  {v.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Design / solver mode — orthogonal to the view above */}
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
@@ -274,31 +240,6 @@ export function EngineeringWorkbench() {
             </div>
           </div>
 
-          {/* Concept preset — Bokaie original sketch (literal) vs reconciled candidate */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
-              Concept
-            </span>
-            <div className="flex overflow-hidden rounded-md border border-zinc-300 text-xs">
-              {PRESETS.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => handlePresetChange(p)}
-                  aria-pressed={preset === p}
-                  title={PRESET_INFO[p].blurb}
-                  className={`px-3 py-1.5 font-medium transition-colors ${
-                    preset === p
-                      ? "bg-amber-600 text-white"
-                      : "bg-white text-zinc-600 hover:bg-zinc-100"
-                  }`}
-                >
-                  {PRESET_INFO[p].short}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <button
             type="button"
             onClick={handleReset}
@@ -314,15 +255,14 @@ export function EngineeringWorkbench() {
             </>
           )}
 
-          <span className="ml-auto text-[11px] italic text-zinc-400">
-            Conceptual engineering model — verify final spring design with supplier
-          </span>
+          <div className="ml-auto flex items-center gap-3">
+            <span className="text-[11px] italic text-zinc-400">
+              Conceptual engineering model — verify final spring design with supplier
+            </span>
+          </div>
         </div>
         {workspace === "v1" ? (
-          <p className="mt-1.5 text-[11px] text-zinc-500">
-            <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">{exampleDataLabel(preset)}</span>
-            <span className="ml-2">{MODE_INFO[mode].blurb}</span>
-          </p>
+          <p className="mt-1.5 text-[11px] text-zinc-500">{MODE_INFO[mode].blurb}</p>
         ) : (
           <p className="mt-1.5 text-[11px] text-zinc-500">
             Optimization workbench with its own scenario state — the V1 explorer&apos;s state is
@@ -334,179 +274,134 @@ export function EngineeringWorkbench() {
       {/* ── V1 workspace body (kept mounted so V1 state persists on switch) ── */}
       <div className={workspace === "v1" ? "contents" : "hidden"}>
       {/* ── Main workspace ── */}
-      <div className={`flex-1 p-3 ${inspectorPinned ? "xl:pr-[392px]" : ""}`}>
-        {view === "overview" ? (
-          <Overview
-            values={solve.values}
-            selectedId={selectedId}
-            constraints={constraints}
-            onSelect={handleSelect}
-            presetId={preset}
-          />
-        ) : (
-          <div className="flex flex-col gap-3 xl:flex-row">
-            {/* Visual column: parametric illustration + force-travel graph */}
-            <div className="flex w-full min-w-0 shrink-0 flex-col gap-3 xl:w-[36%] xl:max-w-[560px]">
-          <SpringStateIllustration
-            values={solve.values}
-            selectedId={selectedId}
-            constraints={constraints}
-            onSelect={handleSelect}
-          />
+      <div className="flex-1 p-3">
+        <div className="flex h-full flex-col gap-3 xl:flex-row">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-col gap-3 xl:flex-row">
+              {/* Visual column: parametric illustration + force-travel graph */}
+              <div className="flex w-full min-w-0 shrink-0 flex-col gap-3 xl:w-[36%] xl:max-w-[560px]">
+                <SpringStateIllustration
+                  values={solve.values}
+                  selectedId={selectedId}
+                  constraints={constraints}
+                  onSelect={handleSelect}
+                />
 
-          <ForceTravelChart
-            F1={solve.values.F1}
-            F2={solve.values.F2}
-            F3={solve.values.F3}
-            s_h={display("s_h")}
-            y_latch={display("y_latch")}
-            F_latch_avg={display("F_latch_avg")}
-            onSelect={handleSelect}
-          />
-        </div>
+                <ForceTravelChart
+                  F1={solve.values.F1}
+                  F2={solve.values.F2}
+                  F3={solve.values.F3}
+                  s_h={display("s_h")}
+                  y_latch={display("y_latch")}
+                  F_latch_avg={display("F_latch_avg")}
+                  onSelect={handleSelect}
+                />
+              </div>
 
-        {/* Center column: dependency logic map + energy lens */}
-        <div className="flex min-w-0 flex-1 flex-col gap-3 xl:min-w-[540px]">
-          <div className="relative min-h-[560px] flex-1">
-            <div className="absolute inset-0">
-              <LogicMap
-                model={model}
-                values={solve.values}
-                selectedId={selectedId}
-                violatedParamIds={violatedParamIds}
-                constraints={constraints}
-                mode={mode}
-                onSelect={handleSelect}
-              />
-            </div>
-          </div>
-
-          {/* Optional advanced energy lens (collapsed by default) */}
-          <details className="rounded-lg border border-zinc-200 bg-white">
-            <summary className="cursor-pointer px-4 py-2.5 text-sm font-semibold text-zinc-700">
-              Advanced: energy lens (assumption-based)
-            </summary>
-            <div className="border-t border-zinc-100 p-4">
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
-                  Hammer transfer efficiency
-                </span>
-                <div className="flex gap-1 rounded border border-zinc-200 bg-zinc-50 p-1 text-[11px]">
-                  {(["unspecified", "ideal", "assumed", "measured"] as const).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setEtaMode(m)}
-                      className={`rounded px-2 py-0.5 ${
-                        etaMode === m ? "bg-zinc-800 text-white" : "text-zinc-600 hover:bg-zinc-200"
-                      }`}
-                    >
-                      {m === "unspecified" ? "Not specified" : m === "ideal" ? "Ideal upper bound" : m === "assumed" ? "Assumed" : "Measured"}
-                    </button>
-                  ))}
+              {/* Center column: dependency logic map + energy lens */}
+              <div className="flex min-w-0 flex-1 flex-col gap-3 xl:min-w-[540px]">
+                <div className="relative min-h-[560px] flex-1">
+                  <div className="absolute inset-0">
+                    <LogicMap
+                      model={model}
+                      values={solve.values}
+                      selectedId={selectedId}
+                      violatedParamIds={violatedParamIds}
+                      constraints={constraints}
+                      mode={mode}
+                      onSelect={handleSelect}
+                    />
+                  </div>
                 </div>
-              </div>
-              <p className="mb-2 text-[12px] leading-5 text-zinc-500">
-                Linear-spring work over the run-up stroke: <span className="font-mono">W_run = F1·s_h − ½·k·s_h²</span>{" "}
-                (equivalently <span className="font-mono">ΔU = ½·k·(x1² − x2²)</span>). The physical relationship is{" "}
-                <span className="font-mono">KE = η·W_run</span> and{" "}
-                <span className="font-mono">v = √(2·KE/m)</span>, <span className="font-mono">p = m·v</span>.
-              </p>
-              <p className="mb-3 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[12px] text-amber-800">
-                {etaMode === "unspecified"
-                  ? "Hammer transfer efficiency: Not specified. This is an unresolved mechanism input, not a calculated spring result."
-                  : etaMode === "ideal"
-                    ? "Ideal upper bound: η = 1.0. Lossless theoretical upper bound only."
-                    : etaMode === "assumed"
-                      ? "Assumed efficiency: η is a user-entered assumption and should be treated as external input."
-                      : "Measured efficiency: η reflects testing or field data and is treated as an external measured input."}
-              </p>
-              <div className="grid gap-1.5 md:grid-cols-2">
-                {ENERGY_LENS_IDS.map((id) => (
-                  <ParameterControl
-                    key={id}
-                    def={PARAMETER_MAP[id]}
-                    state={model[id]}
-                    value={display(id)}
-                    selected={selectedId === id}
-                    violated={violatedParamIds.has(id)}
-                    onSelect={handleSelect}
-                    onTogglePin={handleTogglePin}
-                  />
-                ))}
+
+                {/* Optional advanced energy lens (collapsed by default) */}
+                <details className="rounded-lg border border-zinc-200 bg-white">
+                  <summary className="cursor-pointer px-4 py-2.5 text-sm font-semibold text-zinc-700">
+                    Advanced: energy lens (assumption-based)
+                  </summary>
+                  <div className="border-t border-zinc-100 p-4">
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+                        Hammer transfer efficiency
+                      </span>
+                      <div className="flex gap-1 rounded border border-zinc-200 bg-zinc-50 p-1 text-[11px]">
+                        {(["unspecified", "ideal", "assumed", "measured"] as const).map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setEtaMode(m)}
+                            className={`rounded px-2 py-0.5 ${
+                              etaMode === m ? "bg-zinc-800 text-white" : "text-zinc-600 hover:bg-zinc-200"
+                            }`}
+                          >
+                            {m === "unspecified" ? "Not specified" : m === "ideal" ? "Ideal upper bound" : m === "assumed" ? "Assumed" : "Measured"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="mb-2 text-[12px] leading-5 text-zinc-500">
+                      Linear-spring work over the run-up stroke: <span className="font-mono">W_run = F1·s_h − ½·k·s_h²</span>{" "}
+                      (equivalently <span className="font-mono">ΔU = ½·k·(x1² − x2²)</span>). The physical relationship is{" "}
+                      <span className="font-mono">KE = η·W_run</span> and{" "}
+                      <span className="font-mono">v = √(2·KE/m)</span>, <span className="font-mono">p = m·v</span>.
+                    </p>
+                    <p className="mb-3 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[12px] text-amber-800">
+                      {etaMode === "unspecified"
+                        ? "Hammer transfer efficiency: Not specified. This is an unresolved mechanism input, not a calculated spring result."
+                        : etaMode === "ideal"
+                          ? "Ideal upper bound: η = 1.0. Lossless theoretical upper bound only."
+                          : etaMode === "assumed"
+                            ? "Assumed efficiency: η is a user-entered assumption and should be treated as external input."
+                            : "Measured efficiency: η reflects testing or field data and is treated as an external measured input."}
+                    </p>
+                    <div className="grid gap-1.5 md:grid-cols-2">
+                      {ENERGY_LENS_IDS.map((id) => (
+                        <ParameterControl
+                          key={id}
+                          def={PARAMETER_MAP[id]}
+                          state={model[id]}
+                          value={display(id)}
+                          selected={selectedId === id}
+                          violated={violatedParamIds.has(id)}
+                          onSelect={handleSelect}
+                          onTogglePin={handleTogglePin}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </details>
               </div>
             </div>
-          </details>
-        </div>
           </div>
-        )}
-      </div>
 
-      {/* ── Parameter inspector: pop-out drawer (pinnable, collapsed by default) ── */}
-      <div
-        className={`fixed right-0 top-0 z-40 flex h-screen w-[380px] max-w-[92vw] transform flex-col border-l border-zinc-200 bg-white shadow-2xl transition-transform duration-200 ${
-          inspectorOpen || inspectorPinned ? "translate-x-0" : "translate-x-full"
-        }`}
-        role="complementary"
-        aria-label="Parameter inspector"
-      >
-        <div className="flex items-center justify-between border-b border-zinc-200 px-3 py-2">
-          <span className="text-sm font-semibold text-zinc-700">Parameter Inspector</span>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setInspectorPinned((p) => !p)}
-              aria-pressed={inspectorPinned}
-              title={inspectorPinned ? "Unpin sidebar" : "Pin sidebar open"}
-              className={`rounded border px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                inspectorPinned
-                  ? "border-blue-400 bg-blue-100 text-blue-700"
-                  : "border-zinc-300 text-zinc-500 hover:border-zinc-500"
-              }`}
-            >
-              {inspectorPinned ? "Pinned" : "Pin"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setInspectorOpen(false);
-                setInspectorPinned(false);
-              }}
-              title="Collapse inspector"
-              aria-label="Collapse inspector"
-              className="rounded border border-zinc-300 px-2 py-0.5 text-[13px] leading-none text-zinc-500 hover:border-zinc-500"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-2">
-          <ParameterInspector
-            selectedId={selectedId}
-            model={model}
-            values={solve.values}
-            conflicts={solve.conflicts}
-            constraints={constraints}
-            onSelect={handleSelect}
-            onValueChange={handleValueChange}
-            onTogglePin={handleTogglePin}
-            onSetDiameterMode={handleSetDiameterMode}
-            variant={view === "overview" ? "overview" : "engineering"}
-          />
+          {/* ── Parameter inspector: persistent column ── */}
+          <aside
+            className="w-full xl:w-[380px] xl:shrink-0"
+            role="complementary"
+            aria-label="Parameter inspector"
+          >
+            <div className="flex h-full min-h-[320px] flex-col rounded-lg border border-zinc-200 bg-white shadow-sm">
+              <div className="border-b border-zinc-200 px-3 py-2">
+                <span className="text-sm font-semibold text-zinc-700">Parameter Inspector</span>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                <ParameterInspector
+                  selectedId={selectedId}
+                  model={model}
+                  values={solve.values}
+                  conflicts={solve.conflicts}
+                  constraints={constraints}
+                  onSelect={handleSelect}
+                  onValueChange={handleValueChange}
+                  onTogglePin={handleTogglePin}
+                  onSetDiameterMode={handleSetDiameterMode}
+                  variant="engineering"
+                />
+              </div>
+            </div>
+          </aside>
         </div>
       </div>
-
-      {/* Collapsed inspector re-open tab */}
-      {!(inspectorOpen || inspectorPinned) && (
-        <button
-          type="button"
-          onClick={() => setInspectorOpen(true)}
-          title="Open parameter inspector"
-          className="fixed right-0 top-1/2 z-30 -translate-y-1/2 rounded-l-md border border-r-0 border-zinc-300 bg-white px-2 py-3 text-[11px] font-medium text-zinc-600 shadow-md hover:bg-zinc-50 [writing-mode:vertical-rl]"
-        >
-          ‹ Inspector
-        </button>
-      )}
 
       {/* ── Constraints & consistency: floating status button ── */}
       <button
@@ -514,9 +409,7 @@ export function EngineeringWorkbench() {
         onClick={() => setConstraintsOpen(true)}
         aria-label={`Constraints: ${constraintSummary.passing} of ${constraintSummary.total} checks passing`}
         title="Constraints & consistency"
-        className={`fixed bottom-5 z-30 flex h-16 w-16 flex-col items-center justify-center rounded-full border font-bold text-white shadow-lg transition-all hover:scale-105 ${
-          inspectorOpen || inspectorPinned ? "right-[396px]" : "right-5"
-        } ${
+        className={`fixed bottom-5 right-5 z-30 flex h-16 w-16 flex-col items-center justify-center rounded-full border font-bold text-white shadow-lg transition-all hover:scale-105 ${
           constraintSummary.allOk
             ? "border-emerald-300 bg-emerald-500"
             : constraintSummary.hasConflicts

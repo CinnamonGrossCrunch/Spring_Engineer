@@ -7,7 +7,7 @@ import type {
   V2SweepResult,
 } from "@/lib/v2/types";
 import { canonicalName, canonicalSym } from "@/lib/engineering/nomenclature";
-import { V2_LANDSCAPE_METRICS, V2_HISTORICAL_MARKERS } from "@/lib/v2/defaults";
+import { V2_LANDSCAPE_METRICS } from "@/lib/v2/defaults";
 import { formatValue } from "../StatusBadge";
 import {
   STRESS_BAND_META,
@@ -26,6 +26,8 @@ interface Props {
   onMetricChange: (m: V2LandscapeMetric) => void;
   selectedKey: string | null;
   onSelect: (key: string) => void;
+  shortlist: string[];
+  onToggleShortlist: (key: string) => void;
 }
 
 const PAD = { left: 46, right: 14, top: 8, bottom: 30 };
@@ -58,6 +60,8 @@ export function V2DesignLandscape({
   onMetricChange,
   selectedKey,
   onSelect,
+  shortlist,
+  onToggleShortlist,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<{ key: string; x: number; y: number } | null>(null);
@@ -113,6 +117,7 @@ export function V2DesignLandscape({
   }, [candidates]);
 
   const hoverCandidate = hover ? byKey.get(hover.key) : undefined;
+  const shortlistSet = useMemo(() => new Set(shortlist), [shortlist]);
 
   const isVisibleCol = (col: number) => col >= viewMinCol && col <= viewMaxCol;
   const colX = (col: number) => PAD.left + (col - viewMinCol) * cellW;
@@ -134,14 +139,6 @@ export function V2DesignLandscape({
   // Axis ticks — a few evenly spaced labels.
   const xTicks = pickTicks(wireValues.slice(viewMinCol, viewMaxCol + 1), 6);
   const yTicks = pickTicks(coilValues, 6);
-
-  // Historical markers within range.
-  const markerPts = V2_HISTORICAL_MARKERS.map((mk) => {
-    const col = nearestIndex(wireValues, mk.d);
-    const row = nearestIndex(coilValues, mk.Na);
-    if (col < 0 || row < 0 || !isVisibleCol(col)) return null;
-    return { ...mk, cx: colX(col) + cellW / 2, cy: rowY(row) + cellH / 2 };
-  }).filter((x): x is NonNullable<typeof x> => x !== null);
 
   const selected = selectedKey ? byKey.get(selectedKey) : undefined;
   const selCol = selected ? nearestIndex(wireValues, selected.d) : -1;
@@ -215,12 +212,47 @@ export function V2DesignLandscape({
                 width={cellW + 0.5}
                 height={cellH + 0.5}
                 fill={fill}
-                onPointerMove={handlePoint}
-                onPointerEnter={handlePoint}
+                onPointerMove={alive ? handlePoint : undefined}
+                onPointerEnter={alive ? handlePoint : () => setHover(null)}
                 onPointerLeave={() => setHover(null)}
-                onClick={() => onSelect(c.key)}
+                onClick={alive ? () => onSelect(c.key) : undefined}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  if (!alive) return;
+                  onToggleShortlist(c.key);
+                }}
                 style={{ cursor: alive ? "pointer" : "default" }}
               />
+            );
+          })}
+
+          {/* Shortlisted marker — yellow X */}
+          {candidates.map((c, i) => {
+            if (!shortlistSet.has(c.key)) return null;
+            const { row, col } = idxToRC(i);
+            if (!isVisibleCol(col)) return null;
+            const x = colX(col);
+            const y = rowY(row);
+            const pad = Math.max(1.5, Math.min(cellW, cellH) * 0.2);
+            return (
+              <g key={`sx-${c.key}`} pointerEvents="none">
+                <line
+                  x1={x + pad}
+                  y1={y + pad}
+                  x2={x + cellW - pad}
+                  y2={y + cellH - pad}
+                  stroke="#eab308"
+                  strokeWidth={1.9}
+                />
+                <line
+                  x1={x + cellW - pad}
+                  y1={y + pad}
+                  x2={x + pad}
+                  y2={y + cellH - pad}
+                  stroke="#eab308"
+                  strokeWidth={1.9}
+                />
+              </g>
             );
           })}
 
@@ -261,14 +293,6 @@ export function V2DesignLandscape({
               />
             );
           })}
-
-          {/* Historical reference markers */}
-          {markerPts.map((mk) => (
-            <g key={mk.id} pointerEvents="none">
-              <circle cx={mk.cx} cy={mk.cy} r={5} fill="none" stroke="#0f172a" strokeWidth={1.6} />
-              <circle cx={mk.cx} cy={mk.cy} r={1.6} fill="#0f172a" />
-            </g>
-          ))}
 
           {/* Selection ring */}
           {selected && selCol >= 0 && selRow >= 0 && isVisibleCol(selCol) && (
@@ -350,9 +374,6 @@ export function V2DesignLandscape({
           </span>
         </div>
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-2.5 w-2.5" style={{ background: "#f4f4f5", border: "1px solid #d4d4d8" }} /> disabled
-        </span>
-        <span className="inline-flex items-center gap-1">
           <span className="inline-block h-0 w-0" style={{ borderLeft: "6px solid transparent", borderTop: "6px solid #d97706" }} /> {STRESS_BAND_META.set.label} set
         </span>
         <span className="inline-flex items-center gap-1">
@@ -362,10 +383,10 @@ export function V2DesignLandscape({
           <span className="inline-block h-2.5 w-2.5 border-[1.4px] border-zinc-900 bg-white" /> Pareto
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-2.5 w-2.5 rounded-full border border-zinc-900" /> historical
+          <span className="inline-block h-2.5 w-2.5 border-2 border-yellow-500 bg-white" /> selected
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-2.5 w-2.5 border-2 border-yellow-500 bg-white" /> selected
+          <span className="inline-block h-2.5 w-2.5 text-yellow-500 font-semibold leading-none">×</span> shortlisted (right-click cell)
         </span>
       </div>
     </div>

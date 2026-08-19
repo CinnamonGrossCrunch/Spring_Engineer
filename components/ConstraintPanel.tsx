@@ -23,16 +23,16 @@ export function ConstraintPanel({
   const groups = [
     {
       title: "Spring geometry",
-      items: passing.filter((c) => ["coil_bind", "spring_index", "deflection_positive"].includes(c.id)),
+      items: passing.filter((c) => ["coil_bind", "spring_index", "deflection_positive", "axial_budget"].includes(c.id)),
     },
     {
       title: "Stress and force margin",
-      items: passing.filter((c) => ["stress", "continuous_drive", "contact_force"].includes(c.id)),
+      items: passing.filter((c) => ["stress", "start_force_cap", "continuous_drive", "contact_force", "latch_travel_boundary"].includes(c.id)),
     },
     {
       title: "Other consistency checks",
       items: passing.filter(
-        (c) => !["coil_bind", "spring_index", "deflection_positive", "stress", "continuous_drive", "contact_force"].includes(c.id),
+        (c) => !["coil_bind", "spring_index", "deflection_positive", "axial_budget", "stress", "start_force_cap", "continuous_drive", "contact_force", "latch_travel_boundary"].includes(c.id),
       ),
     },
   ].filter((group) => group.items.length > 0);

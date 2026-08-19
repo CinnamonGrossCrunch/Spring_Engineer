@@ -53,8 +53,8 @@ export function ParameterInspector({
       <div className="rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-500">
         <h2 className="mb-2 font-semibold text-zinc-700">Parameter Inspector</h2>
         <p>
-          Click any parameter in the map, chart section or lists to see its meaning, equation,
-          dependencies and sensitivity.
+          Click any parameter in the map, chart, or cards to view what it controls, why it
+          matters, and edit it when that value is user-adjustable.
         </p>
       </div>
     );
