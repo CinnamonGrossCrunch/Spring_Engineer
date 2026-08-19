@@ -21,6 +21,7 @@ from io import BytesIO
 from build123d import PrecisionMode, Unit, export_step, import_step
 
 from .errors import StepExportError
+from .spring_geometry import solid_z_extent
 from .tolerances import CAD_LENGTH_VALIDATION_TOL_MM, CAD_OD_VALIDATION_TOL_MM
 
 #: Fixed STEP header timestamp; see module docstring.
@@ -79,8 +80,11 @@ def verify_step_roundtrip(step_bytes: bytes, label: str, expected_height_mm: flo
         if not reimported.is_valid:
             raise StepExportError(f"The re-imported STEP for {label} is not a valid shape.")
 
+        # Axial extent from vertices, radial from the bounding box - see
+        # spring_geometry.solid_z_extent for why they differ.
         bb = reimported.bounding_box()
-        height = bb.max.Z - bb.min.Z
+        z_min, z_max = solid_z_extent(reimported)
+        height = z_max - z_min
         od = max(bb.max.X - bb.min.X, bb.max.Y - bb.min.Y)
 
         problems = []

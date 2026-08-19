@@ -21,6 +21,7 @@ from .export import (
     verify_step_roundtrip,
 )
 from .packaging import (
+    MAX_INLINE_ARTIFACT_BYTES,
     ZIP_CONTENT_TYPE,
     assembly_filename,
     build_assembly,
@@ -114,12 +115,14 @@ def generate_cad(request: CadSpringRequest) -> CadSpringResponse:
     manifest = build_manifest(request, geom, built, reports, end_model, warnings)
 
     # 3. package
+    readme = build_readme(request, manifest, configurations)
     files: list[CadFile] = []
 
     if request.packageMode == "assembly-step":
         assembly = build_assembly(built, geom)
         data = export_solid_to_step_bytes(assembly, "all-states assembly")
-        files.append(_as_file(assembly_filename(request.candidateKey), data, STEP_CONTENT_TYPE))
+        name = assembly_filename(request.candidateKey)
+        artifact = _as_file(name, data, STEP_CONTENT_TYPE)
         warnings.append(
             "The assembly places the selected states side by side for review only; "
             "they do not coexist in the mechanism.")
@@ -127,12 +130,24 @@ def generate_cad(request: CadSpringRequest) -> CadSpringResponse:
     elif len(configurations) == 1:
         key = configurations[0]
         name = step_filename(request.candidateKey, key)
-        files.append(_as_file(name, step_bytes[name], STEP_CONTENT_TYPE, configuration=key))
+        artifact = _as_file(name, step_bytes[name], STEP_CONTENT_TYPE, configuration=key)
 
     else:
-        readme = build_readme(request, manifest, configurations)
         data = build_zip(step_bytes, manifest, readme)
-        files.append(_as_file(zip_filename(request.candidateKey), data, ZIP_CONTENT_TYPE))
+        artifact = _as_file(zip_filename(request.candidateKey), data, ZIP_CONTENT_TYPE)
+
+    # A bare STEP can outgrow the function response limit on a large spring.
+    # Zipping it is transparent to the user and keeps the transport honest.
+    if (artifact.contentType == STEP_CONTENT_TYPE
+            and artifact.byteLength > MAX_INLINE_ARTIFACT_BYTES):
+        raw = base64.b64decode(artifact.content)
+        data = build_zip({artifact.filename: raw}, manifest, readme)
+        warnings.append(
+            f"{artifact.filename} is {artifact.byteLength / 1_000_000:.1f} MB, so it was "
+            f"delivered as a ZIP to stay within the response size limit.")
+        artifact = _as_file(zip_filename(request.candidateKey), data, ZIP_CONTENT_TYPE)
+
+    files.append(artifact)
 
     return CadSpringResponse(
         candidateKey=request.candidateKey,

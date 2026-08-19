@@ -17,7 +17,12 @@ from dataclasses import dataclass, field
 from build123d import GeomType
 
 from .errors import GeometryInconsistentError, InvalidBrepError
-from .spring_geometry import BuiltSpring, SpringGeometryMm, planar_seating_faces
+from .spring_geometry import (
+    BuiltSpring,
+    SpringGeometryMm,
+    planar_seating_faces,
+    solid_z_extent,
+)
 from .tolerances import (
     CAD_LENGTH_VALIDATION_TOL_MM,
     CAD_LINEAR_TOL_MM,
@@ -181,17 +186,19 @@ def validate_brep(built: BuiltSpring, geom: SpringGeometryMm) -> BrepReport:
     else:
         report.checks.append("finite_positive_volume")
 
-    # bounding box
+    # Radial extent from the bounding box; axial extent from the vertices.
+    # See solid_z_extent() for why the two are measured differently.
     bb = solid.bounding_box()
-    report.bbox_min = (bb.min.X, bb.min.Y, bb.min.Z)
-    report.bbox_max = (bb.max.X, bb.max.Y, bb.max.Z)
+    z_min, z_max = solid_z_extent(solid)
+    report.bbox_min = (bb.min.X, bb.min.Y, z_min)
+    report.bbox_max = (bb.max.X, bb.max.Y, z_max)
     if not _finite(*report.bbox_min, *report.bbox_max):
         raise InvalidBrepError(
             f"The {built.configuration} solid has non-finite coordinates.",
             ["Bounding box contains NaN or infinity."])
     report.checks.append("finite_bounding_box")
 
-    report.measured_height_mm = bb.max.Z - bb.min.Z
+    report.measured_height_mm = z_max - z_min
     report.measured_od_mm = max(bb.max.X - bb.min.X, bb.max.Y - bb.min.Y)
     report.active_pitch_mm = built.active_pitch_mm
     report.grind_depth_mm = built.grind_depth_mm
@@ -206,11 +213,11 @@ def validate_brep(built: BuiltSpring, geom: SpringGeometryMm) -> BrepReport:
         report.checks.append("height_matches_requested_state")
 
     # no material outside the seating planes
-    if bb.min.Z < -CAD_LENGTH_VALIDATION_TOL_MM or \
-            bb.max.Z > built.length_mm + CAD_LENGTH_VALIDATION_TOL_MM:
+    if z_min < -CAD_LENGTH_VALIDATION_TOL_MM or \
+            z_max > built.length_mm + CAD_LENGTH_VALIDATION_TOL_MM:
         problems.append(
             f"Material exists outside the seating planes: Z spans "
-            f"[{bb.min.Z:.6f}, {bb.max.Z:.6f}] mm, expected [0, {built.length_mm:.6f}].")
+            f"[{z_min:.6f}, {z_max:.6f}] mm, expected [0, {built.length_mm:.6f}].")
     else:
         report.checks.append("no_material_outside_seating_planes")
 

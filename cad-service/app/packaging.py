@@ -32,6 +32,17 @@ from .tolerances import (
 
 ZIP_CONTENT_TYPE = "application/zip"
 
+#: Largest raw artifact we will hand back inline, in bytes.
+#:
+#: Artifacts travel base64-encoded inside a JSON body, which inflates them by
+#: 4/3, and they cross two Vercel Functions (the Next.js proxy and this
+#: service), each capped at a 4.5 MB request/response body. 2.5 MB raw becomes
+#: about 3.3 MB encoded, leaving comfortable headroom for the manifest and JSON
+#: overhead. Anything larger is zipped first -- STEP is text and compresses
+#: roughly 3.5:1, so this is the cheapest possible fix. Measured sizes are in
+#: cad-service/README.md.
+MAX_INLINE_ARTIFACT_BYTES = 2_500_000
+
 #: Centre-to-centre spacing of assembly components, in multiples of OD.
 ASSEMBLY_SPACING_OD_MULTIPLE = 1.75
 

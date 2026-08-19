@@ -7,7 +7,12 @@ from __future__ import annotations
 
 import pytest
 
-from app.spring_geometry import build_spring_state, planar_seating_faces
+from app.spring_geometry import (
+    build_spring_state,
+    planar_seating_faces,
+    solid_z_extent,
+    volume_outside_slab,
+)
 from app.tolerances import (
     CAD_LENGTH_VALIDATION_TOL_MM,
     CAD_OD_VALIDATION_TOL_MM,
@@ -149,3 +154,74 @@ def test_every_state_is_free_of_coil_interference(all_states, configuration):
     geom, built = all_states
     spring = built[configuration]
     assert spring.min_one_turn_rise_mm >= geom.wire_diameter - 1e-9
+
+
+# ------------------------------------------- axial extent measurement ---
+
+@pytest.mark.parametrize("configuration", CONFIGURATIONS)
+def test_nothing_lies_outside_the_seating_planes(all_states, configuration):
+    """
+    The airtight version of the bounding-box check: ask the kernel for the
+    material itself. Two Boolean probes, one above and one below.
+    """
+    geom, built = all_states
+    spring = built[configuration]
+    stray = volume_outside_slab(
+        spring.solid, 0.0, spring.length_mm, span=4.0 * geom.outer_diameter)
+    assert stray == pytest.approx(0.0, abs=1e-6), (
+        f"{configuration} leaves {stray:.6f} mm3 outside the seating planes")
+
+
+@pytest.mark.parametrize("configuration", CONFIGURATIONS)
+def test_bounding_box_is_not_trusted_for_axial_extent(all_states, configuration):
+    """
+    Regression guard for a silent measurement bug.
+
+    OpenCascade bounds a trimmed B-spline face by its underlying surface, not by
+    the trimmed region, even with optimal=True. For some coil counts a correctly
+    ground spring therefore reports a bounding box a full wire radius too tall,
+    which looks exactly like a real defect. Axial extent must come from the
+    vertices; if the two ever agree everywhere, this test has stopped guarding
+    anything, but it must never be the bounding box that is believed.
+    """
+    geom, built = all_states
+    spring = built[configuration]
+    z_min, z_max = solid_z_extent(spring.solid)
+
+    assert z_min == pytest.approx(0.0, abs=CAD_LENGTH_VALIDATION_TOL_MM)
+    assert z_max == pytest.approx(spring.length_mm, abs=CAD_LENGTH_VALIDATION_TOL_MM)
+
+    # the bounding box may over-report, but must never under-report
+    bb = spring.solid.bounding_box()
+    assert bb.max.Z >= z_max - CAD_LENGTH_VALIDATION_TOL_MM
+
+
+# --------------------------------------------- coil-count regressions ---
+
+@pytest.mark.parametrize("na,nt,length_in", [
+    (3.0, 5.0, 0.90),    # reference armed
+    (4.0, 6.0, 1.05),    # near solid height - previously mis-measured
+    (5.0, 7.0, 1.10),    # previously mis-measured
+    (5.0, 7.0, 3.00),
+    (8.0, 10.0, 1.60),
+    (8.0, 10.0, 4.00),
+])
+def test_states_build_across_coil_counts(na, nt, length_in):
+    """
+    These combinations caught a false-failure in axial measurement. Each must
+    build, validate, and sit exactly between its seating planes.
+    """
+    geom = geometry_mm(na=na, nt=nt)
+    length_mm = length_in * IN_TO_MM
+    spring = build_spring_state(geom, length_mm, "armed")
+    report = validate_brep(spring, geom)
+
+    assert report.is_valid
+    assert report.solid_count == 1
+    assert report.measured_height_mm == pytest.approx(
+        length_mm, abs=CAD_LENGTH_VALIDATION_TOL_MM)
+    assert report.bottom_seating_faces >= 1
+    assert report.top_seating_faces >= 1
+    assert volume_outside_slab(
+        spring.solid, 0.0, length_mm, span=4.0 * geom.outer_diameter) == pytest.approx(
+            0.0, abs=1e-6)

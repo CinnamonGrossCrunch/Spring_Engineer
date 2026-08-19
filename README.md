@@ -88,5 +88,21 @@ Copy `.env.example` to `.env.local` to set `CAD_SERVICE_URL` persistently. The
 browser only ever calls the local `/api/cad/*` proxy routes, so the CAD
 service's deployed location is never baked into the bundle.
 
+### Deploying
+
+The two halves deploy as two Vercel projects from this one repository:
+
+| Project | Root Directory | Build |
+| --- | --- | --- |
+| Next.js app | repository root | standard Next.js build |
+| CAD service | `cad-service` | `Dockerfile.vercel`, run as a container on Fluid compute |
+
+Deploy the CAD service first, then set `CAD_SERVICE_URL` on the Next.js project
+to its URL. Until that is set the app still works normally; the Generate CAD
+Model button reports that the service is unreachable rather than failing
+silently.
+
+See [`cad-service/README.md`](cad-service/README.md#vercel) for the steps.
+
 See [`cad-service/README.md`](cad-service/README.md) for the geometry model,
 the requirements-versus-heuristics breakdown, and the validation strategy.

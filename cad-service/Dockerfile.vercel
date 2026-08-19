@@ -1,0 +1,58 @@
+# Vercel Functions container image.
+#
+# Vercel builds this automatically when the project's Root Directory is set to
+# cad-service/, runs it as an OCI image on Fluid compute, and routes function
+# invocations to the HTTP server it starts.
+#
+# Two things are load-bearing here:
+#   1. the server must listen on $PORT, which Vercel assigns at runtime
+#   2. build123d pulls OpenCascade in through the cadquery-ocp wheels, which
+#      link against system libraries the slim image does not ship
+#
+# Kept separate from ./Dockerfile so the self-hosted image can keep its own
+# HEALTHCHECK and fixed port without the platform's constraints leaking in.
+
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgl1 \
+        libglu1-mesa \
+        libxi6 \
+        libxmu6 \
+        libsm6 \
+        libice6 \
+        libx11-6 \
+        libfontconfig1 \
+        libfreetype6 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /srv
+
+# Dependencies first, so the large OpenCascade layer is cached independently of
+# application code and is not re-downloaded on every code change.
+#
+# pyproject declares packages = ["app"], so `pip install .` needs that directory
+# to exist. We stand up an empty one to resolve and install the dependency tree,
+# then uninstall the stub distribution (leaving its dependencies in place) and
+# drop the directory. The real app arrives in the next layer.
+COPY pyproject.toml ./
+RUN pip install --upgrade pip \
+    && mkdir -p app && : > app/__init__.py \
+    && pip install . \
+    && pip uninstall -y spring-cad-service \
+    && rm -rf app
+
+COPY app ./app
+
+# Fail the build rather than the first request if the kernel cannot import.
+RUN python -c "import build123d; from app.main import app; print('build123d', build123d.__version__)"
+
+EXPOSE 8000
+
+# Shell form so ${PORT} is expanded at runtime. Vercel sets PORT; the default
+# keeps `docker run` working locally without extra flags.
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}

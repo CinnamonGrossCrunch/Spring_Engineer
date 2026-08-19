@@ -1,5 +1,5 @@
-# The companion CAD service is a Python/FastAPI app with native OpenCascade
-# binaries. It cannot run on Vercel and is deployed separately to a container
-# host; the Next.js app reaches it over CAD_SERVICE_URL. Excluding it keeps the
-# Vercel upload small.
+# The companion CAD service deploys as its OWN Vercel project, using
+# cad-service/ as that project's Root Directory and Dockerfile.vercel as its
+# container image. Excluding it here keeps it out of the Next.js project's
+# upload; the two are wired together at runtime through CAD_SERVICE_URL.
 cad-service/

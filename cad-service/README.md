@@ -62,6 +62,37 @@ docker build -t spring-cad .
 docker run --rm -p 8000:8000 spring-cad
 ```
 
+The server listens on `$PORT`, defaulting to 8000, so the same image works on
+any platform that assigns a port at runtime.
+
+### Vercel
+
+This service deploys to Vercel as its **own project**, separate from the
+Next.js app, using Vercel Functions' container support (an OCI image on Fluid
+compute). Both projects live in this one repository.
+
+1. Create a second Vercel project from the same Git repository.
+2. Set its **Root Directory** to `cad-service`.
+3. Vercel picks up [`Dockerfile.vercel`](Dockerfile.vercel) automatically,
+   builds it, and pushes it to the Vercel Container Registry on every commit.
+4. Copy the resulting deployment URL.
+5. In the **Next.js** project, set `CAD_SERVICE_URL` to that URL and redeploy.
+
+The architecture is unchanged by this — the browser still only ever calls the
+Next.js app's `/api/cad/*` routes, which proxy to `CAD_SERVICE_URL`:
+
+```
+Next.js app  ->  /api/cad/*  ->  CAD_SERVICE_URL  ->  this service
+```
+
+Two constraints follow from running on Vercel Functions:
+
+- **The server must listen on `$PORT`.** `Dockerfile.vercel` uses the shell form
+  of `CMD` so the variable is expanded at runtime.
+- **Request and response bodies are capped at 4.5 MB**, and artifacts cross two
+  functions (the proxy and this service). See
+  [Payload sizes](#payload-sizes) below.
+
 ### Tests
 
 ```bash
@@ -358,6 +389,36 @@ end-model parameters, the CAD tolerances, and the per-state validation results.
 selected states spaced 1.75 × OD apart, with components named `FREE`, `ARMED`,
 `HAMMER_CONTACT` and `LATCH_FOLLOW_THROUGH`. It is a design-review artifact; it
 does not imply the states coexist in the mechanism.
+
+---
+
+## Payload sizes
+
+Artifacts are returned base64-encoded inside the JSON body, which inflates them
+by 4/3, and they cross two Vercel Functions — the Next.js proxy and this
+service — each capped at **4.5 MB** per request/response body.
+
+Measured for the reference candidate (d = 0.143 in, OD = 1.110 in, Na = 3,
+Nt = 5), full JSON response:
+
+| Mode | Artifact | Response | % of 4.5 MB |
+| --- | --- | --- | --- |
+| single STEP | 0.83 MB step | 1.12 MB | 25% |
+| ZIP, 2 states | 0.47 MB zip | 0.63 MB | 14% |
+| ZIP, 4 states | 0.95 MB zip | 1.27 MB | 28% |
+| Assembly, 4 states *(before guard)* | 3.28 MB step | **4.38 MB** | **97%** |
+| Assembly, 4 states *(after guard)* | 0.95 MB zip | 1.27 MB | 28% |
+
+The all-states assembly was the one real problem: a bare assembly STEP came to
+97% of the limit for the *reference* spring, and would exceed it for anything
+larger. Rather than change the transport, any STEP over
+`MAX_INLINE_ARTIFACT_BYTES` (2.5 MB raw) is zipped before encoding — STEP is
+text and compresses about 3.5:1 — and a warning says so. ZIP bundles were never
+close to the limit, so nothing else changed.
+
+`test_every_response_fits_the_function_payload_limit` asserts every mode stays
+under 75% of the cap, so a future geometry change that inflates output fails
+the suite rather than production.
 
 ---
 

@@ -232,17 +232,20 @@ def build_spring_state(geom: SpringGeometryMm, length_mm: float, configuration: 
             f"Grinding the {configuration} state produced an invalid solid.")
 
     # -- 6. cheap structural checks (full validation lives in validation.py)
-    final_bb = ground.bounding_box()
-    if abs(final_bb.min.Z) > CAD_LENGTH_VALIDATION_TOL_MM or \
-            abs(final_bb.max.Z - length_mm) > CAD_LENGTH_VALIDATION_TOL_MM:
+    z_min, z_max = solid_z_extent(ground)
+    if abs(z_min) > CAD_LENGTH_VALIDATION_TOL_MM or \
+            abs(z_max - length_mm) > CAD_LENGTH_VALIDATION_TOL_MM:
         raise InvalidBrepError(
             f"The ground {configuration} solid does not sit exactly between the seating planes.",
             [
-                f"Bounding box Z: [{final_bb.min.Z:.6f}, {final_bb.max.Z:.6f}] mm",
+                f"Axial extent: [{z_min:.6f}, {z_max:.6f}] mm",
                 f"Expected: [0, {length_mm:.6f}] mm",
             ],
         )
 
+    # The radial envelope is safe to take from the bounding box: the outermost
+    # point sits on an untrimmed part of the swept surface, so it is tight.
+    final_bb = ground.bounding_box()
     measured_od = max(final_bb.max.X - final_bb.min.X, final_bb.max.Y - final_bb.min.Y)
 
     return BuiltSpring(
@@ -256,6 +259,46 @@ def build_spring_state(geom: SpringGeometryMm, length_mm: float, configuration: 
         measured_od_mm=measured_od,
         configuration=configuration,
     )
+
+
+def solid_z_extent(shape) -> tuple[float, float]:
+    """
+    Exact axial extent of a ground spring, measured from its vertices.
+
+    Do not use bounding_box() for this. OpenCascade bounds a trimmed B-spline
+    face by its underlying surface rather than by the trimmed region, even with
+    optimal=True, so a spring whose top has been ground away still reports a
+    bounding box reaching a full wire radius above the seating plane. The error
+    is silent and exactly r, which reads convincingly like a real defect.
+
+    After the seating-plane Booleans the extreme Z is attained on the planar
+    bearing faces, whose boundary curves carry vertices, so the vertex extent is
+    exact here. Verified against Boolean probes in test_states.py.
+    """
+    zs = [v.Z for v in shape.vertices()]
+    if not zs:
+        raise InvalidBrepError("Solid has no vertices to measure.")
+    return min(zs), max(zs)
+
+
+def volume_outside_slab(solid, z_lo: float, z_hi: float, span: float) -> float:
+    """
+    Volume of material lying outside the axial band [z_lo, z_hi].
+
+    The airtight version of the "nothing sticks out past the seating planes"
+    check: it asks the kernel for the material itself instead of trusting a
+    bounding box. Costs two Booleans, so it is used by the tests rather than on
+    every request -- the trim is an intersection with a box spanning exactly
+    [0, L], which already makes stray material impossible by construction.
+    """
+    pad = (z_hi - z_lo) + 10.0
+    total = 0.0
+    for centre in (z_lo - pad / 2.0, z_hi + pad / 2.0):
+        probe = Pos(0, 0, centre) * Box(span, span, pad)
+        leftover = solid & probe
+        if leftover is not None and leftover.solids():
+            total += float(leftover.volume)
+    return total
 
 
 def planar_seating_faces(solid, length_mm: float) -> tuple[int, int]:

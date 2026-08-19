@@ -123,21 +123,70 @@ def test_single_mode_with_several_states_still_returns_one_artifact():
     assert files[0]["contentType"] == "application/zip"
 
 
-def test_assembly_mode_returns_one_step():
+def _assembly_step_bytes(body: dict) -> bytes:
+    """The assembly STEP, whether returned bare or wrapped in a ZIP by the
+    payload-size guard."""
+    artifact = body["files"][0]
+    payload = base64.b64decode(artifact["content"])
+    if artifact["contentType"] == "application/step":
+        return payload
+    with zipfile.ZipFile(io.BytesIO(payload)) as zf:
+        return zf.read(next(n for n in zf.namelist() if n.endswith("_ALL_STATES.step")))
+
+
+def test_assembly_mode_returns_one_artifact():
     response = client.post("/generate", json=reference_request(packageMode="assembly-step"))
     assert response.status_code == 200, response.text
     body = response.json()
-    files = body["files"]
-    assert len(files) == 1
-    assert files[0]["contentType"] == "application/step"
-    assert files[0]["filename"].endswith("_ALL_STATES.step")
+    assert len(body["files"]) == 1
     assert any("side by side" in w for w in body["warnings"])
+    # however it is delivered, an assembly STEP must be in there
+    assert _assembly_step_bytes(body).lstrip().startswith(b"ISO-10303-21")
+
+
+def test_every_response_fits_the_function_payload_limit():
+    """
+    Artifacts ride base64 inside JSON across two Vercel Functions, each capped
+    at a 4.5 MB body. Measured before the guard existed, the all-states assembly
+    came to 4.38 MB - 97% of the limit - so this asserts real headroom rather
+    than a near miss.
+    """
+    limit = 4.5 * 1024 * 1024
+    for mode, configs in (
+        ("single", ["free"]),
+        ("zip", ["free", "armed", "contact", "release"]),
+        ("assembly-step", ["free", "armed", "contact", "release"]),
+    ):
+        response = client.post("/generate", json=reference_request(
+            packageMode=mode, configurations=configs))
+        assert response.status_code == 200, response.text
+        size = len(response.content)
+        assert size < limit * 0.75, (
+            f"{mode} response is {size / 1024 / 1024:.2f} MB, too close to the "
+            f"{limit / 1024 / 1024:.1f} MB function limit")
+
+
+def test_oversized_step_is_zipped_rather_than_truncated():
+    """The assembly STEP exceeds the inline threshold, so it must arrive zipped."""
+    response = client.post("/generate", json=reference_request(packageMode="assembly-step"))
+    body = response.json()
+    artifact = body["files"][0]
+
+    assert artifact["contentType"] == "application/zip"
+    assert any("response size limit" in w for w in body["warnings"])
+
+    # the assembly STEP itself must still be inside, intact
+    with zipfile.ZipFile(io.BytesIO(base64.b64decode(artifact["content"]))) as zf:
+        names = zf.namelist()
+        assert any(n.endswith("_ALL_STATES.step") for n in names)
+        assert "candidate_manifest.json" in names
+        step = zf.read(next(n for n in names if n.endswith(".step")))
+    assert step.lstrip().startswith(b"ISO-10303-21")
 
 
 def test_assembly_names_its_components():
     response = client.post("/generate", json=reference_request(packageMode="assembly-step"))
-    step = base64.b64decode(response.json()["files"][0]["content"]).decode(
-        "ascii", errors="replace")
+    step = _assembly_step_bytes(response.json()).decode("ascii", errors="replace")
     for component in ("FREE", "ARMED", "HAMMER_CONTACT", "LATCH_FOLLOW_THROUGH"):
         assert component in step
 
