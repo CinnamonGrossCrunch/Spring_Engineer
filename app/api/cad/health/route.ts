@@ -14,7 +14,13 @@ import type { CadHealthResponse } from "@/lib/cad/types";
 export const dynamic = "force-dynamic";
 
 const CAD_SERVICE_URL = process.env.CAD_SERVICE_URL ?? "http://localhost:8000";
-const HEALTH_TIMEOUT_MS = 5_000;
+
+/**
+ * Must exceed a container cold start, or a healthy-but-idle service reports as
+ * degraded. The CAD service scales to zero after five minutes and takes ~8 s to
+ * come back, so a 5 s budget produced spurious failures.
+ */
+const HEALTH_TIMEOUT_MS = Number(process.env.CAD_HEALTH_TIMEOUT_MS ?? 20_000);
 
 function degraded(reason: string): CadHealthResponse & { reason: string } {
   return {
@@ -48,7 +54,8 @@ export async function GET() {
     return NextResponse.json(
       degraded(
         error instanceof DOMException && error.name === "TimeoutError"
-          ? `No response from ${CAD_SERVICE_URL} within ${HEALTH_TIMEOUT_MS} ms.`
+          ? `No response from ${CAD_SERVICE_URL} within ${HEALTH_TIMEOUT_MS} ms. ` +
+            "The service may still be starting from cold."
           : `Could not reach ${CAD_SERVICE_URL}.`,
       ),
       { status: 503 },
