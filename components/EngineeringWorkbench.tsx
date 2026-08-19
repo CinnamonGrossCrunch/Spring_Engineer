@@ -20,11 +20,18 @@ import { ForceTravelChart } from "./ForceTravelChart";
 import { ConstraintPanel } from "./ConstraintPanel";
 import { SpringStateIllustration } from "./SpringStateIllustration/SpringStateIllustration";
 import { V2Workbench } from "./v2/V2Workbench";
+import { DeflectionConstraintControl } from "./DeflectionConstraintControl";
+import {
+  clampDeflectionUtilization,
+  DEFAULT_DEFLECTION_CONSTRAINT,
+  type DeflectionConstraintState,
+} from "@/lib/engineering/deflectionConstraint";
 
 const MODES: DesignMode[] = ["forward", "reverse", "explore"];
 const ACTIVE_PRESET: PresetId = "currentCandidate";
 const ENERGY_LENS_IDS = ["W_run", "eta", "KE", "v", "p"];
 const DIAMETER_IDS = ["D", "OD", "ID"] as const;
+let sessionDeflectionConstraint: DeflectionConstraintState = DEFAULT_DEFLECTION_CONSTRAINT;
 
 /**
  * Primary engineering workbench: shared calculator state, the dependency
@@ -38,13 +45,36 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
   const router = useRouter();
   const [workspace, setWorkspace] = useState<WorkspaceVersion>(initialWorkspace);
   const [mode, setMode] = useState<DesignMode>("forward");
-  const [model, setModel] = useState<ModelState>(() => buildInitialState("forward", ACTIVE_PRESET));
+  const [model, setModel] = useState<ModelState>(() => {
+    const initial = buildInitialState("forward", ACTIVE_PRESET);
+    initial.deflection_utilization_max = {
+      ...initial.deflection_utilization_max,
+      value: sessionDeflectionConstraint.maxUtilization,
+      status: "variable",
+    };
+    return initial;
+  });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [etaMode, setEtaMode] = useState<"unspecified" | "ideal" | "assumed" | "measured">("unspecified");
   const [constraintsOpen, setConstraintsOpen] = useState(false);
+  const [deflectionConstraint, setDeflectionConstraint] = useState<DeflectionConstraintState>(() => sessionDeflectionConstraint);
 
   const solve = useMemo(() => solveModel(model), [model]);
   const constraints = useMemo(() => evaluateConstraints(solve.values), [solve]);
+
+  const handleDeflectionConstraintChange = useCallback((next: DeflectionConstraintState) => {
+    const normalized = { ...next, maxUtilization: clampDeflectionUtilization(next.maxUtilization) };
+    sessionDeflectionConstraint = normalized;
+    setDeflectionConstraint(normalized);
+    setModel((prev) => ({
+      ...prev,
+      deflection_utilization_max: {
+        ...prev.deflection_utilization_max,
+        value: normalized.maxUtilization,
+        status: "variable",
+      },
+    }));
+  }, []);
 
   const violatedParamIds = useMemo(() => {
     const set = new Set<string>();
@@ -93,6 +123,10 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
   }, []);
 
   const handleValueChange = useCallback((id: string, value: number) => {
+    if (id === "deflection_utilization_max") {
+      handleDeflectionConstraintChange({ ...deflectionConstraint, maxUtilization: value });
+      return;
+    }
     setModel((prev) => {
       const cur = prev[id];
       if (!cur || cur.status === "derived") return prev; // derived values are never edited directly
@@ -113,7 +147,7 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
 
       return { ...prev, [id]: { ...cur, value } };
     });
-  }, []);
+  }, [deflectionConstraint, handleDeflectionConstraintChange]);
 
   const handleTogglePin = useCallback(
     (id: string) => {
@@ -144,14 +178,22 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
   const handleModeChange = useCallback(
     (next: DesignMode) => {
       setMode(next);
-      setModel(buildInitialState(next, ACTIVE_PRESET));
+      const nextModel = buildInitialState(next, ACTIVE_PRESET);
+      nextModel.deflection_utilization_max = {
+        ...nextModel.deflection_utilization_max,
+        value: deflectionConstraint.maxUtilization,
+        status: "variable",
+      };
+      setModel(nextModel);
       setSelectedId(null);
     },
-    [],
+    [deflectionConstraint.maxUtilization],
   );
 
   const handleReset = useCallback(() => {
     setModel(buildInitialState(mode, ACTIVE_PRESET));
+    sessionDeflectionConstraint = { ...sessionDeflectionConstraint, maxUtilization: DEFAULT_DEFLECTION_CONSTRAINT.maxUtilization };
+    setDeflectionConstraint(sessionDeflectionConstraint);
     setSelectedId(null);
   }, [mode]);
 
@@ -265,8 +307,8 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
           <p className="mt-1.5 text-[11px] text-zinc-500">{MODE_INFO[mode].blurb}</p>
         ) : (
           <p className="mt-1.5 text-[11px] text-zinc-500">
-            Optimization workbench with its own scenario state — the V1 explorer&apos;s state is
-            preserved while you work here.
+            Optimization workbench with its own study settings. The governing deflection constraint
+            is shared with Engineering; the remaining V1 state is preserved while you work here.
           </p>
         )}
       </header>
@@ -275,6 +317,17 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
       <div className={workspace === "v1" ? "contents" : "hidden"}>
       {/* ── Main workspace ── */}
       <div className="flex-1 p-3">
+        <div className="mb-3 rounded-lg border border-violet-200 bg-white p-3 shadow-sm">
+          <div className="mb-2">
+            <div className="text-[11px] font-bold uppercase tracking-wide text-violet-700">Governing deflection constraint</div>
+            <p className="text-[10.5px] text-zinc-500">Shared with Optimize and applied to every candidate in the current scenario.</p>
+          </div>
+          <DeflectionConstraintControl
+            value={deflectionConstraint}
+            workingDeflection={solve.values.x1}
+            onChange={handleDeflectionConstraintChange}
+          />
+        </div>
         <div className="flex h-full flex-col gap-3 xl:flex-row">
           <div className="min-w-0 flex-1">
             <div className="flex flex-col gap-3 xl:flex-row">
@@ -457,7 +510,11 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
 
       {/* ── V2 workspace body (kept mounted so V2 scenario state persists) ── */}
       <div className={workspace === "v2" ? "contents" : "hidden"}>
-        <V2Workbench onInspectCandidate={applyV2Candidate} />
+        <V2Workbench
+          onInspectCandidate={applyV2Candidate}
+          deflectionConstraint={deflectionConstraint}
+          onDeflectionConstraintChange={handleDeflectionConstraintChange}
+        />
       </div>
     </div>
   );

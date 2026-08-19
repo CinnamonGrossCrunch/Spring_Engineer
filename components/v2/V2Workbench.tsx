@@ -17,25 +17,35 @@ import { V2AssumptionsPanel } from "./V2AssumptionsPanel";
 import { fmtLbf } from "./v2format";
 import { formatValue } from "../StatusBadge";
 import { canonicalName, canonicalSym } from "@/lib/engineering/nomenclature";
+import type { DeflectionConstraintState } from "@/lib/engineering/deflectionConstraint";
 
 const MAX_SHORTLIST = 3;
 
 /**
  * V2 optimization workbench — the container that owns all V2 scenario /
- * selection state (kept fully separate from V1). The design-space sweep is a
+ * selection state. The governing deflection constraint is shared with V1; the
+ * remaining V2 study state stays local. The design-space sweep is a
  * pure function memoized on the scenario, so it only recomputes when the
  * scenario or search bounds change — never on hover or selection.
  */
 export function V2Workbench({
   onInspectCandidate,
+  deflectionConstraint,
+  onDeflectionConstraintChange,
 }: {
   onInspectCandidate: (model: ModelState) => void;
+  deflectionConstraint: DeflectionConstraintState;
+  onDeflectionConstraintChange: (value: DeflectionConstraintState) => void;
 }) {
-  const [scenario, setScenario] = useState<V2Scenario>(DEFAULT_V2_SCENARIO);
+  const [localScenario, setLocalScenario] = useState<V2Scenario>(DEFAULT_V2_SCENARIO);
   const [metric, setMetric] = useState<V2LandscapeMetric>("FeqAvgIdeal");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [shortlist, setShortlist] = useState<string[]>([]);
 
+  const scenario = useMemo(
+    () => ({ ...localScenario, maxDeflectionUtilization: deflectionConstraint.maxUtilization }),
+    [localScenario, deflectionConstraint.maxUtilization],
+  );
   const material = getV2Material(scenario.materialId);
 
   // Pure sweep — recomputed ONLY when the scenario changes.
@@ -52,8 +62,25 @@ export function V2Workbench({
     return { selected: chosen, byKey: map };
   }, [sweep, selectedKey]);
 
-  const patchScenario = (patch: Partial<V2Scenario>) =>
-    setScenario((prev) => ({ ...prev, ...patch }));
+  const patchScenario = (patch: Partial<V2Scenario>) => {
+    if (patch.maxDeflectionUtilization !== undefined) {
+      onDeflectionConstraintChange({
+        ...deflectionConstraint,
+        maxUtilization: patch.maxDeflectionUtilization,
+      });
+    }
+    const localPatch = { ...patch };
+    delete localPatch.maxDeflectionUtilization;
+    if (Object.keys(localPatch).length > 0) setLocalScenario((prev) => ({ ...prev, ...localPatch }));
+  };
+
+  const resetScenario = () => {
+    setLocalScenario(DEFAULT_V2_SCENARIO);
+    onDeflectionConstraintChange({
+      ...deflectionConstraint,
+      maxUtilization: DEFAULT_V2_SCENARIO.maxDeflectionUtilization,
+    });
+  };
 
   const toggleShortlist = (key: string) =>
     setShortlist((prev) =>
@@ -85,6 +112,9 @@ export function V2Workbench({
           <span className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10.5px] text-white">
             latch + {formatValue(scenario.latchTravel)} in
           </span>
+          <span className="rounded bg-violet-700 px-1.5 py-0.5 font-mono text-[10.5px] text-white">
+            working deflection ≤ {(scenario.maxDeflectionUtilization * 100).toFixed(0)}%
+          </span>
           <span className="text-zinc-400">
             Searching wire diameter × active coils. Thinner wire → lower rate &amp; solid height →
             more hammer run-up, but higher stress.
@@ -99,7 +129,10 @@ export function V2Workbench({
             scenario={scenario}
             material={material}
             onChange={patchScenario}
-            onReset={() => setScenario(DEFAULT_V2_SCENARIO)}
+            onReset={resetScenario}
+            deflectionConstraint={deflectionConstraint}
+            onDeflectionConstraintChange={onDeflectionConstraintChange}
+            referenceWorkingDeflection={selected?.x0}
           />
         </div>
         <div className={selected ? "min-w-0 xl:col-span-3" : "min-w-0 xl:col-span-6"}>
@@ -179,6 +212,7 @@ export function V2Workbench({
           <div className="grid gap-3 lg:grid-cols-2">
             <V2PerformancePanel
               candidate={selected}
+              scenario={scenario}
               material={material}
               shortlisted={shortlist.includes(selected.key)}
               onToggleShortlist={() => toggleShortlist(selected.key)}

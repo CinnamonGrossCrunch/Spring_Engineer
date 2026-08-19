@@ -71,7 +71,10 @@ export const CANONICAL_NOMENCLATURE: Record<string, CanonicalLabel> = {
   TS_upper: { name: "Upper Tensile Strength", sym: "TS_high" },
   TS_basis: { name: "Active TS Basis", sym: "TS_basis" },
   solid_tolerance: { name: "Solid-Height Tolerance", sym: "tol_solid" },
-  c_extra: { name: "Additional Operating Clearance", sym: "c_extra" },
+  c_extra: { name: "Required Clearance Above Solid", sym: "c_required" },
+  available_deflection: { name: "Available Deflection to Maximum Solid", sym: "x_available" },
+  deflection_utilization: { name: "Working Deflection Utilization", sym: "u_defl" },
+  deflection_utilization_max: { name: "Maximum Deflection Utilization", sym: "u_max" },
   stressPctConservative: { name: "Stress Percent of TS (Conservative)", sym: "%TS" },
 };
 

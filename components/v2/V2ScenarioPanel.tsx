@@ -2,14 +2,19 @@
 
 import { useId } from "react";
 import type { V2Material, V2Scenario, V2StressBasis } from "@/lib/v2/types";
-import { EXTRA_CLEARANCE_SCENARIOS } from "@/lib/v2/defaults";
+import { DEFLECTION_UTILIZATION_SCENARIOS } from "@/lib/v2/defaults";
 import { SOURCE_TAG, fmtPct } from "./v2format";
+import { DeflectionConstraintControl } from "../DeflectionConstraintControl";
+import type { DeflectionConstraintState } from "@/lib/engineering/deflectionConstraint";
 
 interface Props {
   scenario: V2Scenario;
   material: V2Material;
   onChange: (patch: Partial<V2Scenario>) => void;
   onReset: () => void;
+  deflectionConstraint: DeflectionConstraintState;
+  onDeflectionConstraintChange: (value: DeflectionConstraintState) => void;
+  referenceWorkingDeflection?: number;
 }
 
 function SourceTag({ kind, children }: { kind: keyof typeof SOURCE_TAG; children: string }) {
@@ -92,11 +97,19 @@ function NumberField({
 
 /**
  * V2 scenario panel with a strong epistemic hierarchy: actual mechanism
- * boundaries vs. study assumptions vs. Lee-derived guidance vs. vendor margin.
+ * boundaries vs. study assumptions vs. Lee-derived guidance vs. design margin.
  * Editing any value updates the parent scenario, which re-runs the memoized
  * sweep.
  */
-export function V2ScenarioPanel({ scenario, material, onChange, onReset }: Props) {
+export function V2ScenarioPanel({
+  scenario,
+  material,
+  onChange,
+  onReset,
+  deflectionConstraint,
+  onDeflectionConstraintChange,
+  referenceWorkingDeflection,
+}: Props) {
   return (
     <div className="flex flex-col rounded-lg border border-zinc-200 bg-white">
       <div className="flex items-center justify-between border-b border-zinc-200 px-3 py-2">
@@ -209,40 +222,35 @@ export function V2ScenarioPanel({ scenario, material, onChange, onReset }: Props
         </p>
       </Section>
 
-      <Section title="Vendor / Design Margin" tag="Vendor" tagKind="vendor">
-        <NumberField
-          label="Additional solid clearance"
-          symbol="c_extra"
-          value={scenario.extraSolidClearance}
-          step={0.005}
-          min={0}
-          unit="in"
-          onChange={(v) => onChange({ extraSolidClearance: v })}
+      <Section title="Deflection / Coil-Bind Margin" tag="Constraint" tagKind="mechanism">
+        <DeflectionConstraintControl
+          value={deflectionConstraint}
+          workingDeflection={referenceWorkingDeflection}
+          onChange={onDeflectionConstraintChange}
+          compact
         />
         <div className="flex flex-wrap items-center gap-1">
-          <span className="text-[10px] text-zinc-400">Scenarios:</span>
-          {EXTRA_CLEARANCE_SCENARIOS.map((c) => {
-            const active = Math.abs(scenario.extraSolidClearance - c) < 1e-6;
+          <span className="text-[10px] text-zinc-400">Utilization scenarios:</span>
+          {DEFLECTION_UTILIZATION_SCENARIOS.map((u) => {
+            const active = Math.abs(scenario.maxDeflectionUtilization - u) < 1e-6;
             return (
               <button
-                key={c}
+                key={u}
                 type="button"
-                onClick={() => onChange({ extraSolidClearance: c })}
+                onClick={() => onChange({ maxDeflectionUtilization: u })}
                 className={`rounded border px-1.5 py-0.5 font-mono text-[10px] transition-colors ${
                   active
-                    ? "border-amber-500 bg-amber-100 text-amber-800"
+                    ? "border-violet-500 bg-violet-100 text-violet-800"
                     : "border-zinc-300 text-zinc-500 hover:bg-zinc-100"
                 }`}
               >
-                {c.toFixed(3)}
+                {(u * 100).toFixed(0)}%
               </button>
             );
           })}
         </div>
         <p className="text-[10px] leading-tight text-zinc-400">
-          {scenario.extraSolidClearance === 0
-            ? "Theoretical Lee tolerance boundary — no additional vendor margin. Not a finished aerospace recommendation."
-            : "Additional design/vendor clearance above the Lee maximum solid height. A scenario, not a Lee requirement."}
+          This is a design-scenario input, not a Lee requirement. Lower utilization reserves more travel above Hₛ,max and can remove candidates by consuming axial run-up budget.
         </p>
       </Section>
 
@@ -273,7 +281,7 @@ export function V2ScenarioPanel({ scenario, material, onChange, onReset }: Props
           </div>
           <p className="text-[10px] leading-tight text-zinc-400">
             Solid-height boundary is Lee max (Hₛ,max = {fmtPct(scenario.solidHeightTolerance)} over
-            nominal). Operating clearance (c_extra) is a separate vendor margin.
+            nominal). The shared utilization limit is applied after that boundary and determines each candidate&apos;s required operating clearance.
           </p>
         </div>
       </details>

@@ -16,6 +16,7 @@ const MODELED = [
   "Closed-and-ground coil relation (Nt = Na + 2)",
   "Nominal solid height (Nt · d)",
   "Lee +5% solid-height tolerance",
+  "Scenario maximum-deflection utilization and candidate-specific solid clearance",
   "Wahl-corrected operating shear stress at F₀",
   "Lee stress-to-tensile guidance bands (40 / 60%)",
   "Axial packaging trade (Lc + s = B)",
@@ -67,7 +68,7 @@ export function V2AssumptionsPanel({ sweep }: { sweep: V2SweepResult }) {
         {sweep.feasibleCount === 0 && (
           <p className="mb-1.5 rounded border border-red-200 bg-red-50 px-2 py-1 text-[11px] text-red-700">
             No candidate in the current sweep satisfies all selected boundaries. Adjust the scenario
-            (OD, budget, clearance) or the search bounds.
+            (OD, budget, deflection utilization) or the search bounds.
           </p>
         )}
         <ul className="flex flex-col gap-1">

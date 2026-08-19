@@ -417,6 +417,8 @@ function LandscapeTooltip({ candidate: c, x, y, maxX }: { candidate: V2Candidate
         <dt>Total coils</dt><dd className="text-right font-mono">{fmtCoils(c.Nt)}</dd>
         <dt>Rate k</dt><dd className="text-right font-mono">{fmtRate(c.k)}</dd>
         <dt>Compressed Lc</dt><dd className="text-right font-mono">{fmtIn(c.Lc)}</dd>
+        <dt>Solid clearance</dt><dd className="text-right font-mono">{fmtIn(c.solidClearance)}</dd>
+        <dt>Deflection used</dt><dd className="text-right font-mono">{fmtPct(c.deflectionUtilization)}</dd>
         <dt>{canonicalName("s")} {canonicalSym("s")}</dt><dd className="text-right font-mono">{fmtIn(c.s)}</dd>
         <dt>Hammer work</dt><dd className="text-right font-mono">{fmtWork(c.Whammer)}</dd>
         <dt>Latch work</dt><dd className="text-right font-mono">{fmtWork(c.Wlatch)}</dd>

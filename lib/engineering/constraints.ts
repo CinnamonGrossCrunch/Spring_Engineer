@@ -14,19 +14,23 @@ export function evaluateConstraints(
   {
     const Lmin = v("L_min");
     const HsMax = v("Hs_max");
-    const cExtra = v("c_extra") ?? 0;
+    const requiredClearance = v("c_extra");
+    const actualUtilization = v("deflection_utilization");
+    const maxUtilization = v("deflection_utilization_max");
     if (Lmin !== undefined && HsMax !== undefined) {
       const clearance = Lmin - HsMax;
-      const ok = clearance >= cExtra;
+      const clearanceOk = requiredClearance === undefined || clearance + 1e-9 >= requiredClearance;
+      const utilizationOk = actualUtilization === undefined || maxUtilization === undefined || actualUtilization <= maxUtilization + 1e-9;
+      const ok = clearanceOk && utilizationOk;
       results.push({
         id: "coil_bind",
         name: "Solid height / coil bind",
         ok,
         severity: ok ? "info" : "error",
         message: ok
-          ? `Clearance above Lee maximum solid height is ${clearance.toFixed(3)} in (c_extra = ${cExtra.toFixed(3)} in). ${cExtra === 0 ? "This is the theoretical Lee tolerance boundary (no added vendor margin)." : "L_min >= H_s,max + c_extra is satisfied."}`
-          : `COIL BIND RISK: c_solid = ${clearance.toFixed(3)} in is below c_extra = ${cExtra.toFixed(3)} in. Increase L_min, reduce coils/wire diameter, or reduce extra margin.`,
-        parameterIds: ["L_min", "Hs_max", "c_extra", "clearance", "solid_tolerance"],
+          ? `Working deflection uses ${actualUtilization !== undefined ? (actualUtilization * 100).toFixed(1) : "—"}% of available travel (limit ${maxUtilization !== undefined ? (maxUtilization * 100).toFixed(1) : "—"}%). Clearance above H_s,max is ${clearance.toFixed(3)} in; required ${requiredClearance !== undefined ? requiredClearance.toFixed(3) : "—"} in.`
+          : `DEFLECTION / COIL-BIND MARGIN EXCEEDED: utilization is ${actualUtilization !== undefined ? (actualUtilization * 100).toFixed(1) : "—"}% versus ${maxUtilization !== undefined ? (maxUtilization * 100).toFixed(1) : "—"}% maximum; clearance is ${clearance.toFixed(3)} in versus ${requiredClearance !== undefined ? requiredClearance.toFixed(3) : "—"} in required.`,
+        parameterIds: ["L_min", "Hs_max", "c_extra", "clearance", "available_deflection", "deflection_utilization", "deflection_utilization_max", "solid_tolerance"],
       });
     }
   }

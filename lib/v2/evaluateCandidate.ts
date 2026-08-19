@@ -6,6 +6,10 @@ import {
   springIndex,
   runUpWork,
 } from "@/lib/engineering/spring";
+import {
+  requiredSolidClearance,
+  workingDeflectionUtilization,
+} from "@/lib/engineering/deflectionConstraint";
 import { getV2Material, tensileBasisPsi } from "./materials";
 import type {
   V2Candidate,
@@ -39,8 +43,8 @@ export function candidateKey(d: number, Na: number): string {
  *   D  = OD − d           ID = OD − 2d          Nt = Na + 2
  *   C  = D / d            k  = G·d⁴ / (8·D³·Na)
  *   Hs_nom = Nt·d         Hs_max = (1+tol)·Hs_nom
- *   Lc = Hs_max + c_extra s  = B − Lc
- *   F0 = forceCap (evaluated AT the cap)   x0 = F0/k   Lf = Lc + x0
+ *   x0 = F0/k               c_solid = x0·(1/u_max − 1)
+ *   Lc = Hs_max + c_solid   s = B − Lc     Lf = Lc + x0
  *   L2 = B (= Lc + s)     L3 = B + y
  *   F2 = F0 − k·s         F3 = F0 − k·(s + y)
  *   W_hammer = F0·s − ½·k·s²        W_latch = F2·y − ½·k·y²
@@ -66,17 +70,25 @@ export function evaluateV2Candidate(scenario: V2Scenario, d: number, Na: number)
   // ── Spring rate ──
   const k = springRate(G, d, D, Na);
 
-  // ── Solid height + armed length ──
+  // ── Solid height + working-deflection constraint ──
   const HsNom = solidHeight(Nt, d);
   const HsMax = (1 + scenario.solidHeightTolerance) * HsNom;
-  const Lc = HsMax + scenario.extraSolidClearance;
+
+  // Candidates are evaluated at F0, so x0 is known before packaging. The
+  // scenario holds u_max constant; each geometry receives the clearance it
+  // needs to preserve that same fractional deflection reserve.
+  const x0 = F0 / k;
+  const solidClearance = requiredSolidClearance(x0, scenario.maxDeflectionUtilization);
+  const Lc = HsMax + solidClearance;
 
   // ── Axial packaging: Lc + s = B ──
   const s = B - Lc;
 
-  // ── Starting deflection / free length ──
-  const x0 = F0 / k;
+  // ── Free length + achieved utilization ──
   const Lf = Lc + x0;
+  const availableDeflection = Lf - HsMax;
+  const deflectionUtilization = workingDeflectionUtilization(x0, Lf, HsMax);
+  const deflectionReserve = 1 - deflectionUtilization;
 
   // ── State lengths ──
   const L2 = B; // Lc + s
@@ -129,6 +141,10 @@ export function evaluateV2Candidate(scenario: V2Scenario, d: number, Na: number)
     k,
     HsNom,
     HsMax,
+    solidClearance,
+    availableDeflection,
+    deflectionUtilization,
+    deflectionReserve,
     Lc,
     s,
     F0,

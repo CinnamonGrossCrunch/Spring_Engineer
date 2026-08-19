@@ -19,9 +19,8 @@ import type { V2Candidate, V2Scenario } from "./types";
  *
  *   x1 = x0 = F0 / k   →   F1 = k · x1 = F0
  *
- * The V1 material/limits (τ_allow, required clearance) intentionally remain V1's
- * historical assumptions — auditing the candidate under V1's own model is the
- * whole point of the bridge.
+ * The shared maximum-deflection-utilization scenario is carried into V1 so the
+ * candidate is audited against the same governing packaging constraint.
  */
 export function candidateToV1Model(candidate: V2Candidate, scenario: V2Scenario): ModelState {
   const base = buildInitialState("explore", "reconciledCandidate");
@@ -47,6 +46,7 @@ export function candidateToV1Model(candidate: V2Candidate, scenario: V2Scenario)
   next.L_free = { value: candidate.Lf, status: "variable" };
   next.s_h = { value: candidate.s, status: "variable" };
   next.y_latch = { value: scenario.latchTravel, status: "variable" };
+  next.deflection_utilization_max = { value: scenario.maxDeflectionUtilization, status: "variable" };
 
   return next;
 }

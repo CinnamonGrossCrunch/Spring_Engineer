@@ -43,7 +43,7 @@ export interface V2Material {
 /**
  * A V2 study scenario: the fixed mechanism boundaries plus the numerical
  * search bounds. Values carry an explicit epistemic tier in the UI
- * (mechanism constraint / fixed-for-study / Lee guidance / vendor margin).
+ * (mechanism constraint / fixed-for-study / Lee guidance / design margin).
  */
 export interface V2Scenario {
   // ── Actual mechanism boundaries ──
@@ -66,9 +66,9 @@ export interface V2Scenario {
   /** Nominal-solid-height tolerance fraction (Lee +5% → 0.05). Hs_max = (1+tol)·Hs_nom. */
   solidHeightTolerance: number;
 
-  // ── Vendor / design margin ──
-  /** Additional design/vendor clearance above the Lee maximum solid height [in]. */
-  extraSolidClearance: number;
+  // ── Working-deflection constraint ──
+  /** Maximum x_work / (Lf − Hs,max), held constant across every candidate in the scenario. */
+  maxDeflectionUtilization: number;
 
   // ── Numerical search bounds (NOT manufacturing limits) ──
   wireMin: number;
@@ -135,6 +135,13 @@ export interface V2Candidate {
   // Package
   HsNom: number;
   HsMax: number;
+  /** Candidate-specific clearance required to satisfy the scenario utilization constraint [in]. */
+  solidClearance: number;
+  /** Free-to-Hs,max travel [in]. */
+  availableDeflection: number;
+  /** x0 / availableDeflection. Equals the scenario constraint by construction. */
+  deflectionUtilization: number;
+  deflectionReserve: number;
   Lc: number;
   s: number;
 
@@ -152,7 +159,7 @@ export interface V2Candidate {
   Wlatch: number;
   WreleaseIdeal: number;
 
-  // Michael's historical metric language (ideal, NOT actual contact force)
+  // Historical metric language (ideal, NOT actual contact force)
   FeqAvgIdeal: number;
   FeqTriPeakIdeal: number;
 

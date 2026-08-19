@@ -5,6 +5,13 @@ import type { V2Candidate, V2SweepResult } from "@/lib/v2/types";
 import { canonicalName, canonicalSym } from "@/lib/engineering/nomenclature";
 import { STRESS_BAND_META, fmtCoils } from "./v2format";
 import { formatValue } from "../StatusBadge";
+import { candidateCsvFilename, generateCandidateCsv } from "@/lib/v2/candidateCsv";
+import { CandidateCsvButton } from "./CandidateCsvButton";
+import {
+  sortV2CandidatesByPriorities,
+  type V2CandidateSortKey,
+  type V2CandidateSortPriority,
+} from "@/lib/v2/candidateSort";
 
 interface Props {
   sweep: V2SweepResult;
@@ -14,12 +21,8 @@ interface Props {
   onToggleShortlist: (key: string) => void;
 }
 
-type SortKey =
-  | "d" | "Na" | "Nt" | "k" | "Lc" | "s" | "Lf" | "F2" | "F3"
-  | "Whammer" | "Wlatch" | "FeqAvgIdeal" | "stressPctConservative";
-
 interface Col {
-  key: SortKey;
+  key: V2CandidateSortKey;
   plainLabel: string;
   label: string;
   fmt: (c: V2Candidate) => string;
@@ -44,6 +47,8 @@ const COLS: Col[] = [
   { key: "Nt", plainLabel: canonicalName("Nt"), label: canonicalSym("Nt"), fmt: (c) => fmtCoils(c.Nt) },
   { key: "k", plainLabel: canonicalName("k"), label: canonicalSym("k"), fmt: (c) => formatValue(c.k) },
   { key: "Lc", plainLabel: canonicalName("Lc"), label: canonicalSym("Lc"), fmt: (c) => c.Lc.toFixed(3) },
+  { key: "solidClearance", plainLabel: "Clearance above maximum solid", label: "c_req", fmt: (c) => c.solidClearance.toFixed(3) },
+  { key: "deflectionUtilization", plainLabel: "Scenario max deflection utilization", label: "u_max", fmt: (c) => (c.deflectionUtilization * 100).toFixed(0) },
   { key: "s", plainLabel: canonicalName("s"), label: canonicalSym("s"), fmt: (c) => c.s.toFixed(3) },
   { key: "Lf", plainLabel: canonicalName("Lf"), label: canonicalSym("Lf"), fmt: (c) => c.Lf.toFixed(3) },
   { key: "F2", plainLabel: canonicalName("F2"), label: canonicalSym("F2"), fmt: (c) => formatValue(c.F2) },
@@ -61,29 +66,57 @@ const COLS: Col[] = [
  */
 export function V2CandidateTable({ sweep, selectedKey, onSelect, shortlist, onToggleShortlist }: Props) {
   const [mode, setMode] = useState<"pareto" | "feasible">("pareto");
-  const [sortKey, setSortKey] = useState<SortKey>("FeqAvgIdeal");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [sortPriorities, setSortPriorities] = useState<V2CandidateSortPriority[]>([
+    { key: "FeqAvgIdeal", direction: "desc" },
+  ]);
+  const [sortIsDefault, setSortIsDefault] = useState(true);
 
   const rows = useMemo(() => {
     const source =
       mode === "pareto"
         ? sweep.candidates.filter((c) => c.pareto)
         : sweep.feasible;
-    const sorted = [...source].sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
-      const cmp = (av as number) - (bv as number);
-      return sortDir === "asc" ? cmp : -cmp;
-    });
+    const sorted = sortV2CandidatesByPriorities(source, sortPriorities);
     return sorted.slice(0, 60);
-  }, [sweep, mode, sortKey, sortDir]);
+  }, [sweep, mode, sortPriorities]);
 
-  const setSort = (k: SortKey) => {
-    if (k === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else {
-      setSortKey(k);
-      setSortDir("desc");
+  const setSort = (key: V2CandidateSortKey) => {
+    if (sortIsDefault) {
+      setSortIsDefault(false);
+      setSortPriorities([{ key, direction: "desc" }]);
+      return;
     }
+    setSortPriorities((current) => {
+      const existing = current.findIndex((priority) => priority.key === key);
+      if (existing >= 0) {
+        return current.map((priority, index) =>
+          index === existing
+            ? { ...priority, direction: priority.direction === "asc" ? "desc" : "asc" }
+            : priority,
+        );
+      }
+      const next = [...current, { key, direction: "desc" as const }];
+      return next.length <= 3 ? next : [...next.slice(0, 2), next[next.length - 1]];
+    });
+  };
+
+  const removeSort = (key: V2CandidateSortKey) => {
+    setSortIsDefault(false);
+    setSortPriorities((current) => current.filter((priority) => priority.key !== key));
+  };
+
+  const columnFor = (key: V2CandidateSortKey) => COLS.find((column) => column.key === key)!;
+
+  const exportCsv = () => {
+    const csv = generateCandidateCsv(rows, shortlist);
+    const url = URL.createObjectURL(new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = candidateCsvFilename(mode);
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   return (
@@ -95,21 +128,45 @@ export function V2CandidateTable({ sweep, selectedKey, onSelect, shortlist, onTo
           </h2>
           <p className="text-[10.5px] text-zinc-400">Ranked list, not &quot;the answer&quot;.</p>
         </div>
-        <div className="flex overflow-hidden rounded-md border border-zinc-300 text-[11px]">
-          {(["pareto", "feasible"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setMode(m)}
-              aria-pressed={mode === m}
-              className={`px-2.5 py-1 font-medium transition-colors ${
-                mode === m ? "bg-zinc-800 text-white" : "bg-white text-zinc-600 hover:bg-zinc-100"
-              }`}
-            >
-              {m === "pareto" ? `Pareto (${sweep.paretoKeys.length})` : `Feasible (${sweep.feasibleCount})`}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <CandidateCsvButton disabled={rows.length === 0} onClick={exportCsv} />
+          <div className="flex overflow-hidden rounded-md border border-zinc-300 text-[11px]">
+            {(["pareto", "feasible"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMode(m)}
+                aria-pressed={mode === m}
+                className={`px-2.5 py-1 font-medium transition-colors ${
+                  mode === m ? "bg-zinc-800 text-white" : "bg-white text-zinc-600 hover:bg-zinc-100"
+                }`}
+              >
+                {m === "pareto" ? `Pareto (${sweep.paretoKeys.length})` : `Feasible (${sweep.feasibleCount})`}
+              </button>
+            ))}
+          </div>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-zinc-100 bg-zinc-50/60 px-3 py-1.5">
+        <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Sort priority</span>
+        {sortPriorities.length === 0 ? (
+          <span className="text-[10.5px] text-zinc-400">None — click a column heading to begin</span>
+        ) : (
+          sortPriorities.map((priority, index) => (
+            <span key={priority.key} className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10.5px] text-blue-800">
+              <span className="font-bold">{index + 1}</span>
+              <span>{columnFor(priority.key).plainLabel}</span>
+              {sortIsDefault && <span className="text-[9px] text-blue-400">default</span>}
+              <span aria-label={priority.direction === "asc" ? "ascending" : "descending"}>{priority.direction === "asc" ? "↑" : "↓"}</span>
+              <button type="button" onClick={() => removeSort(priority.key)} className="ml-0.5 text-blue-400 hover:text-red-600" aria-label={`Remove ${columnFor(priority.key).plainLabel} from sort priorities`}>×</button>
+            </span>
+          ))
+        )}
+        {sortPriorities.length > 0 && (
+          <button type="button" onClick={() => { setSortIsDefault(false); setSortPriorities([]); }} className="ml-auto text-[10px] font-medium text-zinc-400 hover:text-zinc-700">Clear sorting</button>
+        )}
+        <span className="basis-full text-[9.5px] text-zinc-400">The first click replaces the default; then click up to two more headings. Active headings toggle direction; near-equal 1% bands advance to the next priority.</span>
       </div>
 
       {rows.length === 0 ? (
@@ -122,7 +179,19 @@ export function V2CandidateTable({ sweep, selectedKey, onSelect, shortlist, onTo
                 <th className="px-1.5 py-1 text-left font-semibold">shortlist</th>
                 {COLS.map((col) => (
                   <th key={`plain-${col.key}`} className="px-1.5 py-1 text-right font-semibold whitespace-normal leading-tight">
-                    {col.plainLabel}
+                    <button
+                      type="button"
+                      onClick={() => setSort(col.key)}
+                      className={`inline-flex items-center justify-end gap-1 text-right hover:text-zinc-700 ${sortPriorities.some((priority) => priority.key === col.key) ? "text-blue-600" : ""}`}
+                      title={`Add ${col.plainLabel} to sort priorities or toggle its direction`}
+                    >
+                      {col.plainLabel}
+                      {sortPriorities.findIndex((priority) => priority.key === col.key) >= 0 && (
+                        <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[9px] font-bold text-white">
+                          {sortPriorities.findIndex((priority) => priority.key === col.key) + 1}
+                        </span>
+                      )}
+                    </button>
                   </th>
                 ))}
                 <th className="px-1.5 py-1 text-center font-semibold">stress band</th>
@@ -135,12 +204,15 @@ export function V2CandidateTable({ sweep, selectedKey, onSelect, shortlist, onTo
                       type="button"
                       onClick={() => setSort(col.key)}
                       className={`font-semibold hover:text-zinc-800 ${
-                        sortKey === col.key ? "text-blue-600" : ""
+                        sortPriorities.some((priority) => priority.key === col.key) ? "text-blue-600" : ""
                       }`}
-                      title={`Sort by ${col.label}`}
+                      title={`Add ${col.plainLabel} to sort priorities or toggle its direction`}
                     >
                       {renderSymbol(col.label)}
-                      {sortKey === col.key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+                      {(() => {
+                        const active = sortPriorities.find((priority) => priority.key === col.key);
+                        return active ? (active.direction === "asc" ? " ▲" : " ▼") : "";
+                      })()}
                     </button>
                   </th>
                 ))}
@@ -189,7 +261,7 @@ export function V2CandidateTable({ sweep, selectedKey, onSelect, shortlist, onTo
         </div>
       )}
       <div className="flex items-center justify-between border-t border-zinc-100 px-3 py-1.5 text-[10px] text-zinc-400">
-        <span>d, Lc, s, Lf in inches · k in lbf/in · forces in lbf · work in in·lbf</span>
+        <span>d, Lc, c_req, s, Lf in inches · u_max and %TS in percent · k in lbf/in · forces in lbf · work in in·lbf</span>
         <span>{rows.length} shown</span>
       </div>
     </div>

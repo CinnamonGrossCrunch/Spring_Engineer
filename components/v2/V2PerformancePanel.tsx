@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import type { V2Candidate, V2Material } from "@/lib/v2/types";
+import type { V2Candidate, V2Material, V2Scenario } from "@/lib/v2/types";
 import { computeHistoricalReference } from "@/lib/v2/defaults";
 import { applyImpactLens, type V2EtaMode } from "@/lib/v2/impactLens";
 import {
@@ -17,9 +17,12 @@ import { formatValue } from "../StatusBadge";
 import { canonicalName, canonicalSym } from "@/lib/engineering/nomenclature";
 import { canGenerateCad } from "@/lib/cad/validation";
 import { CadGenerationModal } from "./CadGenerationModal";
+import { DataSheetButton } from "./DataSheetButton";
+import { DataSheetModal } from "./DataSheetModal";
 
 interface Props {
   candidate: V2Candidate;
+  scenario: V2Scenario;
   material: V2Material;
   shortlisted: boolean;
   onToggleShortlist: () => void;
@@ -55,12 +58,14 @@ function Row({ label, value, hint }: { label: string; value: string; hint?: stri
  */
 export function V2PerformancePanel({
   candidate: c,
+  scenario,
   material,
   shortlisted,
   onToggleShortlist,
   onInspectInV1,
 }: Props) {
   const [cadOpen, setCadOpen] = useState(false);
+  const [dataSheetOpen, setDataSheetOpen] = useState(false);
   const [etaMode, setEtaMode] = useState<V2EtaMode>("unspecified");
   const [etaValue, setEtaValue] = useState(0.9);
   const [massMode, setMassMode] = useState<"specified" | "undefined">("specified");
@@ -120,6 +125,7 @@ export function V2PerformancePanel({
             </svg>
             Generate CAD Model
           </button>
+          <DataSheetButton onClick={() => setDataSheetOpen(true)} />
           <button
             type="button"
             onClick={onToggleShortlist}
@@ -178,6 +184,9 @@ export function V2PerformancePanel({
       <Group title="Package">
         <Row label="Max Solid Height" value={fmtIn(c.HsMax)} hint="Lee max = 1.05 × nominal solid height" />
         <Row label={`${canonicalName("Lc")} ${canonicalSym("Lc")}`} value={fmtIn(c.Lc)} />
+        <Row label="Clearance above Hₛ,max" value={fmtIn(c.solidClearance)} />
+        <Row label="Deflection utilization" value={fmtPct(c.deflectionUtilization)} hint="Working deflection divided by free-to-maximum-solid travel" />
+        <Row label="Deflection reserve" value={fmtPct(c.deflectionReserve)} />
         <Row label={`${canonicalName("s")} ${canonicalSym("s")}`} value={fmtIn(c.s)} hint="s = B − Lc" />
         <Row label={`${canonicalName("Lf")} ${canonicalSym("Lf")}`} value={fmtIn(c.Lf)} hint="Output, not a target" />
       </Group>
@@ -357,6 +366,15 @@ export function V2PerformancePanel({
       isOpen={cadOpen}
       onClose={() => setCadOpen(false)}
     />
+    {dataSheetOpen && (
+      <DataSheetModal
+        candidate={c}
+        scenario={scenario}
+        material={material}
+        isOpen
+        onClose={() => setDataSheetOpen(false)}
+      />
+    )}
     </>
   );
 }

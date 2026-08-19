@@ -9,7 +9,7 @@
  * These tests retain the historical presets while validating the current V1
  * default ("Current Candidate — Elgiloy Optimization") semantics:
  *   - stress guidance uses τ / TS_basis (TS is tensile, not allowable shear)
- *   - Lee solid-height tolerance boundary uses H_s,max + c_extra
+ *   - Lee solid-height tolerance and maximum-deflection-utilization constraints stay distinct
  *   - mechanism boundaries include F1 cap and axial budget B
  */
 import { solveModel } from "./solver";
@@ -28,6 +28,13 @@ import { sweepV2DesignSpace, buildRange } from "../v2/sweepDesignSpace";
 import { computePareto } from "../v2/pareto";
 import { DEFAULT_V2_SCENARIO, computeHistoricalReference } from "../v2/defaults";
 import type { V2Candidate, V2Scenario } from "../v2/types";
+import { generateMechanismSummary, generateVendorRfq, shareSheetToHtml, shareSheetToTableHtml, springDataSheetFilename } from "../v2/dataSheet";
+import { getV2Material } from "../v2/materials";
+import { DataSheetButton } from "../../components/v2/DataSheetButton";
+import { candidateCsvFilename, generateCandidateCsv } from "../v2/candidateCsv";
+import { CandidateCsvButton } from "../../components/v2/CandidateCsvButton";
+import { requiredSolidClearance, utilizationFromClearance } from "./deflectionConstraint";
+import { sortV2CandidatesByPriorities } from "../v2/candidateSort";
 
 let failures = 0;
 
@@ -154,11 +161,11 @@ console.log("\n── (2) Literal / reconciled / current presets ─────
   assert("reconciled: fully resolved", r.unresolved.length === 0);
   assert("reconciled: no conflicts", r.conflicts.length === 0);
 
-  // Reconciled candidate remains equation-consistent, but with the updated
-  // mechanism boundary semantics it now sits slightly above the F1 cap.
+  // Reconciled candidate remains equation-consistent; legacy geometry is not
+  // silently changed to satisfy the new deflection-margin scenario.
   const c = evaluateConstraints(v);
   const failed = c.filter((x) => !x.ok);
-  assert("reconciled: only start-force cap is violated", failed.length === 1 && failed[0]?.id === "start_force_cap");
+  assert("reconciled: new deflection constraint is surfaced", failed.some((x) => x.id === "coil_bind"));
 }
 {
   const r = solveModel(buildInitialState("forward", "currentCandidate"));
@@ -172,14 +179,15 @@ console.log("\n── (2) Literal / reconciled / current presets ─────
   check("current k", v.k, 190.9, 1);
   check("current H_s,nom", v.Hs, 0.6987, 0.5);
   check("current H_s,max", v.Hs_max, 0.733635, 0.5);
-  check("current L_min", v.L_min, 0.733635, 0.5);
-  check("current s_h", v.s_h, 0.416365, 0.5);
+  check("current L_min", v.L_min, 0.9170079, 0.5);
+  check("current s_h", v.s_h, 0.2329921, 0.5);
   check("current x1", v.x1, 0.733491, 0.5);
-  check("current L_f", v.L_free, 1.467126, 0.5);
+  check("current L_f", v.L_free, 1.6504993, 0.5);
+  check("current deflection utilization", v.deflection_utilization, 0.8, 0.1);
   check("current F1", v.F1, 140, 0.6);
-  check("current F2", v.F2, 60.53, 1);
-  check("current F3", v.F3, 47.17, 1);
-  check("current W_run", v.W_run, 41.75, 1);
+  check("current F2", v.F2, 95.52, 1);
+  check("current F3", v.F3, 82.16, 1);
+  check("current W_run", v.W_run, 27.43, 1);
   check("current τ", v.tau, 161_806, 1);
   check("current τ / TS_basis", v.utilization, 0.599, 1);
   assert("current: conflict-free", r.conflicts.length === 0);
@@ -343,14 +351,14 @@ console.log("\n── (5) Warning visualization invariants ───────
   assert("viz: literal stress fails (badge is red)", litStress?.ok === false);
   assert("viz: literal coil geometry OK → spring not repainted red", litBind?.ok === true);
 
-  // Reconciled: passes stress and keeps a small positive Lee-boundary margin.
+  // Reconciled: its historical geometry now explicitly fails the new margin.
   const recV = solveModel(buildInitialState("forward", "reconciledCandidate")).values;
   const recC = evaluateConstraints(recV);
   const recBind = recC.find((x) => x.id === "coil_bind");
   const clearance = (recV.L_min as number) - (recV.Hs_max as number);
   const cExtra = (recV.c_extra as number) ?? 0;
-  assert("viz: reconciled clearance is a small positive margin (near limit)", clearance > cExtra && clearance - cExtra < 0.1);
-  assert("viz: reconciled near-limit is NOT a geometry failure → spring stays neutral", recBind?.ok === true);
+  assert("viz: reconciled clearance is below the new required margin", clearance < cExtra);
+  assert("viz: reconciled deflection-margin failure is surfaced", recBind?.ok === false);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -426,7 +434,9 @@ console.log("\n── V2 (a) Candidate evaluator relationships ─────�
   // Solid height
   check("V2 Hs_nom = Nt·d", c.HsNom, c.Nt * d, 0.001);
   check("V2 Hs_max = 1.05·Hs_nom", c.HsMax, 1.05 * c.HsNom, 0.001);
-  check("V2 Lc = Hs_max + c_extra", c.Lc, c.HsMax + sc.extraSolidClearance, 0.001);
+  check("V2 clearance derives from scenario utilization", c.solidClearance, requiredSolidClearance(c.x0, sc.maxDeflectionUtilization), 0.001);
+  check("V2 Lc = Hs_max + required clearance", c.Lc, c.HsMax + c.solidClearance, 0.001);
+  check("V2 deflection utilization = scenario limit", c.deflectionUtilization, sc.maxDeflectionUtilization, 0.001);
 
   // Axial budget: Lc + s = B (within floating tolerance)
   assert("V2 Lc + s = B (1.150)", Math.abs(c.Lc + c.s - B) < 1e-9);
@@ -546,7 +556,7 @@ console.log("\n── V2 (e) Sweep grid + determinism ────────�
 
 // ─────────────────────────────────────────────────────────────────────────
 // V2 (f) — Independence from V1: the 900/450 lbf latch numbers are NEVER used
-// as constraints, and V2 does not read the V1 c_extra / TS_basis semantics.
+// as constraints, and V2 does not read V1-only state or latch assumptions.
 // ─────────────────────────────────────────────────────────────────────────
 console.log("\n── V2 (f) V1 independence ───────────────────────────────────");
 {
@@ -557,13 +567,137 @@ console.log("\n── V2 (f) V1 independence ───────────�
   const alt = sweepV2DesignSpace(wide);
   assert("V2 responds to its own scenario (OD change alters feasible count)", base.feasibleCount !== alt.feasibleCount);
 
-  // extraSolidClearance eats the axial budget → fewer positive-run-up candidates.
-  const tight: V2Scenario = { ...DEFAULT_V2_SCENARIO, extraSolidClearance: 0.2 };
+  // Lower permitted utilization reserves more travel and eats axial budget.
+  const tight: V2Scenario = { ...DEFAULT_V2_SCENARIO, maxDeflectionUtilization: 0.5 };
   const tightSweep = sweepV2DesignSpace(tight);
   assert(
-    "V2 extra clearance reduces the run-up budget (feasible count drops)",
+    "V2 lower utilization reduces the run-up budget (feasible count drops)",
     tightSweep.feasibleCount < base.feasibleCount,
   );
+}
+
+console.log("\n── V2 (f2) Deflection constraint representations ────────────");
+{
+  const x = 0.5;
+  const clearance = requiredSolidClearance(x, 0.8);
+  check("80% utilization requires 25% of working deflection as clearance", clearance, 0.125, 0.001);
+  check("clearance converts back to the same utilization", utilizationFromClearance(x, clearance), 0.8, 0.001);
+
+  const a = evaluateV2Candidate(DEFAULT_V2_SCENARIO, 0.137, 3.2);
+  const b = evaluateV2Candidate(DEFAULT_V2_SCENARIO, 0.150, 3.8);
+  check("candidate A uses shared utilization", a.deflectionUtilization, 0.8, 0.001);
+  check("candidate B uses shared utilization", b.deflectionUtilization, 0.8, 0.001);
+  assert("candidate-specific clearances differ", Math.abs(a.solidClearance - b.solidClearance) > 1e-6);
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// V2 (g) — Vendor data sheet content and Selected Candidate UI trigger.
+// ──────────────────────────────────────────────────────────────────────
+console.log("\n── V2 (g) Spring vendor data sheet ───────────────────");
+{
+  const scenario = DEFAULT_V2_SCENARIO;
+  const candidate = evaluateV2Candidate(scenario, 0.137, 3.6);
+  const material = getV2Material(scenario.materialId);
+  const input = {
+    candidate,
+    scenario,
+    material,
+    generatedAt: "2026-08-19T12:00:00.000Z",
+  };
+  const mechanism = generateMechanismSummary(input);
+  const vendor = generateVendorRfq(input);
+
+  for (const phrase of ["Mechanism Requirements", "Selected Spring Geometry", "Package and Operating States", "Predicted Mechanism Performance", "Decisions to Confirm"]) {
+    assert(`mechanism summary includes ${phrase}`, mechanism.includes(phrase));
+  }
+  for (const phrase of ["Prototype RFQ", "Nominal Spring", "Required Operating Points", "Please Include With Quote"]) {
+    assert(`vendor RFQ includes ${phrase}`, vendor.includes(phrase));
+  }
+  assert("mechanism summary uses selected candidate value", mechanism.includes(candidate.Lf.toFixed(4)));
+  assert("mechanism summary identifies equivalent height-above-solid constraint", mechanism.includes("Equivalent height above modeled maximum solid") && mechanism.includes("same constraint expressed as candidate-specific armed clearance"));
+  assert("mechanism summary includes scenario utilization beside equivalent clearance", mechanism.includes(`Maximum deflection utilization: ${(scenario.maxDeflectionUtilization * 100).toFixed(1)}%`) && mechanism.includes(candidate.solidClearance.toFixed(4)));
+  assert("mechanism summary uses candidate maximum solid height", mechanism.includes(candidate.HsMax.toFixed(4)));
+  assert("vendor RFQ uses current scenario value", vendor.includes(scenario.latchTravel.toFixed(4)));
+  assert("vendor RFQ identifies utilization and clearance as equivalent constraint forms", vendor.includes("Maximum deflection utilization") && vendor.includes("same constraint expressed as candidate-specific armed clearance"));
+  assert("vendor RFQ includes prototype quantity placeholder", vendor.includes("Prototype quantity: ___"));
+  assert("vendor RFQ keeps unspecified requirements TBD", vendor.includes("remain TBD"));
+  assert("mechanism summary stays concise", mechanism.split("\n").length < 50);
+  assert("vendor RFQ stays concise", vendor.split("\n").length < 55);
+  assert("mechanism export contains no Markdown headings", !mechanism.includes("# "));
+  assert("vendor export contains plain-text bullets", vendor.includes("• "));
+  assert("formatted copy bolds headings", shareSheetToHtml(mechanism).includes("<strong>Mechanism Requirements</strong>"));
+  assert("formatted copy uses semantic bullet lists", shareSheetToHtml(vendor).includes("<ul>") && shareSheetToHtml(vendor).includes("<li>"));
+  assert("Gmail copy uses an HTML table", shareSheetToTableHtml(mechanism).startsWith("<table"));
+  assert("Gmail table uses inline paste-safe styles", shareSheetToTableHtml(mechanism).includes("border-collapse:collapse") && shareSheetToTableHtml(mechanism).includes("font-weight:700"));
+  assert("Gmail table includes selected candidate values", shareSheetToTableHtml(mechanism).includes(candidate.Lf.toFixed(4)));
+  assert("Gmail table escapes generated content", !shareSheetToTableHtml(generateMechanismSummary({ ...input, generatedAt: "<unsafe>" })).includes("<unsafe>"));
+  assert("mechanism filename is audience-specific", springDataSheetFilename("d=0.137 / Na=3.60", "txt", "mechanism") === "spring-mechanism-summary_d-0.137-Na-3.60.txt");
+  assert("vendor filename is audience-specific", springDataSheetFilename("d=0.137 / Na=3.60", "txt", "vendor") === "spring-vendor-rfq_d-0.137-Na-3.60.txt");
+
+  let opened = false;
+  const button = DataSheetButton({ onClick: () => { opened = true; } });
+  const buttonProps = button.props as { onClick: () => void; "data-testid": string; children: unknown[] };
+  buttonProps.onClick();
+  assert("Export Data Sheet UI trigger invokes its handler", opened);
+  assert("Export Data Sheet UI trigger is discoverable", buttonProps["data-testid"] === "export-data-sheet-button");
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// V2 (h) — Candidate-table CSV export content and UI trigger.
+// ──────────────────────────────────────────────────────────────────────
+console.log("\n── V2 (h) Candidate CSV export ─────────────────────");
+{
+  const sweep = sweepV2DesignSpace(DEFAULT_V2_SCENARIO);
+  const candidates = sweep.candidates.filter((candidate) => candidate.pareto).slice(0, 2);
+  const csv = generateCandidateCsv(candidates, candidates[0] ? [candidates[0].key] : []);
+  const lines = csv.trim().split("\r\n");
+
+  assert("candidate CSV includes explicit-unit headers", lines[0].includes("wire_diameter_in") && lines[0].includes("spring_rate_lbf_per_in"));
+  assert("candidate CSV includes solid-height fields", lines[0].includes("nominal_solid_height_in") && lines[0].includes("maximum_solid_height_in"));
+  assert("candidate CSV includes deflection constraint fields", lines[0].includes("required_clearance_above_maximum_solid_in") && lines[0].includes("deflection_utilization_pct"));
+  assert("candidate CSV includes every supplied row", lines.length === candidates.length + 1);
+  assert("candidate CSV preserves table row order", candidates.length === 0 || lines[1].startsWith(candidates[0].key));
+  assert("candidate CSV records shortlist state", candidates.length === 0 || lines[1].includes(",true,"));
+  assert("candidate CSV filename identifies view and date", candidateCsvFilename("pareto", new Date("2026-08-19T12:00:00.000Z")) === "spring-candidates_pareto_2026-08-19.csv");
+
+  let exported = false;
+  const button = CandidateCsvButton({ onClick: () => { exported = true; } });
+  const buttonProps = button.props as { onClick: () => void; "data-testid": string };
+  buttonProps.onClick();
+  assert("Export CSV UI trigger invokes its handler", exported);
+  assert("Export CSV UI trigger is discoverable", buttonProps["data-testid"] === "export-candidate-csv-button");
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// V2 (i) — Tolerance-aware primary / secondary / tertiary candidate sort.
+// ───────────────────────────────────────────────────────────────────────
+console.log("\n── V2 (i) Candidate priority sorting ───────────────");
+{
+  const base = evaluateV2Candidate(DEFAULT_V2_SCENARIO, 0.137, 3.6);
+  const a: V2Candidate = { ...base, key: "a", Whammer: 100, FeqAvgIdeal: 10, stressPctConservative: 0.50 };
+  const b: V2Candidate = { ...base, key: "b", Whammer: 99.5, FeqAvgIdeal: 20, stressPctConservative: 0.45 };
+  const c: V2Candidate = { ...base, key: "c", Whammer: 98.5, FeqAvgIdeal: 100, stressPctConservative: 0.40 };
+
+  const secondary = sortV2CandidatesByPriorities([a, b, c], [
+    { key: "Whammer", direction: "desc" },
+    { key: "FeqAvgIdeal", direction: "desc" },
+  ]);
+  assert("priority sort uses secondary inside the primary 1% band", secondary.map((candidate) => candidate.key).join("") === "bac");
+
+  const tertiary = sortV2CandidatesByPriorities(
+    [
+      { ...a, FeqAvgIdeal: 20 },
+      b,
+      c,
+    ],
+    [
+      { key: "Whammer", direction: "desc" },
+      { key: "FeqAvgIdeal", direction: "desc" },
+      { key: "stressPctConservative", direction: "asc" },
+    ],
+  );
+  assert("priority sort uses tertiary direction inside tied primary/secondary bands", tertiary.map((candidate) => candidate.key).join("") === "bac");
+  assert("priority sort does not mutate its input", [a, b, c].map((candidate) => candidate.key).join("") === "abc");
 }
 
 if (failures > 0) {

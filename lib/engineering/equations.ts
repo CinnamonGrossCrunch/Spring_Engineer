@@ -233,6 +233,39 @@ export const EQUATIONS: Equation[] = [
       Hs_max: (v) => v.L_min - v.clearance,
     },
   },
+  {
+    id: "available_deflection",
+    name: "Available deflection to maximum solid height",
+    expression: "x_available = L_f − H_s,max",
+    variables: ["available_deflection", "L_free", "Hs_max"],
+    solvers: {
+      available_deflection: (v) => v.L_free - v.Hs_max,
+      L_free: (v) => v.available_deflection + v.Hs_max,
+      Hs_max: (v) => v.L_free - v.available_deflection,
+    },
+  },
+  {
+    id: "deflection_utilization",
+    name: "Working deflection utilization",
+    expression: "u_defl = x1 / x_available",
+    variables: ["deflection_utilization", "x1", "available_deflection"],
+    solvers: {
+      deflection_utilization: (v) => v.x1 / v.available_deflection,
+      x1: (v) => v.deflection_utilization * v.available_deflection,
+      available_deflection: (v) => v.x1 / v.deflection_utilization,
+    },
+  },
+  {
+    id: "required_solid_clearance",
+    name: "Required clearance from deflection limit",
+    expression: "c_required = x1·(1/u_max − 1)",
+    variables: ["c_extra", "x1", "deflection_utilization_max"],
+    solvers: {
+      c_extra: (v) => v.x1 * (1 / v.deflection_utilization_max - 1),
+      x1: (v) => v.c_extra / (1 / v.deflection_utilization_max - 1),
+      deflection_utilization_max: (v) => v.x1 / (v.x1 + v.c_extra),
+    },
+  },
 
   // ── Stress ───────────────────────────────────────────────────────────────
   {

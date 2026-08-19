@@ -1,6 +1,7 @@
 import { runUpWork } from "@/lib/engineering/spring";
 import { DEFAULT_MATERIAL_ID } from "./materials";
 import type { V2Candidate, V2LandscapeMetricInfo, V2Scenario } from "./types";
+import { DEFAULT_MAX_DEFLECTION_UTILIZATION } from "@/lib/engineering/deflectionConstraint";
 
 /**
  * The default V2 study scenario (Sweep #1).
@@ -9,7 +10,7 @@ import type { V2Candidate, V2LandscapeMetricInfo, V2Scenario } from "./types";
  *   · Actual mechanism boundaries — forceCap, axialBudget, latchTravel
  *   · Fixed for this study        — outerDiameter, material
  *   · Lee-derived model guidance  — solidHeightTolerance, stress bands
- *   · Vendor / design margin      — extraSolidClearance
+ *   · Working-deflection constraint — maxDeflectionUtilization
  *   · Numerical search bounds     — wire/coil ranges (NOT manufacturing limits)
  */
 export const DEFAULT_V2_SCENARIO: V2Scenario = {
@@ -26,8 +27,8 @@ export const DEFAULT_V2_SCENARIO: V2Scenario = {
   // Lee-derived model guidance
   solidHeightTolerance: 0.05, // Lee +5% → Hs_max = 1.05·Hs_nom
 
-  // Vendor / design margin — Lee tolerance boundary, no extra vendor margin
-  extraSolidClearance: 0,
+  // Working-deflection constraint — study default, not a Lee/vendor requirement
+  maxDeflectionUtilization: DEFAULT_MAX_DEFLECTION_UTILIZATION,
 
   // Numerical search bounds (editable in Advanced Sweep Settings)
   wireMin: 0.12,
@@ -40,8 +41,8 @@ export const DEFAULT_V2_SCENARIO: V2Scenario = {
   stressBasis: "conservative",
 };
 
-/** Example additional-clearance SCENARIOS (not Lee requirements). */
-export const EXTRA_CLEARANCE_SCENARIOS = [0.0, 0.01, 0.025, 0.05] as const;
+/** Example working-deflection scenarios (screening guidance, not Lee requirements). */
+export const DEFLECTION_UTILIZATION_SCENARIOS = [0.7, 0.8, 0.9] as const;
 
 /**
  * Historical whiteboard reference — reconstructed from the original nominal
@@ -50,7 +51,7 @@ export const EXTRA_CLEARANCE_SCENARIOS = [0.0, 0.01, 0.025, 0.05] as const;
  *   F0 = 140 lbf   k = 280 lbf/in   s = 0.250 in   y = 0.070 in
  *
  * The ideal release-energy proxy computed from these nominal values lands in the
- * neighborhood of Michael's rounded ~450 avg / ~900 triangular-peak numbers.
+ * neighborhood of the historical rounded ~450 avg / ~900 triangular-peak numbers.
  */
 export const HISTORICAL_WHITEBOARD = {
   F0: 140,

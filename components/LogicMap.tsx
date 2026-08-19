@@ -69,8 +69,8 @@ const GROUPS: GroupSpec[] = [
     section: "spring-design",
     title: "Solid Height / Coil Bind",
     order: 0,
-    subtitle: "H_s,max=(1+tol)·H_s,nom ; L_min >= H_s,max + c_extra",
-    paramIds: ["Nt", "Hs", "solid_tolerance", "Hs_max", "clearance", "c_extra"],
+    subtitle: "H_s,max=(1+tol)·H_s,nom ; x₁/(L_f−H_s,max) ≤ u_max",
+    paramIds: ["Nt", "Hs", "solid_tolerance", "Hs_max", "clearance", "available_deflection", "deflection_utilization", "deflection_utilization_max", "c_extra"],
     kind: "constraint",
   },
   {

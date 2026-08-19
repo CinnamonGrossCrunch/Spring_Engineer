@@ -15,7 +15,7 @@ import type { DesignMode, ModelState, ParameterStatus } from "@/lib/engineering/
  *   B. "Reconciled Candidate"
  *      One equation-consistent design that DOES meet the performance targets
  *      within the stress and solid-height limits (thinner wire, more coils).
- *      This is NOT "what Michael sketched"; it is one feasible candidate.
+ *      This is NOT the literal historical sketch; it is one feasible candidate.
  *
  *   C. "Current Candidate — Elgiloy Optimization"
  *      The present baseline for V1 defaults, aligned to the V2 Elgiloy
@@ -41,9 +41,9 @@ const COMMON_MECHANISM_GUIDANCE: Preset = {
   TS_upper: { value: 300_000, status: "assumed" },
   TS_basis: { value: 270_000, status: "assumed" },
 
-  // Lee max-solid-height allowance + optional extra operating/vendor margin.
+  // Lee max-solid-height allowance + governing working-deflection limit.
   solid_tolerance: { value: 0.05, status: "assumed" }, // Hs_max = (1 + tol)·Hs_nom
-  c_extra: { value: 0, status: "variable" },
+  deflection_utilization_max: { value: 0.8, status: "variable" },
 };
 
 /** Historical latch-force assumptions retained for legacy concepts only. */
@@ -112,7 +112,7 @@ const RECONCILED_CANDIDATE: Preset = {
  * This is the V1 default and matches V2-style semantics:
  *   - stress displayed as τ / TS_basis (TS is tensile-strength basis)
  *   - Lee solid-height boundary Hs_max = 1.05·Hs_nom
- *   - additional margin c_extra is explicit (defaults to 0.000 in)
+ *   - working deflection is limited to 80% of free-to-Hs,max travel
  *   - mechanism boundaries include F1 cap and axial budget B
  */
 const CURRENT_CANDIDATE: Preset = {
@@ -130,9 +130,9 @@ const CURRENT_CANDIDATE: Preset = {
   Nt: { value: 5.1, status: "variable" }, // Na ≈ 3.10
 
   G: { value: 12.0e6, status: "assumed" },
-  L_free: { value: 1.467126462469894, status: "variable" },
+  L_free: { value: 1.650499328087367, status: "variable" },
   x1: { value: 0.733491462469894, status: "variable" },
-  s_h: { value: 0.416365, status: "variable" },
+  s_h: { value: 0.232992133882634, status: "variable" },
 };
 
 function baseInputs(preset: PresetId): Preset {
@@ -163,6 +163,9 @@ const DERIVED_IDS = [
   "Na",
   "Hs",
   "Hs_max",
+  "available_deflection",
+  "deflection_utilization",
+  "c_extra",
   "Kw",
   "tau",
   "utilization",
@@ -261,7 +264,7 @@ export const PRESET_INFO: Record<
     label: "Current Candidate — Elgiloy Optimization",
     short: "Current candidate",
     blurb:
-      "Current-design baseline: d=0.137 in, OD=1.100 in, N_t=5.10, G=12.0 Mpsi, B=1.150 in, y_latch=0.070 in, Lee +5% solid-height tolerance, c_extra=0.000 in. Hammer mass/efficiency and 900/450 latch-force assumptions are left unset in this preset.",
+      "Current-design baseline: d=0.137 in, OD=1.100 in, N_t=5.10, G=12.0 Mpsi, B=1.150 in, y_latch=0.070 in, Lee +5% solid-height tolerance, and 80% maximum deflection utilization. Hammer mass/efficiency and 900/450 latch-force assumptions are left unset in this preset.",
   },
   literalSketch: {
     label: "Historical Baseline — Literal",
@@ -279,7 +282,7 @@ export const PRESET_INFO: Record<
 
 export function exampleDataLabel(preset: PresetId): string {
   if (preset === "currentCandidate") {
-    return "Current Candidate — Elgiloy optimization baseline (TS-based stress guidance; Lee tolerance boundary with c_extra = 0)";
+    return "Current Candidate — Elgiloy optimization baseline (TS-based stress guidance; Lee tolerance boundary with 80% maximum deflection utilization)";
   }
   return preset === "reconciledCandidate"
     ? "Reconciled Candidate — equation-consistent alternative to the literal sketch"

@@ -203,6 +203,16 @@ export function V2CandidateMechanism({ candidate: c }: Props) {
                         >
                           Nₐ = {Na.toFixed(2)}
                         </text>
+                        <text
+                          x={bx - 6}
+                          y={midLc + 42}
+                          fontSize={8.5}
+                          textAnchor="end"
+                          fill={COLORS.green}
+                          fontFamily="var(--font-geist-mono), monospace"
+                        >
+                          c_req = {c.solidClearance.toFixed(3)} in · u = {(c.deflectionUtilization * 100).toFixed(0)}%
+                        </text>
                         {/* s portion */}
                         <text x={bx - 6} y={midS - 3} fontSize={9.5} textAnchor="end" fontWeight={700} fill={COLORS.budget} fontFamily="var(--font-geist-mono), monospace">
                           s = {inch(s)}
