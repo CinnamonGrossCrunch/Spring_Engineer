@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "cad": {
+      "runtime": "container",
+      "root": "./",
+      "entrypoint": "Dockerfile.vercel"
+    }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": { "service": "cad" } }
+  ]
+}
