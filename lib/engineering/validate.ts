@@ -610,7 +610,7 @@ console.log("\n── V2 (g) Spring vendor data sheet ────────�
   for (const phrase of ["Mechanism Requirements", "Selected Spring Geometry", "Package and Operating States", "Predicted Mechanism Performance", "Decisions to Confirm"]) {
     assert(`mechanism summary includes ${phrase}`, mechanism.includes(phrase));
   }
-  for (const phrase of ["Prototype RFQ", "Nominal Spring", "Required Operating Points", "Please Include With Quote"]) {
+  for (const phrase of ["Prototype RFQ", "1. Our Mechanism and Constraints", "2. Preliminary Calculations — Please Assess and Optimize", "3. Our Assumptions for Vendor Review"]) {
     assert(`vendor RFQ includes ${phrase}`, vendor.includes(phrase));
   }
   assert("mechanism summary uses selected candidate value", mechanism.includes(candidate.Lf.toFixed(4)));
@@ -618,18 +618,23 @@ console.log("\n── V2 (g) Spring vendor data sheet ────────�
   assert("mechanism summary includes scenario utilization beside equivalent clearance", mechanism.includes(`Maximum deflection utilization: ${(scenario.maxDeflectionUtilization * 100).toFixed(1)}%`) && mechanism.includes(candidate.solidClearance.toFixed(4)));
   assert("mechanism summary uses candidate maximum solid height", mechanism.includes(candidate.HsMax.toFixed(4)));
   assert("vendor RFQ uses current scenario value", vendor.includes(scenario.latchTravel.toFixed(4)));
-  assert("vendor RFQ identifies utilization and clearance as equivalent constraint forms", vendor.includes("Maximum deflection utilization") && vendor.includes("same constraint expressed as candidate-specific armed clearance"));
+  assert("vendor RFQ places utilization and clearance together in assumptions", vendor.includes("Maximum deflection utilization\t") && vendor.includes("Equivalent armed height above maximum solid\t"));
+  assert("vendor RFQ explains mechanism use and distinguishes spring from impact force", vendor.includes("accelerate a hammer") && vendor.includes("not dynamic impact-force claims"));
+  assert("vendor RFQ discloses ksi assumptions without unnecessary equation detail", vendor.includes("270.0 ksi–300.0 ksi") && vendor.includes("not allowable shear stresses") && !vendor.includes("τ = K_w·8·F·D/(π·d³)"));
+  assert("vendor RFQ requests optimization of material assumptions", vendor.includes("Recommend the production material") && vendor.includes("Replace with applicable values"));
   assert("vendor RFQ includes prototype quantity placeholder", vendor.includes("Prototype quantity: ___"));
-  assert("vendor RFQ keeps unspecified requirements TBD", vendor.includes("remain TBD"));
+  assert("vendor RFQ keeps unspecified requirements TBD", vendor.includes("Fatigue duty / cycle target\tTBD") && vendor.includes("Temperature / corrosion / finish / cleanliness\tTBD"));
   assert("mechanism summary stays concise", mechanism.split("\n").length < 50);
-  assert("vendor RFQ stays concise", vendor.split("\n").length < 55);
+  assert("vendor RFQ stays concise", vendor.split("\n").filter(Boolean).length < 60);
   assert("mechanism export contains no Markdown headings", !mechanism.includes("# "));
   assert("vendor export contains plain-text bullets", vendor.includes("• "));
   assert("formatted copy bolds headings", shareSheetToHtml(mechanism).includes("<strong>Mechanism Requirements</strong>"));
   assert("formatted copy uses semantic bullet lists", shareSheetToHtml(vendor).includes("<ul>") && shareSheetToHtml(vendor).includes("<li>"));
+  assert("formatted copy renders operating states as a three-column table", shareSheetToHtml(vendor).includes("Calculated spring force</th>") && shareSheetToHtml(vendor).includes("Hammer contact</td>"));
   assert("Gmail copy uses an HTML table", shareSheetToTableHtml(mechanism).startsWith("<table"));
   assert("Gmail table uses inline paste-safe styles", shareSheetToTableHtml(mechanism).includes("border-collapse:collapse") && shareSheetToTableHtml(mechanism).includes("font-weight:700"));
   assert("Gmail table includes selected candidate values", shareSheetToTableHtml(mechanism).includes(candidate.Lf.toFixed(4)));
+  assert("Gmail vendor copy contains nested sub-tables", shareSheetToTableHtml(vendor).includes("Operating States") && shareSheetToTableHtml(vendor).includes("Calculated spring force</th>"));
   assert("Gmail table escapes generated content", !shareSheetToTableHtml(generateMechanismSummary({ ...input, generatedAt: "<unsafe>" })).includes("<unsafe>"));
   assert("mechanism filename is audience-specific", springDataSheetFilename("d=0.137 / Na=3.60", "txt", "mechanism") === "spring-mechanism-summary_d-0.137-Na-3.60.txt");
   assert("vendor filename is audience-specific", springDataSheetFilename("d=0.137 / Na=3.60", "txt", "vendor") === "spring-vendor-rfq_d-0.137-Na-3.60.txt");
