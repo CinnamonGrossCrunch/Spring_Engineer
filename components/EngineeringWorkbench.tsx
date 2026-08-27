@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import type { DesignMode, ModelState, WorkspaceVersion } from "@/lib/engineering/types";
 import { solveModel } from "@/lib/engineering/solver";
 import { evaluateConstraints } from "@/lib/engineering/constraints";
@@ -26,6 +25,11 @@ import {
   DEFAULT_DEFLECTION_CONSTRAINT,
   type DeflectionConstraintState,
 } from "@/lib/engineering/deflectionConstraint";
+import {
+  isPlainWorkspaceNavigation,
+  WORKSPACE_ROUTES,
+  workspaceFromPathname,
+} from "@/lib/engineering/workspaceNavigation";
 
 const MODES: DesignMode[] = ["forward", "reverse", "explore"];
 const ACTIVE_PRESET: PresetId = "currentCandidate";
@@ -42,7 +46,6 @@ interface EngineeringWorkbenchProps {
 }
 
 export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWorkbenchProps) {
-  const router = useRouter();
   const [workspace, setWorkspace] = useState<WorkspaceVersion>(initialWorkspace);
   const [mode, setMode] = useState<DesignMode>("forward");
   const [model, setModel] = useState<ModelState>(() => {
@@ -102,6 +105,35 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [constraintsOpen]);
+
+  useEffect(() => {
+    const syncWorkspaceToHistory = () => {
+      const historicalWorkspace = workspaceFromPathname(window.location.pathname);
+      if (historicalWorkspace) setWorkspace(historicalWorkspace);
+    };
+
+    window.addEventListener("popstate", syncWorkspaceToHistory);
+    return () => window.removeEventListener("popstate", syncWorkspaceToHistory);
+  }, []);
+
+  const navigateWorkspace = useCallback((next: WorkspaceVersion, href: string) => {
+    setWorkspace(next);
+    if (window.location.pathname !== href) window.history.pushState(null, "", href);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, []);
+
+  const handleWorkspaceLinkClick = useCallback(
+    (
+      event: ReactMouseEvent<HTMLAnchorElement>,
+      next: WorkspaceVersion,
+      href: string,
+    ) => {
+      if (!isPlainWorkspaceNavigation(event)) return;
+      event.preventDefault();
+      navigateWorkspace(next, href);
+    },
+    [navigateWorkspace],
+  );
 
   const handleSelect = useCallback((id: string) => {
     setSelectedId(id);
@@ -206,10 +238,9 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
   const applyV2Candidate = useCallback((next: ModelState) => {
     setModel(next);
     setMode("explore");
-    setWorkspace("v1");
-    router.push("/engineer");
+    navigateWorkspace("v1", "/engineer");
     setSelectedId(null);
-  }, [router]);
+  }, [navigateWorkspace]);
 
   const display = (id: string) =>
     model[id]?.status === "derived" ? solve.values[id] : (model[id]?.value ?? solve.values[id]);
@@ -235,14 +266,12 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
 
           <div className="flex items-center gap-1.5">
            <div className="flex overflow-hidden rounded-md border border-zinc-300 text-xs">
-             {([
-               { id: "v1", label: "Engineer", href: "/engineer" },
-               { id: "v2", label: "Optimize", href: "/optimize" },
-             ] as { id: WorkspaceVersion; label: string; href: string }[]).map((w) => (
+             {WORKSPACE_ROUTES.map((w) => (
                 <Link
                   key={w.id}
-                  onClick={() => setWorkspace(w.id)}
+                  onClick={(event) => handleWorkspaceLinkClick(event, w.id, w.href)}
                   aria-pressed={workspace === w.id}
+                  aria-current={workspace === w.id ? "page" : undefined}
                   href={w.href}
                   className={`px-3 py-1.5 font-medium transition-colors ${
                     workspace === w.id

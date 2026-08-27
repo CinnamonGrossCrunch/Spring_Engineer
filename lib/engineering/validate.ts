@@ -40,6 +40,10 @@ import {
   inchesToMillimeters,
   nominalSpringOuterDiameter,
 } from "../v2/envelope";
+import {
+  isPlainWorkspaceNavigation,
+  workspaceFromPathname,
+} from "./workspaceNavigation";
 
 let failures = 0;
 
@@ -82,6 +86,29 @@ const segCount = (r: SpringPathResult) => r.backSegments.length + r.frontSegment
 const span = (r: SpringPathResult) => r.rightX - r.leftX;
 
 console.log("── Pure helpers ──────────────────────────────");
+assert("workspace route: /engineer → V1", workspaceFromPathname("/engineer") === "v1");
+assert("workspace route: /optimize/ → V2", workspaceFromPathname("/optimize/") === "v2");
+assert("workspace route: unrelated path ignored", workspaceFromPathname("/api/cad") === null);
+assert(
+  "workspace navigation: plain primary click stays in the mounted workbench",
+  isPlainWorkspaceNavigation({
+    button: 0,
+    altKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+  }),
+);
+assert(
+  "workspace navigation: modified click keeps native new-tab behavior",
+  !isPlainWorkspaceNavigation({
+    button: 0,
+    altKey: false,
+    ctrlKey: true,
+    metaKey: false,
+    shiftKey: false,
+  }),
+);
 check("springRate(11.5e6, 0.055, 0.4, 10)", springRate(11.5e6, 0.055, 0.4, 10), 20.553, 0.5);
 check("wahlFactor(C=7.2727)", wahlFactor(0.4 / 0.055), 1.2042, 0.5);
 check(
