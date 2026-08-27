@@ -32,7 +32,7 @@ interface Props {
 
 const PAD = { left: 46, right: 14, top: 8, bottom: 30 };
 const BASE_PLOT_W = 660;
-const PLOT_H = 320;
+const PLOT_H = 282;
 const SVG_H = PLOT_H + PAD.top + PAD.bottom;
 
 /** A candidate is "alive" when it passes every HARD constraint (stress aside). */
