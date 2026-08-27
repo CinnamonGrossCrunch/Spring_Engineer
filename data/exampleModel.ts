@@ -1,4 +1,5 @@
 import type { DesignMode, ModelState, ParameterStatus } from "@/lib/engineering/types";
+import { DEFAULT_MAX_DEFLECTION_UTILIZATION } from "@/lib/engineering/deflectionConstraint";
 
 /**
  * Example values — NOT design recommendations.
@@ -43,7 +44,7 @@ const COMMON_MECHANISM_GUIDANCE: Preset = {
 
   // Lee max-solid-height allowance + governing working-deflection limit.
   solid_tolerance: { value: 0.05, status: "assumed" }, // Hs_max = (1 + tol)·Hs_nom
-  deflection_utilization_max: { value: 0.8, status: "variable" },
+  deflection_utilization_max: { value: DEFAULT_MAX_DEFLECTION_UTILIZATION, status: "variable" },
 };
 
 /** Historical latch-force assumptions retained for legacy concepts only. */
@@ -112,7 +113,7 @@ const RECONCILED_CANDIDATE: Preset = {
  * This is the V1 default and matches V2-style semantics:
  *   - stress displayed as τ / TS_basis (TS is tensile-strength basis)
  *   - Lee solid-height boundary Hs_max = 1.05·Hs_nom
- *   - working deflection is limited to 80% of free-to-Hs,max travel
+ *   - working deflection defaults to 60% of free-to-Hs,max travel
  *   - mechanism boundaries include F1 cap and axial budget B
  */
 const CURRENT_CANDIDATE: Preset = {
@@ -264,7 +265,7 @@ export const PRESET_INFO: Record<
     label: "Current Candidate — Elgiloy Optimization",
     short: "Current candidate",
     blurb:
-      "Current-design baseline: d=0.137 in, OD=1.100 in, N_t=5.10, G=12.0 Mpsi, B=1.150 in, y_latch=0.070 in, Lee +5% solid-height tolerance, and 80% maximum deflection utilization. Hammer mass/efficiency and 900/450 latch-force assumptions are left unset in this preset.",
+      "Current-design baseline: d=0.137 in, OD=1.100 in, N_t=5.10, G=12.0 Mpsi, B=1.150 in, y_latch=0.070 in, Lee +5% solid-height tolerance, and a 60% default maximum-deflection-utilization constraint. Hammer mass/efficiency and 900/450 latch-force assumptions are left unset in this preset.",
   },
   literalSketch: {
     label: "Historical Baseline — Literal",
@@ -282,7 +283,7 @@ export const PRESET_INFO: Record<
 
 export function exampleDataLabel(preset: PresetId): string {
   if (preset === "currentCandidate") {
-    return "Current Candidate — Elgiloy optimization baseline (TS-based stress guidance; Lee tolerance boundary with 80% maximum deflection utilization)";
+    return "Current Candidate — Elgiloy optimization baseline (TS-based stress guidance; Lee tolerance boundary with 60% default maximum deflection utilization)";
   }
   return preset === "reconciledCandidate"
     ? "Reconciled Candidate — equation-consistent alternative to the literal sketch"

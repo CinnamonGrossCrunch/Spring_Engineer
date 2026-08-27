@@ -1,11 +1,19 @@
 "use client";
 
 import { useId } from "react";
-import type { V2Material, V2Scenario, V2StressBasis } from "@/lib/v2/types";
+import type { V2Material, V2Scenario } from "@/lib/v2/types";
 import { DEFLECTION_UTILIZATION_SCENARIOS } from "@/lib/v2/defaults";
-import { SOURCE_TAG, fmtPct } from "./v2format";
+import { SOURCE_TAG, fmtInMm, fmtPct } from "./v2format";
 import { DeflectionConstraintControl } from "../DeflectionConstraintControl";
 import type { DeflectionConstraintState } from "@/lib/engineering/deflectionConstraint";
+import {
+  inchesToMillimeters,
+  maximumFinishedSpringOuterDiameter,
+  millimetersToInches,
+  nominalSpringOuterDiameter,
+} from "@/lib/v2/envelope";
+
+const STRESS_BASIS_PRESETS_KSI = [270, 285, 300] as const;
 
 interface Props {
   scenario: V2Scenario;
@@ -15,6 +23,7 @@ interface Props {
   deflectionConstraint: DeflectionConstraintState;
   onDeflectionConstraintChange: (value: DeflectionConstraintState) => void;
   referenceWorkingDeflection?: number;
+  referenceShearStressPsi?: number;
 }
 
 function SourceTag({ kind, children }: { kind: keyof typeof SOURCE_TAG; children: string }) {
@@ -109,7 +118,11 @@ export function V2ScenarioPanel({
   deflectionConstraint,
   onDeflectionConstraintChange,
   referenceWorkingDeflection,
+  referenceShearStressPsi,
 }: Props) {
+  const nominalOuterDiameter = nominalSpringOuterDiameter(scenario);
+  const maximumFinishedOuterDiameter = maximumFinishedSpringOuterDiameter(scenario);
+
   return (
     <div className="flex flex-col rounded-lg border border-zinc-200 bg-white">
       <div className="flex items-center justify-between border-b border-zinc-200 px-3 py-2">
@@ -152,22 +165,39 @@ export function V2ScenarioPanel({
           unit="in"
           onChange={(v) => onChange({ latchTravel: v })}
         />
+        <NumberField
+          label="Housing ID / absolute spring OD"
+          symbol="ODₘₐₓ"
+          value={inchesToMillimeters(scenario.housingInnerDiameter)}
+          step={0.1}
+          min={0}
+          unit="mm"
+          onChange={(v) => onChange({ housingInnerDiameter: millimetersToInches(v) })}
+        />
         <p className="text-[10px] leading-tight text-zinc-400">
           Candidates are evaluated <span className="font-semibold">at</span> the force cap
-          (F₀ = {scenario.forceCap} lbf), maximizing mechanism performance under it.
+          (F₀ = {scenario.forceCap} lbf), maximizing mechanism performance under it. The housing
+          bore is the hard finished-spring OD ceiling.
         </p>
       </Section>
 
       <Section title="Fixed For This Study" tag="Study" tagKind="study">
         <NumberField
-          label="Nominal spring OD"
-          symbol="OD"
-          value={scenario.outerDiameter}
-          step={0.005}
+          label="Positive OD tolerance allowance"
+          symbol="+tolOD"
+          value={scenario.outerDiameterTolerance}
+          step={0.001}
           min={0}
+          max={scenario.housingInnerDiameter}
           unit="in"
-          onChange={(v) => onChange({ outerDiameter: v })}
+          onChange={(v) => onChange({ outerDiameterTolerance: v })}
         />
+        <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10.5px] text-zinc-500">
+          <span>Derived nominal spring OD</span>
+          <span className="text-right font-mono text-zinc-700">{fmtInMm(nominalOuterDiameter)}</span>
+          <span>Worst-case finished OD</span>
+          <span className="text-right font-mono text-zinc-700">{fmtInMm(maximumFinishedOuterDiameter)}</span>
+        </div>
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11.5px] text-zinc-600">Material</span>
           <span className="text-[11px] font-medium text-zinc-700">
@@ -176,8 +206,9 @@ export function V2ScenarioPanel({
           </span>
         </div>
         <p className="text-[10px] leading-tight text-zinc-400">
-          OD is a deliberate first-pass study assumption, not a hard mechanism constraint.
-          Benchmark material model — not an approved aerospace material.
+          Nominal OD = housing limit − positive tolerance allowance. Add any required diametral
+          fit clearance to this allowance. Benchmark material model — not an approved aerospace
+          material.
         </p>
       </Section>
 
@@ -191,8 +222,17 @@ export function V2ScenarioPanel({
           unit="%"
           onChange={(v) => onChange({ solidHeightTolerance: v / 100 })}
         />
+        <NumberField
+          label="Shear modulus"
+          symbol="G"
+          value={scenario.shearModulusPsi / 1e6}
+          step={0.1}
+          min={0.1}
+          unit="Mpsi"
+          onChange={(v) => onChange({ shearModulusPsi: v * 1e6 })}
+        />
         <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10.5px] text-zinc-500">
-          <span>Shear modulus G</span>
+          <span>Published benchmark G</span>
           <span className="text-right font-mono text-zinc-700">
             {(material.shearModulusPsi / 1e6).toFixed(1)} Mpsi
           </span>
@@ -203,22 +243,42 @@ export function V2ScenarioPanel({
           <span>Stress guidance</span>
           <span className="text-right font-mono text-zinc-700">≤40% · 40–60% · &gt;60% TS</span>
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] text-zinc-600">Stress classification basis</span>
-          <select
-            value={scenario.stressBasis}
-            onChange={(e) => onChange({ stressBasis: e.target.value as V2StressBasis })}
-            className="rounded border border-zinc-300 bg-white px-1.5 py-1 text-[11px] text-zinc-700 focus:border-blue-500 focus:outline-none"
-          >
-            <option value="conservative">Conservative (270 ksi)</option>
-            <option value="mid">Mid (285 ksi)</option>
-            <option value="upper">Upper (300 ksi)</option>
-          </select>
+        <NumberField
+          label="Stress classification basis (tensile)"
+          symbol="TSbasis"
+          value={scenario.stressBasisPsi / 1000}
+          step={1}
+          min={1}
+          unit="ksi"
+          onChange={(v) => onChange({ stressBasisPsi: v * 1000 })}
+        />
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="text-[10px] text-zinc-400">Basis presets:</span>
+          {STRESS_BASIS_PRESETS_KSI.map((ksi) => {
+            const active = Math.abs(scenario.stressBasisPsi / 1000 - ksi) < 1e-6;
+            return (
+              <button
+                key={ksi}
+                type="button"
+                onClick={() => onChange({ stressBasisPsi: ksi * 1000 })}
+                className={`rounded border px-1.5 py-0.5 font-mono text-[10px] transition-colors ${
+                  active
+                    ? "border-violet-500 bg-violet-100 text-violet-800"
+                    : "border-zinc-300 text-zinc-500 hover:bg-zinc-100"
+                }`}
+              >
+                {ksi} ksi
+              </button>
+            );
+          })}
         </div>
         <p className="text-[10px] leading-tight text-zinc-400">
-          270 ksi is Lee&apos;s tensile strength used for percent-stress guidance — not an
-          &quot;allowable shear stress.&quot; The 40 / 60% bands are set / redesign guidance, not
-          yield or ultimate limits.
+          The editable basis is tensile strength used to classify the calculated shear stress
+          {referenceShearStressPsi !== undefined && Number.isFinite(referenceShearStressPsi)
+            ? ` (selected candidate τ = ${(referenceShearStressPsi / 1000).toFixed(1)} ksi)`
+            : ""}
+          . It is not an &quot;allowable shear stress.&quot; The 40 / 60% bands are set / redesign
+          guidance, not yield or ultimate limits.
         </p>
       </Section>
 

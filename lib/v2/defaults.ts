@@ -2,13 +2,18 @@ import { runUpWork } from "@/lib/engineering/spring";
 import { DEFAULT_MATERIAL_ID } from "./materials";
 import type { V2Candidate, V2LandscapeMetricInfo, V2Scenario } from "./types";
 import { DEFAULT_MAX_DEFLECTION_UTILIZATION } from "@/lib/engineering/deflectionConstraint";
+import {
+  DEFAULT_HOUSING_INNER_DIAMETER_MM,
+  DEFAULT_OD_TOLERANCE_IN,
+  millimetersToInches,
+} from "./envelope";
 
 /**
  * The default V2 study scenario (Sweep #1).
  *
  * Epistemic tiers (see the scenario panel):
  *   · Actual mechanism boundaries — forceCap, axialBudget, latchTravel
- *   · Fixed for this study        — outerDiameter, material
+ *   · Fixed for this study        — housing envelope / OD tolerance, material
  *   · Lee-derived model guidance  — solidHeightTolerance, stress bands
  *   · Working-deflection constraint — maxDeflectionUtilization
  *   · Numerical search bounds     — wire/coil ranges (NOT manufacturing limits)
@@ -20,9 +25,11 @@ export const DEFAULT_V2_SCENARIO: V2Scenario = {
   latchTravel: 0.07, // y = HF latch follow-through [in]
 
   // Fixed for this study
-  outerDiameter: 1.10, // OD ≈ 1.100 in (first-pass study assumption)
+  housingInnerDiameter: millimetersToInches(DEFAULT_HOUSING_INNER_DIAMETER_MM),
+  outerDiameterTolerance: DEFAULT_OD_TOLERANCE_IN,
   lockOuterDiameter: true,
   materialId: DEFAULT_MATERIAL_ID,
+  shearModulusPsi: 12_000_000,
 
   // Lee-derived model guidance
   solidHeightTolerance: 0.05, // Lee +5% → Hs_max = 1.05·Hs_nom
@@ -38,11 +45,11 @@ export const DEFAULT_V2_SCENARIO: V2Scenario = {
   activeCoilsMax: 5.0,
   activeCoilsStep: 0.1,
 
-  stressBasis: "conservative",
+  stressBasisPsi: 270_000,
 };
 
 /** Example working-deflection scenarios (screening guidance, not Lee requirements). */
-export const DEFLECTION_UTILIZATION_SCENARIOS = [0.7, 0.8, 0.9] as const;
+export const DEFLECTION_UTILIZATION_SCENARIOS = [0.6, 0.7, 0.8, 0.9] as const;
 
 /**
  * Historical whiteboard reference — reconstructed from the original nominal
@@ -175,8 +182,8 @@ export const V2_LANDSCAPE_METRICS: V2LandscapeMetricInfo[] = [
   },
   {
     id: "stress",
-    label: "Stress % TS (conservative)",
-    get: (c: V2Candidate) => c.stressPctConservative * 100,
+    label: "Stress % selected TS basis",
+    get: (c: V2Candidate) => c.stressPctBasis * 100,
     unit: "%",
     higherIsBetter: false,
   },

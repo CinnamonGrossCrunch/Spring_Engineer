@@ -1,4 +1,8 @@
 import type { V2Candidate, V2Material, V2Scenario } from "./types";
+import {
+  maximumFinishedSpringOuterDiameter,
+  nominalSpringOuterDiameter,
+} from "./envelope";
 
 export type DataSheetAudience = "mechanism" | "vendor";
 export type ShareSheetFormat = "text" | "table";
@@ -196,6 +200,9 @@ export function generateMechanismSummary({
   material,
   generatedAt = new Date().toISOString(),
 }: SpringDataSheetInput): string {
+  const nominalOuterDiameter = nominalSpringOuterDiameter(s);
+  const maximumFinishedOuterDiameter = maximumFinishedSpringOuterDiameter(s);
+
   return communicationText(`# Spring Candidate — Mechanism Review
 
 For internal mechanism review. This summarizes what the mechanism requires and what the selected V2 candidate predicts.
@@ -205,7 +212,9 @@ For internal mechanism review. This summarizes what the mechanism requires and w
 - Maximum armed spring force: ${lbf(s.forceCap)}
 - Total axial package, B: ${inch(s.axialBudget)} (armed spring + hammer run-up)
 - Latch follow-through after contact: ${inch(s.latchTravel)}
-- Study outside diameter: ${inch(s.outerDiameter)} (held constant in this sweep)
+- Housing ID / absolute finished-spring OD: ${inch(s.housingInnerDiameter)}
+- Nominal study OD: ${inch(nominalOuterDiameter)} (housing limit minus ${inch(s.outerDiameterTolerance)} positive OD tolerance allowance; held constant in this sweep)
+- Worst-case finished OD: ${inch(maximumFinishedOuterDiameter)}
 - Maximum deflection utilization: ${(s.maxDeflectionUtilization * 100).toFixed(1)}% (held constant in this scenario)
 - Equivalent height above modeled maximum solid: ${dualLength(c.solidClearance)} (same constraint expressed as candidate-specific armed clearance)
 
@@ -234,10 +243,10 @@ For internal mechanism review. This summarizes what the mechanism requires and w
 
 ## Assumptions and Decisions to Confirm
 
-- Model uses ${materialName(material)} as a benchmark material.
+- Model uses ${materialName(material)} as a benchmark material with G = ${(s.shearModulusPsi / 1e6).toFixed(1)} Mpsi and a ${ksi(s.stressBasisPsi)} tensile-strength classification basis.
 - Nominal end form is squared and ground; CAD defaults to right-hand winding.
 - Confirm that the armed, contact, and released lengths match the actual mechanism stops.
-- Confirm the ${s.forceCap.toFixed(0)} lbf force cap, ${s.outerDiameter.toFixed(3)} in OD envelope, and ${s.latchTravel.toFixed(3)} in latch travel.
+- Confirm the ${s.forceCap.toFixed(0)} lbf force cap, ${dualLength(s.housingInnerDiameter)} housing/OD ceiling, ${dualLength(s.outerDiameterTolerance)} positive OD tolerance allowance, and ${s.latchTravel.toFixed(3)} in latch travel.
 - Confirm the ${(s.maxDeflectionUtilization * 100).toFixed(1)}% maximum-deflection-utilization scenario; equivalent clearance for this candidate is ${inch(c.solidClearance)} above modeled H_s,max.
 - If those inputs are correct, decide whether to send this candidate for vendor review and prototype quotation.
 
@@ -253,16 +262,8 @@ export function generateVendorRfq({
   material,
   generatedAt = new Date().toISOString(),
 }: SpringDataSheetInput): string {
-  const tensileBasis = s.stressBasis === "upper"
-    ? material.tensileMaxPsi
-    : s.stressBasis === "mid"
-      ? (material.tensileMinPsi + material.tensileMaxPsi) / 2
-      : material.tensileMinPsi;
-  const tensileBasisLabel = s.stressBasis === "upper"
-    ? "upper"
-    : s.stressBasis === "mid"
-      ? "mid-range"
-      : "conservative";
+  const nominalOuterDiameter = nominalSpringOuterDiameter(s);
+  const maximumFinishedOuterDiameter = maximumFinishedSpringOuterDiameter(s);
 
   return communicationText(`# Compression Spring Prototype RFQ
 
@@ -277,7 +278,9 @@ Constraint	Target / boundary	Status
 Armed spring force	≤ ${lbf(s.forceCap)}	Mechanism limit
 Total axial package, B	${inch(s.axialBudget)}	Armed spring length + hammer run-up
 Latch follow-through	${inch(s.latchTravel)}	Additional travel after hammer contact
-Spring outside diameter	${inch(s.outerDiameter)}	Current study envelope; please confirm feasibility
+Housing ID / absolute finished-spring OD	${inch(s.housingInnerDiameter)}	Hard mechanism envelope
+Nominal spring outside diameter	${inch(nominalOuterDiameter)}	Derived by subtracting the positive OD tolerance allowance
+Positive OD tolerance allowance	${inch(s.outerDiameterTolerance)}	Worst-case finished OD is ${inch(maximumFinishedOuterDiameter)}; confirm tolerance and required fit clearance
 
 ## 2. Preliminary Calculations — Please Assess and Optimize
 
@@ -302,15 +305,16 @@ Spring rate	${rate(c.k)}
 Nominal solid height	${inch(c.HsNom)}
 Modeled maximum solid height	${inch(c.HsMax)}
 Armed-load shear stress	${ksi(c.tau)} (Wahl-corrected, K_w = ${c.Kw.toFixed(3)})
-Stress screening	${pct(c.stressPctBasis)} at the selected ${tensileBasisLabel} basis; ${stressSummary(c)}
+Stress screening	${pct(c.stressPctBasis)} at the selected ${ksi(s.stressBasisPsi)} tensile-strength basis; ${stressSummary(c)}
 
 ## 3. Our Assumptions for Vendor Review
 
 Assumption	Current model value	Please assess / optimize
 Starting material	${materialName(material)}	Recommend the production material, wire condition, and temper—or a suitable alternative
-Shear modulus, G	${(material.shearModulusPsi / 1e6).toFixed(1)} Mpsi	Confirm the value appropriate for the recommended material and condition
+Shear modulus, G	${(s.shearModulusPsi / 1e6).toFixed(1)} Mpsi	Confirm the value appropriate for the recommended material and condition
 Tensile-strength screening range	${ksi(material.tensileMinPsi)}–${ksi(material.tensileMaxPsi)}	Replace with applicable values for the actual wire size and temper; these are not allowable shear stresses
-Stress-classification basis	${ksi(tensileBasis)} (${tensileBasisLabel})	Apply the appropriate set, allowable-shear, fatigue, and relaxation criteria
+Stress-classification basis	${ksi(s.stressBasisPsi)} (user-selected tensile basis)	Apply the appropriate set, allowable-shear, fatigue, and relaxation criteria
+OD tolerance / fit allowance	${dualLength(s.outerDiameterTolerance)}	Confirm achievable OD tolerance and advise any additional diametral installation clearance
 Maximum-solid-height allowance	${pct(s.solidHeightTolerance)} above nominal	Confirm an achievable production tolerance and resulting maximum solid height
 Maximum deflection utilization	${pct(s.maxDeflectionUtilization)}	Advise whether this can be safely increased for more performance or must be reduced for durability/tolerances
 Equivalent armed height above maximum solid	${dualLength(c.solidClearance)}	Confirm the required production clearance after solid-height and load tolerances

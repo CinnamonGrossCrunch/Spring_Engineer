@@ -10,7 +10,8 @@ import {
   requiredSolidClearance,
   workingDeflectionUtilization,
 } from "@/lib/engineering/deflectionConstraint";
-import { getV2Material, tensileBasisPsi } from "./materials";
+import { getV2Material } from "./materials";
+import { nominalSpringOuterDiameter } from "./envelope";
 import type {
   V2Candidate,
   V2ExclusionReason,
@@ -54,9 +55,9 @@ export function candidateKey(d: number, Na: number): string {
  */
 export function evaluateV2Candidate(scenario: V2Scenario, d: number, Na: number): V2Candidate {
   const material = getV2Material(scenario.materialId);
-  const G = material.shearModulusPsi;
+  const G = scenario.shearModulusPsi;
 
-  const OD = scenario.outerDiameter;
+  const OD = nominalSpringOuterDiameter(scenario);
   const B = scenario.axialBudget;
   const y = scenario.latchTravel;
   const F0 = scenario.forceCap;
@@ -112,7 +113,8 @@ export function evaluateV2Candidate(scenario: V2Scenario, d: number, Na: number)
   const tau = shearStress(Kw, F0, D, d);
   const stressPctConservative = tau / material.tensileMinPsi;
   const stressPctOptimistic = tau / material.tensileMaxPsi;
-  const stressPctBasis = tau / tensileBasisPsi(material, scenario.stressBasis);
+  const stressBasisPsi = scenario.stressBasisPsi;
+  const stressPctBasis = stressBasisPsi > 0 ? tau / stressBasisPsi : Infinity;
 
   const feasibility = evaluateFeasibility({
     d,
@@ -164,6 +166,7 @@ export function evaluateV2Candidate(scenario: V2Scenario, d: number, Na: number)
     stressPctConservative,
     stressPctOptimistic,
     stressPctBasis,
+    stressBasisPsi,
     feasibility,
     pareto: false,
   };

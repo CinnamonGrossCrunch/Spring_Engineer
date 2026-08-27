@@ -56,7 +56,7 @@ const COLS: Col[] = [
   { key: "Whammer", plainLabel: canonicalName("Whammer"), label: canonicalSym("Whammer"), fmt: (c) => formatValue(c.Whammer) },
   { key: "Wlatch", plainLabel: canonicalName("Wlatch"), label: canonicalSym("Wlatch"), fmt: (c) => formatValue(c.Wlatch) },
   { key: "FeqAvgIdeal", plainLabel: canonicalName("FeqAvgIdeal"), label: canonicalSym("FeqAvgIdeal"), fmt: (c) => formatValue(c.FeqAvgIdeal) },
-  { key: "stressPctConservative", plainLabel: "Stress pct", label: "%TS", fmt: (c) => `${(c.stressPctConservative * 100).toFixed(0)}` },
+  { key: "stressPctBasis", plainLabel: "Stress pct selected basis", label: "%TSbasis", fmt: (c) => `${(c.stressPctBasis * 100).toFixed(0)}` },
 ];
 
 /**

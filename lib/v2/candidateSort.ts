@@ -15,7 +15,7 @@ export type V2CandidateSortKey =
   | "Whammer"
   | "Wlatch"
   | "FeqAvgIdeal"
-  | "stressPctConservative";
+  | "stressPctBasis";
 
 export interface V2CandidateSortPriority {
   key: V2CandidateSortKey;
@@ -37,7 +37,7 @@ const DISPLAY_RESOLUTION: Record<V2CandidateSortKey, number> = {
   Whammer: 0.01,
   Wlatch: 0.01,
   FeqAvgIdeal: 0.01,
-  stressPctConservative: 0.001,
+  stressPctBasis: 0.001,
 };
 
 interface PreparedPriority extends V2CandidateSortPriority {

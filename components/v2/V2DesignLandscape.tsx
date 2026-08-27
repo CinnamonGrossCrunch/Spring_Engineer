@@ -424,7 +424,7 @@ function LandscapeTooltip({ candidate: c, x, y, maxX }: { candidate: V2Candidate
         <dt>Latch work</dt><dd className="text-right font-mono">{fmtWork(c.Wlatch)}</dd>
         <dt>{canonicalName("FeqAvgIdeal")}</dt><dd className="text-right font-mono">{fmtLbf(c.FeqAvgIdeal)}</dd>
         <dt>{canonicalName("F3")} {canonicalSym("F3")}</dt><dd className="text-right font-mono">{fmtLbf(c.F3)}</dd>
-        <dt>Stress %TS</dt><dd className="text-right font-mono">{fmtPct(c.stressPctConservative)}</dd>
+        <dt>Stress %TS basis</dt><dd className="text-right font-mono">{fmtPct(c.stressPctBasis)}</dd>
       </dl>
       <div className="mt-1 flex items-center justify-between border-t border-zinc-100 pt-1">
         <span className={`rounded border px-1 py-px text-[9px] font-semibold ${band.badge}`}>{band.short}</span>

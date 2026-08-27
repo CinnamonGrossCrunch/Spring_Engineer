@@ -30,19 +30,3 @@ export const DEFAULT_MATERIAL_ID = "elgiloy";
 export function getV2Material(id: string): V2Material {
   return V2_MATERIALS[id] ?? V2_MATERIALS[DEFAULT_MATERIAL_ID];
 }
-
-/** Tensile strength [psi] used to classify the stress band for a given basis. */
-export function tensileBasisPsi(
-  material: V2Material,
-  basis: "conservative" | "mid" | "upper",
-): number {
-  switch (basis) {
-    case "upper":
-      return material.tensileMaxPsi;
-    case "mid":
-      return (material.tensileMinPsi + material.tensileMaxPsi) / 2;
-    case "conservative":
-    default:
-      return material.tensileMinPsi;
-  }
-}

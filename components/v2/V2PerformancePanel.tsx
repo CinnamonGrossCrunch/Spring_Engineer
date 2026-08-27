@@ -202,10 +202,15 @@ export function V2PerformancePanel({
         <Row label={`${canonicalName("Whammer")} ${canonicalSym("Whammer")}`} value={fmtWork(c.Whammer)} />
         <Row label={`${canonicalName("Wlatch")} ${canonicalSym("Wlatch")}`} value={fmtWork(c.Wlatch)} />
         <Row label={`${canonicalName("WreleaseIdeal")} ${canonicalSym("WreleaseIdeal")}`} value={fmtWork(c.WreleaseIdeal)} hint="Ideal upper bound — not energy delivered to the latch" />
+        <Row label="Armed shear stress τ" value={`${(c.tau / 1000).toFixed(1)} ksi`} hint="Calculated from geometry, armed force, and Wahl correction" />
         <Row
-          label="Stress τ / TS"
+          label="Stress / selected TS basis"
+          value={fmtPct(c.stressPctBasis)}
+          hint={`τ / ${(scenario.stressBasisPsi / 1000).toFixed(1)} ksi selected tensile-strength basis; published range ${Math.round(material.tensileMinPsi / 1000)}–${Math.round(material.tensileMaxPsi / 1000)} ksi`}
+        />
+        <Row
+          label="Stress / published TS range"
           value={`${fmtPct(c.stressPctOptimistic)}–${fmtPct(c.stressPctConservative)}`}
-          hint={`τ = ${Math.round(c.tau).toLocaleString()} psi vs ${Math.round(material.tensileMinPsi / 1000)}–${Math.round(material.tensileMaxPsi / 1000)} ksi`}
         />
       </Group>
 

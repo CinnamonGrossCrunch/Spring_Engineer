@@ -35,6 +35,11 @@ import { candidateCsvFilename, generateCandidateCsv } from "../v2/candidateCsv";
 import { CandidateCsvButton } from "../../components/v2/CandidateCsvButton";
 import { requiredSolidClearance, utilizationFromClearance } from "./deflectionConstraint";
 import { sortV2CandidatesByPriorities } from "../v2/candidateSort";
+import {
+  DEFAULT_HOUSING_INNER_DIAMETER_MM,
+  inchesToMillimeters,
+  nominalSpringOuterDiameter,
+} from "../v2/envelope";
 
 let failures = 0;
 
@@ -343,9 +348,11 @@ console.log("\n── (4) State-to-state consistency ─────────
 // ─────────────────────────────────────────────────────────────────────────
 console.log("\n── (5) Warning visualization invariants ─────────────────────");
 {
-  // Literal: over-stressed (red badge) but geometry is NOT bound → spring
-  // stays neutral steel, not red.
-  const litC = evaluateConstraints(solveModel(buildInitialState("forward", "literalSketch")).values);
+  // Isolate a stress-only case with a permissive deflection margin so the
+  // spring stays neutral steel rather than being repainted for stress alone.
+  const litModel = buildInitialState("forward", "literalSketch");
+  litModel.deflection_utilization_max = { value: 0.99, status: "variable" };
+  const litC = evaluateConstraints(solveModel(litModel).values);
   const litStress = litC.find((x) => x.id === "stress");
   const litBind = litC.find((x) => x.id === "coil_bind");
   assert("viz: literal stress fails (badge is red)", litStress?.ok === false);
@@ -422,7 +429,7 @@ console.log("\n── V2 (a) Candidate evaluator relationships ─────�
   const d = 0.147;
   const Na = 3.5;
   const c = evaluateV2Candidate(sc, d, Na);
-  const OD = sc.outerDiameter;
+  const OD = nominalSpringOuterDiameter(sc);
   const B = sc.axialBudget;
   const y = sc.latchTravel;
 
@@ -430,6 +437,8 @@ console.log("\n── V2 (a) Candidate evaluator relationships ─────�
   check("V2 D = OD − d", c.D, OD - d, 0.001);
   check("V2 ID = OD − 2d", c.ID, OD - 2 * d, 0.001);
   check("V2 Nt = Na + 2", c.Nt, Na + 2, 0.001);
+  check("V2 housing ceiling defaults to 28 mm", inchesToMillimeters(sc.housingInnerDiameter), DEFAULT_HOUSING_INNER_DIAMETER_MM, 0.001);
+  check("V2 nominal OD + positive tolerance = housing ceiling", c.OD + sc.outerDiameterTolerance, sc.housingInnerDiameter, 0.001);
 
   // Solid height
   check("V2 Hs_nom = Nt·d", c.HsNom, c.Nt * d, 0.001);
@@ -460,6 +469,12 @@ console.log("\n── V2 (a) Candidate evaluator relationships ─────�
   // Force-equivalent proxies (ideal, NOT contact force)
   check("V2 F_eq_avg_ideal = W_release/y", c.FeqAvgIdeal, c.WreleaseIdeal / y, 0.001);
   check("V2 F_eq_tri_peak = 2·F_eq_avg", c.FeqTriPeakIdeal, 2 * c.FeqAvgIdeal, 0.001);
+
+  // Editable engineering assumptions must cascade into the evaluator.
+  const lowerG = evaluateV2Candidate({ ...sc, shearModulusPsi: sc.shearModulusPsi * 0.9 }, d, Na);
+  check("V2 numeric shear modulus drives spring rate", lowerG.k, c.k * 0.9, 0.001);
+  const customBasis = evaluateV2Candidate({ ...sc, stressBasisPsi: 280_000 }, d, Na);
+  check("V2 numeric TS basis drives stress classification ratio", customBasis.stressPctBasis, customBasis.tau / 280_000, 0.001);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -562,7 +577,10 @@ console.log("\n── V2 (f) V1 independence ───────────�
 {
   // Changing OD alone (a study assumption) shifts the feasible set — proving V2
   // derives everything from its own scenario, not V1 pins.
-  const wide: V2Scenario = { ...DEFAULT_V2_SCENARIO, outerDiameter: 1.3 };
+  const wide: V2Scenario = {
+    ...DEFAULT_V2_SCENARIO,
+    housingInnerDiameter: 1.3 + DEFAULT_V2_SCENARIO.outerDiameterTolerance,
+  };
   const base = sweepV2DesignSpace(DEFAULT_V2_SCENARIO);
   const alt = sweepV2DesignSpace(wide);
   assert("V2 responds to its own scenario (OD change alters feasible count)", base.feasibleCount !== alt.feasibleCount);
@@ -585,8 +603,8 @@ console.log("\n── V2 (f2) Deflection constraint representations ────
 
   const a = evaluateV2Candidate(DEFAULT_V2_SCENARIO, 0.137, 3.2);
   const b = evaluateV2Candidate(DEFAULT_V2_SCENARIO, 0.150, 3.8);
-  check("candidate A uses shared utilization", a.deflectionUtilization, 0.8, 0.001);
-  check("candidate B uses shared utilization", b.deflectionUtilization, 0.8, 0.001);
+  check("candidate A uses shared utilization", a.deflectionUtilization, DEFAULT_V2_SCENARIO.maxDeflectionUtilization, 0.001);
+  check("candidate B uses shared utilization", b.deflectionUtilization, DEFAULT_V2_SCENARIO.maxDeflectionUtilization, 0.001);
   assert("candidate-specific clearances differ", Math.abs(a.solidClearance - b.solidClearance) > 1e-6);
 }
 
@@ -618,13 +636,16 @@ console.log("\n── V2 (g) Spring vendor data sheet ────────�
   assert("mechanism summary includes scenario utilization beside equivalent clearance", mechanism.includes(`Maximum deflection utilization: ${(scenario.maxDeflectionUtilization * 100).toFixed(1)}%`) && mechanism.includes(candidate.solidClearance.toFixed(4)));
   assert("mechanism summary uses candidate maximum solid height", mechanism.includes(candidate.HsMax.toFixed(4)));
   assert("vendor RFQ uses current scenario value", vendor.includes(scenario.latchTravel.toFixed(4)));
+  assert("exports include the 28 mm housing OD ceiling", mechanism.includes("Housing ID / absolute finished-spring OD") && mechanism.includes("28.00 mm") && vendor.includes("Hard mechanism envelope"));
+  assert("exports include the derived OD tolerance allowance", mechanism.includes(scenario.outerDiameterTolerance.toFixed(4)) && vendor.includes("OD tolerance / fit allowance"));
+  assert("exports include editable shear modulus and numeric stress basis", vendor.includes(`${(scenario.shearModulusPsi / 1e6).toFixed(1)} Mpsi`) && vendor.includes(`${(scenario.stressBasisPsi / 1000).toFixed(1)} ksi`));
   assert("vendor RFQ places utilization and clearance together in assumptions", vendor.includes("Maximum deflection utilization\t") && vendor.includes("Equivalent armed height above maximum solid\t"));
   assert("vendor RFQ explains mechanism use and distinguishes spring from impact force", vendor.includes("accelerate a hammer") && vendor.includes("not dynamic impact-force claims"));
   assert("vendor RFQ discloses ksi assumptions without unnecessary equation detail", vendor.includes("270.0 ksi–300.0 ksi") && vendor.includes("not allowable shear stresses") && !vendor.includes("τ = K_w·8·F·D/(π·d³)"));
   assert("vendor RFQ requests optimization of material assumptions", vendor.includes("Recommend the production material") && vendor.includes("Replace with applicable values"));
   assert("vendor RFQ includes prototype quantity placeholder", vendor.includes("Prototype quantity: ___"));
   assert("vendor RFQ keeps unspecified requirements TBD", vendor.includes("Fatigue duty / cycle target\tTBD") && vendor.includes("Temperature / corrosion / finish / cleanliness\tTBD"));
-  assert("mechanism summary stays concise", mechanism.split("\n").length < 50);
+  assert("mechanism summary stays concise", mechanism.split("\n").length < 55);
   assert("vendor RFQ stays concise", vendor.split("\n").filter(Boolean).length < 60);
   assert("mechanism export contains no Markdown headings", !mechanism.includes("# "));
   assert("vendor export contains plain-text bullets", vendor.includes("• "));
@@ -660,6 +681,7 @@ console.log("\n── V2 (h) Candidate CSV export ──────────
   assert("candidate CSV includes explicit-unit headers", lines[0].includes("wire_diameter_in") && lines[0].includes("spring_rate_lbf_per_in"));
   assert("candidate CSV includes solid-height fields", lines[0].includes("nominal_solid_height_in") && lines[0].includes("maximum_solid_height_in"));
   assert("candidate CSV includes deflection constraint fields", lines[0].includes("required_clearance_above_maximum_solid_in") && lines[0].includes("deflection_utilization_pct"));
+  assert("candidate CSV includes selected stress-basis fields", lines[0].includes("stress_basis_psi") && lines[0].includes("stress_pct_selected_basis"));
   assert("candidate CSV includes every supplied row", lines.length === candidates.length + 1);
   assert("candidate CSV preserves table row order", candidates.length === 0 || lines[1].startsWith(candidates[0].key));
   assert("candidate CSV records shortlist state", candidates.length === 0 || lines[1].includes(",true,"));
@@ -679,9 +701,9 @@ console.log("\n── V2 (h) Candidate CSV export ──────────
 console.log("\n── V2 (i) Candidate priority sorting ───────────────");
 {
   const base = evaluateV2Candidate(DEFAULT_V2_SCENARIO, 0.137, 3.6);
-  const a: V2Candidate = { ...base, key: "a", Whammer: 100, FeqAvgIdeal: 10, stressPctConservative: 0.50 };
-  const b: V2Candidate = { ...base, key: "b", Whammer: 99.5, FeqAvgIdeal: 20, stressPctConservative: 0.45 };
-  const c: V2Candidate = { ...base, key: "c", Whammer: 98.5, FeqAvgIdeal: 100, stressPctConservative: 0.40 };
+  const a: V2Candidate = { ...base, key: "a", Whammer: 100, FeqAvgIdeal: 10, stressPctBasis: 0.50 };
+  const b: V2Candidate = { ...base, key: "b", Whammer: 99.5, FeqAvgIdeal: 20, stressPctBasis: 0.45 };
+  const c: V2Candidate = { ...base, key: "c", Whammer: 98.5, FeqAvgIdeal: 100, stressPctBasis: 0.40 };
 
   const secondary = sortV2CandidatesByPriorities([a, b, c], [
     { key: "Whammer", direction: "desc" },
@@ -698,7 +720,7 @@ console.log("\n── V2 (i) Candidate priority sorting ────────
     [
       { key: "Whammer", direction: "desc" },
       { key: "FeqAvgIdeal", direction: "desc" },
-      { key: "stressPctConservative", direction: "asc" },
+      { key: "stressPctBasis", direction: "asc" },
     ],
   );
   assert("priority sort uses tertiary direction inside tied primary/secondary bands", tertiary.map((candidate) => candidate.key).join("") === "bac");

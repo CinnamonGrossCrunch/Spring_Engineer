@@ -98,7 +98,7 @@ export function V2Workbench({
   return (
     <div className="flex flex-col gap-3 p-3">
       {/* Hero relationships strip — the 15-second read */}
-      <div className="rounded-lg border border-zinc-200 bg-white px-4 py-2.5">
+      <div className="sticky top-0 z-40 rounded-lg border border-zinc-200 bg-white/95 px-4 py-2.5 shadow-sm backdrop-blur-sm">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px]">
           <span className="text-sm font-bold tracking-tight text-zinc-800">
             V2 · Spring / Hammer Optimization
@@ -115,6 +115,9 @@ export function V2Workbench({
           <span className="rounded bg-violet-700 px-1.5 py-0.5 font-mono text-[10.5px] text-white">
             working deflection ≤ {(scenario.maxDeflectionUtilization * 100).toFixed(0)}%
           </span>
+          <span className="rounded bg-amber-700 px-1.5 py-0.5 font-mono text-[10.5px] text-white">
+            TS basis = {(scenario.stressBasisPsi / 1000).toFixed(0)} ksi
+          </span>
           <span className="text-zinc-400">
             Searching wire diameter × active coils. Thinner wire → lower rate &amp; solid height →
             more hammer run-up, but higher stress.
@@ -122,9 +125,9 @@ export function V2Workbench({
         </div>
       </div>
 
-      {/* Scenario + constrained landscape + selected mechanism (desktop 7-column layout) */}
-      <div className="grid gap-3 xl:grid-cols-7">
-        <div className="w-full xl:col-span-1">
+      {/* Scenario + constrained landscape + selected mechanism */}
+      <div className="grid gap-3 xl:grid-cols-8 2xl:grid-cols-7">
+        <div className="w-full xl:col-span-2 2xl:col-span-1">
           <V2ScenarioPanel
             scenario={scenario}
             material={material}
@@ -133,9 +136,10 @@ export function V2Workbench({
             deflectionConstraint={deflectionConstraint}
             onDeflectionConstraintChange={onDeflectionConstraintChange}
             referenceWorkingDeflection={selected?.x0}
+            referenceShearStressPsi={selected?.tau}
           />
         </div>
-        <div className={selected ? "min-w-0 xl:col-span-3" : "min-w-0 xl:col-span-6"}>
+        <div className={selected ? "min-w-0 xl:col-span-3" : "min-w-0 xl:col-span-6 2xl:col-span-6"}>
           <V2DesignLandscape
             sweep={sweep}
             metric={metric}
@@ -193,7 +197,7 @@ export function V2Workbench({
                         <dl className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-zinc-500">
                           <dt>{canonicalName("FeqAvgIdeal")}</dt><dd className="text-right font-mono text-zinc-700">{fmtLbf(c.FeqAvgIdeal)}</dd>
                           <dt>{canonicalName("F3")} {canonicalSym("F3")}</dt><dd className="text-right font-mono text-zinc-700">{fmtLbf(c.F3)}</dd>
-                          <dt>Stress %TS</dt><dd className="text-right font-mono text-zinc-700">{(c.stressPctConservative * 100).toFixed(0)}%</dd>
+                          <dt>Stress %TS basis</dt><dd className="text-right font-mono text-zinc-700">{(c.stressPctBasis * 100).toFixed(0)}%</dd>
                           <dt>{canonicalName("s")} {canonicalSym("s")}</dt><dd className="text-right font-mono text-zinc-700">{c.s.toFixed(3)} in</dd>
                         </dl>
                       </div>

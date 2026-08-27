@@ -1,6 +1,5 @@
 import type { ModelState } from "@/lib/engineering/types";
 import { buildInitialState } from "@/data/exampleModel";
-import { getV2Material } from "./materials";
 import type { V2Candidate, V2Scenario } from "./types";
 
 /**
@@ -24,8 +23,6 @@ import type { V2Candidate, V2Scenario } from "./types";
  */
 export function candidateToV1Model(candidate: V2Candidate, scenario: V2Scenario): ModelState {
   const base = buildInitialState("explore", "reconciledCandidate");
-  const material = getV2Material(scenario.materialId);
-
   const next: ModelState = { ...base };
 
   // Radial basis: D is the free variable; OD and ID derive from it.
@@ -39,7 +36,7 @@ export function candidateToV1Model(candidate: V2Candidate, scenario: V2Scenario)
   next.Na = { value: undefined, status: "derived" };
 
   // Material shear modulus from the V2 benchmark material.
-  next.G = { value: material.shearModulusPsi, status: "assumed" };
+  next.G = { value: scenario.shearModulusPsi, status: "assumed" };
 
   // Travels + free length so the derived force states reproduce the candidate.
   next.x1 = { value: candidate.x0, status: "variable" };

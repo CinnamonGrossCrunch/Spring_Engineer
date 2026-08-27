@@ -6,7 +6,7 @@ export interface DeflectionConstraintState {
   displayMode: DeflectionConstraintDisplayMode;
 }
 
-export const DEFAULT_MAX_DEFLECTION_UTILIZATION = 0.8;
+export const DEFAULT_MAX_DEFLECTION_UTILIZATION = 0.6;
 
 export const DEFAULT_DEFLECTION_CONSTRAINT: DeflectionConstraintState = {
   maxUtilization: DEFAULT_MAX_DEFLECTION_UTILIZATION,

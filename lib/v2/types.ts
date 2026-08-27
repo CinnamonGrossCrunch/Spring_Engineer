@@ -13,9 +13,6 @@
  * Units are Imperial (in · lbf · psi · in·lbf), consistent with V1.
  */
 
-/** Which end of the material tensile range classifies the stress band. */
-export type V2StressBasis = "conservative" | "mid" | "upper";
-
 /**
  * Lee stress-guidance band, classified from the operating shear stress as a
  * fraction of tensile strength. These are DESIGN-GUIDANCE thresholds
@@ -55,12 +52,16 @@ export interface V2Scenario {
   latchTravel: number;
 
   // ── Fixed for this study ──
-  /** Nominal spring outside diameter OD [in]. */
-  outerDiameter: number;
-  /** OD is held constant for Sweep #1 (study assumption, not a hard constraint). */
+  /** Housing inside diameter / absolute finished-spring OD ceiling [in]. */
+  housingInnerDiameter: number;
+  /** Positive OD manufacturing-tolerance allowance subtracted from the housing ceiling [in]. */
+  outerDiameterTolerance: number;
+  /** Derived nominal OD is held constant for Sweep #1. */
   lockOuterDiameter: boolean;
   /** Benchmark material id (see V2_MATERIALS). */
   materialId: string;
+  /** Scenario shear modulus G [psi]; initialized from the benchmark material. */
+  shearModulusPsi: number;
 
   // ── Lee-derived model guidance ──
   /** Nominal-solid-height tolerance fraction (Lee +5% → 0.05). Hs_max = (1+tol)·Hs_nom. */
@@ -78,8 +79,8 @@ export interface V2Scenario {
   activeCoilsMax: number;
   activeCoilsStep: number;
 
-  /** Which tensile-range end classifies the stress band (default conservative). */
-  stressBasis: V2StressBasis;
+  /** User-selected tensile-strength basis used to classify τ / TS [psi]. */
+  stressBasisPsi: number;
 }
 
 /** Canonical exclusion reasons used for feasibility + the "why is it empty" summary. */
@@ -170,6 +171,8 @@ export interface V2Candidate {
   stressPctOptimistic: number;
   /** Stress fraction against the scenario's selected tensile basis. */
   stressPctBasis: number;
+  /** Tensile-strength basis used for stressPctBasis [psi]. */
+  stressBasisPsi: number;
 
   feasibility: V2Feasibility;
 

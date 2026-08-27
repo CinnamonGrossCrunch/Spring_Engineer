@@ -12,7 +12,7 @@ const REASON_LABEL: Record<V2ExclusionReason, string> = {
 
 const MODELED = [
   "Linear helical spring rate",
-  "Geometry (OD locked, D/ID/index derived)",
+  "Geometry (nominal OD derived from housing ceiling / tolerance allowance; D/ID/index derived)",
   "Closed-and-ground coil relation (Nt = Na + 2)",
   "Nominal solid height (Nt · d)",
   "Lee +5% solid-height tolerance",
