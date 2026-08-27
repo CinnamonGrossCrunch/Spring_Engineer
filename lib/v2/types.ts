@@ -1,10 +1,10 @@
 /**
  * V2 optimization-workbench type definitions.
  *
- * V2 is a SEPARATE engineering workflow from the V1 explorer. It does NOT
- * reuse the V1 `ModelState` / equation-graph representation; instead it is a
- * pure design-space search over spring geometry under the *actual* mechanism
- * boundaries (see lib/v2/defaults.ts).
+ * V2 uses a separate calculation representation from the Engineering equation
+ * graph, but its selected candidate is the shared application source of truth.
+ * It performs a pure design-space search over spring geometry under the actual
+ * mechanism boundaries (see lib/v2/defaults.ts).
  *
  * Nothing in this module recomputes spring physics — the candidate evaluator
  * (evaluateCandidate.ts) reuses the shared pure helpers in
@@ -178,6 +178,20 @@ export interface V2Candidate {
 
   /** True when this candidate sits on the Pareto frontier (filled by the sweep). */
   pareto: boolean;
+}
+
+/**
+ * A frozen comparison point. Unlike a landscape cell key, a shortlist entry
+ * carries the complete scenario and evaluated result that existed when the
+ * user saved it. This lets identical geometry be compared under different
+ * mechanism constraints without silently re-evaluating older entries.
+ */
+export interface V2ShortlistEntry {
+  /** Deterministic identity composed from the candidate key + scenario. */
+  id: string;
+  candidateKey: string;
+  scenario: V2Scenario;
+  candidate: V2Candidate;
 }
 
 /** Counts of why candidates were excluded, for the no-silent-failure panel. */

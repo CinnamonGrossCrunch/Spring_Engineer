@@ -1,17 +1,21 @@
 import type { ModelState } from "@/lib/engineering/types";
 import { buildInitialState } from "@/data/exampleModel";
+import { DEFAULT_V2_SCENARIO } from "./defaults";
+import { getV2Material } from "./materials";
+import { sweepV2DesignSpace } from "./sweepDesignSpace";
 import type { V2Candidate, V2Scenario } from "./types";
 
 /**
  * Map a selected V2 candidate into a compatible V1 `ModelState` so the existing
  * V1 dependency graph / parameter inspector can audit it.
  *
- * This is an EXPLICIT, user-initiated bridge — it overwrites V1 state and must
- * never run automatically while browsing V2 candidates.
+ * Optimize owns the canonical selected candidate. This mapping runs whenever
+ * that selection or its scenario changes so Engineering audits the same design
+ * rather than retaining a second, stale default candidate.
  *
- * Strategy: start from the equation-consistent reconciled EXPLORE base (D as the
- * free radial diameter, OD/ID derived; N_t primary, N_a derived) and override
- * the geometry, travels and free length with the candidate's values. The V1
+ * Strategy: start from the current EXPLORE role template (D as the free radial
+ * diameter, OD/ID derived; N_t primary, N_a derived) and override every shared
+ * scenario input plus the geometry, travels and free length. The V1
  * solver then re-derives k, the force states, loaded lengths, stress, etc. Free
  * length + max deflection are chosen so the derived F1 lands at the candidate's
  * starting force F0 without pinning it (avoids an artificial overconstraint):
@@ -22,8 +26,9 @@ import type { V2Candidate, V2Scenario } from "./types";
  * candidate is audited against the same governing packaging constraint.
  */
 export function candidateToV1Model(candidate: V2Candidate, scenario: V2Scenario): ModelState {
-  const base = buildInitialState("explore", "reconciledCandidate");
+  const base = buildInitialState("explore", "currentCandidate");
   const next: ModelState = { ...base };
+  const material = getV2Material(scenario.materialId);
 
   // Radial basis: D is the free variable; OD and ID derive from it.
   next.d = { value: candidate.d, status: "variable" };
@@ -38,6 +43,14 @@ export function candidateToV1Model(candidate: V2Candidate, scenario: V2Scenario)
   // Material shear modulus from the V2 benchmark material.
   next.G = { value: scenario.shearModulusPsi, status: "assumed" };
 
+  // Shared mechanism limits and engineering guidance from the active scenario.
+  next.B = { value: scenario.axialBudget, status: "fixed" };
+  next.F1_cap = { value: scenario.forceCap, status: "fixed" };
+  next.solid_tolerance = { value: scenario.solidHeightTolerance, status: "assumed" };
+  next.TS_basis = { value: scenario.stressBasisPsi, status: "assumed" };
+  next.TS_conservative = { value: material.tensileMinPsi, status: "assumed" };
+  next.TS_upper = { value: material.tensileMaxPsi, status: "assumed" };
+
   // Travels + free length so the derived force states reproduce the candidate.
   next.x1 = { value: candidate.x0, status: "variable" };
   next.L_free = { value: candidate.Lf, status: "variable" };
@@ -46,4 +59,20 @@ export function candidateToV1Model(candidate: V2Candidate, scenario: V2Scenario)
   next.deflection_utilization_max = { value: scenario.maxDeflectionUtilization, status: "variable" };
 
   return next;
+}
+
+/** Build the Engineer page's initial model from Optimize's actual default. */
+export function defaultV2CandidateToV1Model(
+  scenario: V2Scenario = DEFAULT_V2_SCENARIO,
+): ModelState {
+  const sweep = sweepV2DesignSpace(scenario);
+  const candidate = sweep.defaultKey
+    ? sweep.candidates.find((item) => item.key === sweep.defaultKey)
+    : undefined;
+
+  if (!candidate) {
+    throw new Error("The default V2 scenario did not produce a selectable candidate.");
+  }
+
+  return candidateToV1Model(candidate, scenario);
 }

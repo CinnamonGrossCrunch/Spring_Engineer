@@ -1,12 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { ModelState } from "@/lib/engineering/types";
-import type { V2Candidate, V2LandscapeMetric, V2Scenario } from "@/lib/v2/types";
+import { useEffect, useMemo, useState } from "react";
+import type {
+  V2Candidate,
+  V2LandscapeMetric,
+  V2Scenario,
+  V2ShortlistEntry,
+} from "@/lib/v2/types";
 import { DEFAULT_V2_SCENARIO } from "@/lib/v2/defaults";
 import { sweepV2DesignSpace } from "@/lib/v2/sweepDesignSpace";
 import { getV2Material } from "@/lib/v2/materials";
-import { candidateToV1Model } from "@/lib/v2/inspectBridge";
+import {
+  createV2ShortlistEntry,
+  isV2ShortlistEntryActive,
+  v2ScenarioSignature,
+  v2ShortlistEntryId,
+} from "@/lib/v2/shortlist";
 import { V2ScenarioPanel } from "./V2ScenarioPanel";
 import { V2DesignLandscape } from "./V2DesignLandscape";
 import { V2CandidateMechanism } from "./V2CandidateMechanism";
@@ -29,18 +38,20 @@ const MAX_SHORTLIST = 3;
  * scenario or search bounds change — never on hover or selection.
  */
 export function V2Workbench({
-  onInspectCandidate,
+  onSelectedCandidateChange,
+  onOpenEngineering,
   deflectionConstraint,
   onDeflectionConstraintChange,
 }: {
-  onInspectCandidate: (model: ModelState) => void;
+  onSelectedCandidateChange: (candidate: V2Candidate, scenario: V2Scenario) => void;
+  onOpenEngineering: () => void;
   deflectionConstraint: DeflectionConstraintState;
   onDeflectionConstraintChange: (value: DeflectionConstraintState) => void;
 }) {
   const [localScenario, setLocalScenario] = useState<V2Scenario>(DEFAULT_V2_SCENARIO);
   const [metric, setMetric] = useState<V2LandscapeMetric>("FeqAvgIdeal");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [shortlist, setShortlist] = useState<string[]>([]);
+  const [shortlist, setShortlist] = useState<V2ShortlistEntry[]>([]);
 
   const scenario = useMemo(
     () => ({ ...localScenario, maxDeflectionUtilization: deflectionConstraint.maxUtilization }),
@@ -62,6 +73,12 @@ export function V2Workbench({
     return { selected: chosen, byKey: map };
   }, [sweep, selectedKey]);
 
+  // Optimize is the single source of truth for the current candidate. Keep the
+  // mounted Engineering audit synchronized without requiring a transfer click.
+  useEffect(() => {
+    if (selected) onSelectedCandidateChange(selected, scenario);
+  }, [onSelectedCandidateChange, scenario, selected]);
+
   const patchScenario = (patch: Partial<V2Scenario>) => {
     if (patch.maxDeflectionUtilization !== undefined) {
       onDeflectionConstraintChange({
@@ -82,18 +99,42 @@ export function V2Workbench({
     });
   };
 
-  const toggleShortlist = (key: string) =>
-    setShortlist((prev) =>
-      prev.includes(key)
-        ? prev.filter((k) => k !== key)
-        : prev.length >= MAX_SHORTLIST
-          ? prev
-          : [...prev, key],
-    );
+  const currentScenarioSignature = useMemo(() => v2ScenarioSignature(scenario), [scenario]);
+  const currentScenarioShortlistKeys = useMemo(
+    () =>
+      shortlist
+        .filter((entry) => v2ScenarioSignature(entry.scenario) === currentScenarioSignature)
+        .map((entry) => entry.candidateKey),
+    [currentScenarioSignature, shortlist],
+  );
 
-  const shortlistCandidates = shortlist
-    .map((k) => byKey.get(k))
-    .filter((c): c is V2Candidate => c !== undefined);
+  const toggleShortlist = (key: string) => {
+    const candidate = byKey.get(key);
+    if (!candidate) return;
+    const id = v2ShortlistEntryId(key, scenario);
+
+    setShortlist((prev) => {
+      if (prev.some((entry) => entry.id === id)) {
+        return prev.filter((entry) => entry.id !== id);
+      }
+      if (prev.length >= MAX_SHORTLIST) return prev;
+      return [...prev, createV2ShortlistEntry(candidate, scenario)];
+    });
+  };
+
+  const restoreShortlistEntry = (entry: V2ShortlistEntry) => {
+    setLocalScenario({ ...entry.scenario });
+    onDeflectionConstraintChange({
+      ...deflectionConstraint,
+      maxUtilization: entry.scenario.maxDeflectionUtilization,
+    });
+    setSelectedKey(entry.candidateKey);
+  };
+
+  const selectedIsShortlisted =
+    selected !== null &&
+    shortlist.some((entry) => isV2ShortlistEntryActive(entry, selected.key, scenario));
+  const activeShortlistId = selected ? v2ShortlistEntryId(selected.key, scenario) : null;
 
   return (
     <div className="flex flex-col gap-3 p-3">
@@ -126,8 +167,8 @@ export function V2Workbench({
       </div>
 
       {/* Scenario + constrained landscape + selected mechanism */}
-      <div className="grid gap-3 xl:grid-cols-8 2xl:grid-cols-7">
-        <div className="w-full xl:col-span-2 2xl:col-span-1">
+      <div className="grid gap-3 xl:grid-cols-9">
+        <div className="w-full xl:col-span-2">
           <V2ScenarioPanel
             scenario={scenario}
             material={material}
@@ -139,32 +180,34 @@ export function V2Workbench({
             referenceShearStressPsi={selected?.tau}
           />
         </div>
-        <div className={selected ? "min-w-0 xl:col-span-3" : "min-w-0 xl:col-span-6 2xl:col-span-6"}>
+        <div className={selected ? "min-w-0 xl:col-span-3" : "min-w-0 xl:col-span-7"}>
           <V2DesignLandscape
             sweep={sweep}
             metric={metric}
             onMetricChange={setMetric}
             selectedKey={selected?.key ?? null}
             onSelect={setSelectedKey}
-            shortlist={shortlist}
+            shortlist={currentScenarioShortlistKeys}
             onToggleShortlist={toggleShortlist}
           />
         </div>
         {selected && (
-          <div className="min-w-0 space-y-3 xl:col-span-3">
+          <div className="min-w-0 space-y-3 xl:col-span-4">
             <V2CandidateMechanism candidate={selected} />
-            {shortlistCandidates.length > 0 && (
+            {shortlist.length > 0 && (
               <div className="rounded-lg border border-zinc-200 bg-white p-3">
                 <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-zinc-500">
-                  Shortlist ({shortlistCandidates.length}/{MAX_SHORTLIST})
+                  Shortlist snapshots ({shortlist.length}/{MAX_SHORTLIST})
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {shortlistCandidates.map((c) => {
-                    const isSelected = selected?.key === c.key;
+                  {shortlist.map((entry) => {
+                    const c = entry.candidate;
+                    const savedScenario = entry.scenario;
+                    const isSelected = activeShortlistId === entry.id;
                     return (
                       <div
-                        key={c.key}
-                        onClick={() => setSelectedKey(c.key)}
+                        key={entry.id}
+                        onClick={() => restoreShortlistEntry(entry)}
                         className={`min-w-[168px] flex-1 cursor-pointer rounded border p-2 transition-colors ${
                           isSelected
                             ? "border-blue-300 bg-blue-50"
@@ -176,7 +219,7 @@ export function V2Workbench({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedKey(c.key);
+                              restoreShortlistEntry(entry);
                             }}
                             className="font-mono text-[11px] font-semibold text-zinc-800 hover:text-blue-600"
                           >
@@ -186,13 +229,18 @@ export function V2Workbench({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              toggleShortlist(c.key);
+                              setShortlist((prev) => prev.filter((item) => item.id !== entry.id));
                             }}
                             className="text-zinc-400 hover:text-red-500"
                             aria-label="Remove from shortlist"
                           >
                             ×
                           </button>
+                        </div>
+                        <div className="mb-1 rounded bg-white/70 px-1.5 py-1 font-mono text-[9.5px] leading-4 text-zinc-500">
+                          B={savedScenario.axialBudget.toFixed(3)} in · u≤{(savedScenario.maxDeflectionUtilization * 100).toFixed(0)}% · F₀≤{savedScenario.forceCap.toFixed(0)} lbf
+                          <br />
+                          OD≤{savedScenario.housingInnerDiameter.toFixed(3)} in · G={(savedScenario.shearModulusPsi / 1e6).toFixed(1)} Mpsi · TS={(savedScenario.stressBasisPsi / 1000).toFixed(0)} ksi
                         </div>
                         <dl className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-zinc-500">
                           <dt>{canonicalName("FeqAvgIdeal")}</dt><dd className="text-right font-mono text-zinc-700">{fmtLbf(c.FeqAvgIdeal)}</dd>
@@ -218,9 +266,9 @@ export function V2Workbench({
               candidate={selected}
               scenario={scenario}
               material={material}
-              shortlisted={shortlist.includes(selected.key)}
+              shortlisted={selectedIsShortlisted}
               onToggleShortlist={() => toggleShortlist(selected.key)}
-              onInspectInV1={() => onInspectCandidate(candidateToV1Model(selected, scenario))}
+              onOpenEngineering={onOpenEngineering}
             />
             <V2ForceWorkChart candidate={selected} />
           </div>
@@ -237,7 +285,7 @@ export function V2Workbench({
         sweep={sweep}
         selectedKey={selected?.key ?? null}
         onSelect={setSelectedKey}
-        shortlist={shortlist}
+        shortlist={currentScenarioShortlistKeys}
         onToggleShortlist={toggleShortlist}
       />
 

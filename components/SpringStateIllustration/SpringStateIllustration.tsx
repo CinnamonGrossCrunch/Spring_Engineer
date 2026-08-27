@@ -6,6 +6,7 @@ import { PARAMETER_MAP } from "@/lib/engineering/parameters";
 import { formatValue, inchesToMm } from "../StatusBadge";
 import { ParametricCompressionSpring } from "./ParametricCompressionSpring";
 import { isRenderableSpring } from "./springSvgGeometry";
+import { mechanismLatchBottoms } from "@/lib/engineering/mechanismLayout";
 
 /**
  * Parametric three-state elevation schematic of the spring/hammer/latch
@@ -136,8 +137,9 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
     const hammerW = 1.7 * OD!;
     const latchH = 0.42 * OD!;
     const latchW = 2.1 * OD!;
-    // Tallest stack: state 3 → L3 + hammer + latch.
-    const envelope = L3! + hammerH + latchH;
+    // Use the actual tallest displayed state so exploratory/inconsistent input
+    // combinations cannot clip or invert the mechanism bodies.
+    const envelope = Math.max(L1!, L2!, L3!) + hammerH + latchH;
     const colW = SVG_W / 3;
     const availH = SVG_H - TOP_PAD - BOTTOM_PAD;
     // ONE uniform engineering-unit → px scale for both axes / all states.
@@ -242,14 +244,14 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
             {(() => {
               const { hammerH, hammerW, latchH, latchW, colW, pxPerUnit, baselineY } = layout;
               const toY = (units: number) => baselineY - units * pxPerUnit;
-              const latchBottom0 = L1! + hammerH + s_h!; // latch stationary until contact
+              const latchBottoms = mechanismLatchBottoms(L2!, L3!, hammerH);
               const maxF = Math.max(F1!, 1e-9);
               const dimC = (sel: boolean) => (sel ? COLORS.dimSelected : COLORS.dim);
 
               const svgStates = [
-                { L: L1!, F: F1!, Fid: "F1", Lid: "L_min", color: COLORS.force[0], hammerBottom: L1!, latchBottom: latchBottom0 },
-                { L: L2!, F: F2!, Fid: "F2", Lid: "L2", color: COLORS.force[1], hammerBottom: L2!, latchBottom: latchBottom0 },
-                { L: L3!, F: F3!, Fid: "F3", Lid: "L3", color: COLORS.force[2], hammerBottom: L3!, latchBottom: latchBottom0 + y_latch! },
+                { L: L1!, F: F1!, Fid: "F1", Lid: "L_min", color: COLORS.force[0], hammerBottom: L1!, latchBottom: latchBottoms[0] },
+                { L: L2!, F: F2!, Fid: "F2", Lid: "L2", color: COLORS.force[1], hammerBottom: L2!, latchBottom: latchBottoms[1] },
+                { L: L3!, F: F3!, Fid: "F3", Lid: "L3", color: COLORS.force[2], hammerBottom: L3!, latchBottom: latchBottoms[2] },
               ];
 
               return (

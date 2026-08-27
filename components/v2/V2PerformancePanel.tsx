@@ -26,7 +26,7 @@ interface Props {
   material: V2Material;
   shortlisted: boolean;
   onToggleShortlist: () => void;
-  onInspectInV1: () => void;
+  onOpenEngineering: () => void;
 }
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
@@ -62,7 +62,7 @@ export function V2PerformancePanel({
   material,
   shortlisted,
   onToggleShortlist,
-  onInspectInV1,
+  onOpenEngineering,
 }: Props) {
   const [cadOpen, setCadOpen] = useState(false);
   const [dataSheetOpen, setDataSheetOpen] = useState(false);
@@ -141,11 +141,11 @@ export function V2PerformancePanel({
           </button>
           <button
             type="button"
-            onClick={onInspectInV1}
+            onClick={onOpenEngineering}
             className="rounded border border-blue-400 bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-100"
-            title="Explicitly map this candidate into V1 → Engineering (overwrites V1 state)"
+            title="Open this already-synchronized candidate in Engineering"
           >
-            Inspect in Engineering →
+            Open Engineering →
           </button>
         </div>
       </div>

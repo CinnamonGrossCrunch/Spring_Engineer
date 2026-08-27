@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import type { DesignMode, ModelState, WorkspaceVersion } from "@/lib/engineering/types";
@@ -30,12 +30,35 @@ import {
   WORKSPACE_ROUTES,
   workspaceFromPathname,
 } from "@/lib/engineering/workspaceNavigation";
+import type { V2Candidate, V2Scenario } from "@/lib/v2/types";
+import { candidateToV1Model, defaultV2CandidateToV1Model } from "@/lib/v2/inspectBridge";
+import { DEFAULT_V2_SCENARIO } from "@/lib/v2/defaults";
 
 const MODES: DesignMode[] = ["forward", "reverse", "explore"];
 const ACTIVE_PRESET: PresetId = "currentCandidate";
 const ENERGY_LENS_IDS = ["W_run", "eta", "KE", "v", "p"];
 const DIAMETER_IDS = ["D", "OD", "ID"] as const;
 let sessionDeflectionConstraint: DeflectionConstraintState = DEFAULT_DEFLECTION_CONSTRAINT;
+
+function cloneModelState(model: ModelState): ModelState {
+  return Object.fromEntries(
+    Object.entries(model).map(([id, state]) => [id, { ...state }]),
+  );
+}
+
+/** Apply a solver-mode role template without substituting an old example. */
+function canonicalModelForMode(mode: DesignMode, canonical: ModelState): ModelState {
+  const canonicalValues = solveModel(canonical).values;
+  const roleTemplate = buildInitialState(mode, ACTIVE_PRESET);
+
+  return Object.fromEntries(
+    Object.entries(roleTemplate).map(([id, state]) => {
+      if (state.status === "derived") return [id, { ...state, value: undefined }];
+      if (!(id in canonical)) return [id, { ...state }];
+      return [id, { ...state, value: canonicalValues[id] ?? canonical[id]?.value }];
+    }),
+  );
+}
 
 /**
  * Primary engineering workbench: shared calculator state, the dependency
@@ -47,16 +70,14 @@ interface EngineeringWorkbenchProps {
 
 export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWorkbenchProps) {
   const [workspace, setWorkspace] = useState<WorkspaceVersion>(initialWorkspace);
-  const [mode, setMode] = useState<DesignMode>("forward");
-  const [model, setModel] = useState<ModelState>(() => {
-    const initial = buildInitialState("forward", ACTIVE_PRESET);
-    initial.deflection_utilization_max = {
-      ...initial.deflection_utilization_max,
-      value: sessionDeflectionConstraint.maxUtilization,
-      status: "variable",
-    };
-    return initial;
-  });
+  const [mode, setMode] = useState<DesignMode>("explore");
+  const [model, setModel] = useState<ModelState>(() =>
+    defaultV2CandidateToV1Model({
+      ...DEFAULT_V2_SCENARIO,
+      maxDeflectionUtilization: sessionDeflectionConstraint.maxUtilization,
+    }),
+  );
+  const canonicalV2ModelRef = useRef<ModelState>(model);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [etaMode, setEtaMode] = useState<"unspecified" | "ideal" | "assumed" | "measured">("unspecified");
   const [constraintsOpen, setConstraintsOpen] = useState(false);
@@ -109,7 +130,14 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
   useEffect(() => {
     const syncWorkspaceToHistory = () => {
       const historicalWorkspace = workspaceFromPathname(window.location.pathname);
-      if (historicalWorkspace) setWorkspace(historicalWorkspace);
+      if (historicalWorkspace) {
+        if (historicalWorkspace === "v1") {
+          setModel(cloneModelState(canonicalV2ModelRef.current));
+          setMode("explore");
+          setSelectedId(null);
+        }
+        setWorkspace(historicalWorkspace);
+      }
     };
 
     window.addEventListener("popstate", syncWorkspaceToHistory);
@@ -117,6 +145,11 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
   }, []);
 
   const navigateWorkspace = useCallback((next: WorkspaceVersion, href: string) => {
+    if (next === "v1") {
+      setModel(cloneModelState(canonicalV2ModelRef.current));
+      setMode("explore");
+      setSelectedId(null);
+    }
     setWorkspace(next);
     if (window.location.pathname !== href) window.history.pushState(null, "", href);
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -210,36 +243,32 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
   const handleModeChange = useCallback(
     (next: DesignMode) => {
       setMode(next);
-      const nextModel = buildInitialState(next, ACTIVE_PRESET);
-      nextModel.deflection_utilization_max = {
-        ...nextModel.deflection_utilization_max,
-        value: deflectionConstraint.maxUtilization,
-        status: "variable",
-      };
-      setModel(nextModel);
+      setModel(canonicalModelForMode(next, canonicalV2ModelRef.current));
       setSelectedId(null);
     },
-    [deflectionConstraint.maxUtilization],
+    [],
   );
 
   const handleReset = useCallback(() => {
-    setModel(buildInitialState(mode, ACTIVE_PRESET));
-    sessionDeflectionConstraint = { ...sessionDeflectionConstraint, maxUtilization: DEFAULT_DEFLECTION_CONSTRAINT.maxUtilization };
-    setDeflectionConstraint(sessionDeflectionConstraint);
+    setModel(cloneModelState(canonicalV2ModelRef.current));
+    setMode("explore");
     setSelectedId(null);
-  }, [mode]);
+  }, []);
 
   /**
-   * Explicit V2 → V1 bridge. Maps a selected V2 candidate (already built into a
-   * V1 ModelState by the caller) into the V1 workspace for auditing in the
-   * Engineering dependency graph. This is the ONLY path that lets V2 overwrite
-   * V1 state, and it only runs on an explicit user action.
+   * Optimize owns the canonical candidate. Keep the Engineering equation graph
+   * synchronized as scenario inputs or the selected landscape cell change.
    */
-  const applyV2Candidate = useCallback((next: ModelState) => {
+  const syncV2Candidate = useCallback((candidate: V2Candidate, scenario: V2Scenario) => {
+    const next = candidateToV1Model(candidate, scenario);
+    canonicalV2ModelRef.current = next;
     setModel(next);
     setMode("explore");
-    navigateWorkspace("v1", "/engineer");
     setSelectedId(null);
+  }, []);
+
+  const openEngineering = useCallback(() => {
+    navigateWorkspace("v1", "/engineer");
   }, [navigateWorkspace]);
 
   const display = (id: string) =>
@@ -315,9 +344,9 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
             type="button"
             onClick={handleReset}
             className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100"
-            title="Reset all parameters to the example dataset for the current mode"
+            title="Discard Engineering-side exploration and restore the selected Optimize candidate"
           >
-            Reset to Example
+            Reset to Optimize Candidate
           </button>
 
           <span className="rounded border border-zinc-200 bg-zinc-50 px-2 py-1 font-mono text-[10.5px] text-zinc-500">
@@ -336,8 +365,8 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
           <p className="mt-1.5 text-[11px] text-zinc-500">{MODE_INFO[mode].blurb}</p>
         ) : (
           <p className="mt-1.5 text-[11px] text-zinc-500">
-            Optimization workbench with its own study settings. The governing deflection constraint
-            is shared with Engineering; the remaining V1 state is preserved while you work here.
+            The selected Optimize candidate is the shared source of truth. Engineering updates
+            automatically as the scenario or selected landscape cell changes.
           </p>
         )}
       </header>
@@ -540,7 +569,8 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
       {/* ── V2 workspace body (kept mounted so V2 scenario state persists) ── */}
       <div className={workspace === "v2" ? "contents" : "hidden"}>
         <V2Workbench
-          onInspectCandidate={applyV2Candidate}
+          onSelectedCandidateChange={syncV2Candidate}
+          onOpenEngineering={openEngineering}
           deflectionConstraint={deflectionConstraint}
           onDeflectionConstraintChange={handleDeflectionConstraintChange}
         />

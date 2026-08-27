@@ -6,8 +6,8 @@
  *        or: npx tsx lib/engineering/validate.ts
  * Exits non-zero on failure.
  *
- * These tests retain the historical presets while validating the current V1
- * default ("Current Candidate — Elgiloy Optimization") semantics:
+ * These tests retain the historical presets while validating the shared
+ * Optimize → Engineering candidate semantics:
  *   - stress guidance uses τ / TS_basis (TS is tensile, not allowable shear)
  *   - Lee solid-height tolerance and maximum-deflection-utilization constraints stay distinct
  *   - mechanism boundaries include F1 cap and axial budget B
@@ -44,6 +44,14 @@ import {
   isPlainWorkspaceNavigation,
   workspaceFromPathname,
 } from "./workspaceNavigation";
+import {
+  createV2ShortlistEntry,
+  isV2ShortlistEntryActive,
+  v2ScenarioSignature,
+  v2ShortlistEntryId,
+} from "../v2/shortlist";
+import { candidateToV1Model, defaultV2CandidateToV1Model } from "../v2/inspectBridge";
+import { mechanismLatchBottoms } from "./mechanismLayout";
 
 let failures = 0;
 
@@ -99,6 +107,48 @@ assert(
     shiftKey: false,
   }),
 );
+
+console.log("\n── Canonical candidate + frozen comparison state ───────────");
+{
+  const defaultSweep = sweepV2DesignSpace(DEFAULT_V2_SCENARIO);
+  const defaultCandidate = defaultSweep.candidates.find(
+    (candidate) => candidate.key === defaultSweep.defaultKey,
+  );
+  const engineerModel = defaultV2CandidateToV1Model(DEFAULT_V2_SCENARIO);
+  assert("Engineering initializes from the actual Optimize default", defaultCandidate !== undefined);
+  check("canonical Engineer wire diameter", engineerModel.d?.value, defaultCandidate?.d ?? 0, 0.001);
+  check("canonical Engineer total coils", engineerModel.Nt?.value, defaultCandidate?.Nt ?? 0, 0.001);
+
+  const scenarioA: V2Scenario = { ...DEFAULT_V2_SCENARIO };
+  const scenarioB: V2Scenario = { ...DEFAULT_V2_SCENARIO, axialBudget: 1.3 };
+  const candidateA = evaluateV2Candidate(scenarioA, 0.14, 2.2);
+  const candidateB = evaluateV2Candidate(scenarioB, 0.14, 2.2);
+  const entryA = createV2ShortlistEntry(candidateA, scenarioA);
+  const entryB = createV2ShortlistEntry(candidateB, scenarioB);
+  const engineerScenarioB = candidateToV1Model(candidateB, scenarioB);
+
+  assert("scenario signature changes with a mechanism constraint", v2ScenarioSignature(scenarioA) !== v2ScenarioSignature(scenarioB));
+  assert("same geometry can be shortlisted under two scenarios", entryA.id !== entryB.id);
+  assert("shortlist identity is deterministic", entryA.id === v2ShortlistEntryId(candidateA.key, scenarioA));
+  assert("shortlist entry matches only its captured scenario", isV2ShortlistEntryActive(entryA, candidateA.key, scenarioA) && !isV2ShortlistEntryActive(entryA, candidateA.key, scenarioB));
+  check("Engineer receives the shortlisted axial budget", engineerScenarioB.B?.value, 1.3, 0.001);
+  check("Engineer receives the scenario force cap", engineerScenarioB.F1_cap?.value, scenarioB.forceCap, 0.001);
+  check("Engineer receives the scenario solid-height tolerance", engineerScenarioB.solid_tolerance?.value, scenarioB.solidHeightTolerance, 0.001);
+  check("Engineer receives the scenario TS basis", engineerScenarioB.TS_basis?.value, scenarioB.stressBasisPsi, 0.001);
+  assert("Engineer mapping remains equation-consistent at the shortlisted budget", solveModel(engineerScenarioB).conflicts.length === 0);
+
+  const savedBudget = entryA.scenario.axialBudget;
+  const savedContactForce = entryA.candidate.F2;
+  scenarioA.axialBudget = 9;
+  candidateA.F2 = -1;
+  check("shortlist freezes scenario inputs", entryA.scenario.axialBudget, savedBudget, 0.001);
+  check("shortlist freezes evaluated outputs", entryA.candidate.F2, savedContactForce, 0.001);
+
+  const latchBottoms = mechanismLatchBottoms(2.3, 2.37, 0.55);
+  check("Engineer latch uses actual contact length", latchBottoms[0], 2.85, 0.001);
+  check("Engineer latch stays fixed through contact", latchBottoms[1], latchBottoms[0], 0.001);
+  check("Engineer latch follows actual released length", latchBottoms[2], 2.92, 0.001);
+}
 assert(
   "workspace navigation: modified click keeps native new-tab behavior",
   !isPlainWorkspaceNavigation({
