@@ -180,7 +180,13 @@ export function V2Workbench({
             referenceShearStressPsi={selected?.tau}
           />
         </div>
-        <div className={selected ? "min-w-0 xl:col-span-3" : "min-w-0 xl:col-span-7"}>
+        <div
+          className={
+            selected
+              ? "min-w-0 space-y-3 xl:col-span-3"
+              : "min-w-0 xl:col-span-7"
+          }
+        >
           <V2DesignLandscape
             sweep={sweep}
             metric={metric}
@@ -190,6 +196,7 @@ export function V2Workbench({
             shortlist={currentScenarioShortlistKeys}
             onToggleShortlist={toggleShortlist}
           />
+          {selected && <V2ForceWorkChart candidate={selected} />}
         </div>
         {selected && (
           <div className="min-w-0 space-y-3 xl:col-span-4">
@@ -258,21 +265,16 @@ export function V2Workbench({
         )}
       </div>
 
-      {/* Selected candidate */}
+      {/* Selected candidate — full-width performance summary */}
       {selected ? (
-        <>
-          <div className="grid gap-3 lg:grid-cols-2">
-            <V2PerformancePanel
-              candidate={selected}
-              scenario={scenario}
-              material={material}
-              shortlisted={selectedIsShortlisted}
-              onToggleShortlist={() => toggleShortlist(selected.key)}
-              onOpenEngineering={onOpenEngineering}
-            />
-            <V2ForceWorkChart candidate={selected} />
-          </div>
-        </>
+        <V2PerformancePanel
+          candidate={selected}
+          scenario={scenario}
+          material={material}
+          shortlisted={selectedIsShortlisted}
+          onToggleShortlist={() => toggleShortlist(selected.key)}
+          onOpenEngineering={onOpenEngineering}
+        />
       ) : (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-6 text-center text-sm text-amber-800">
           No feasible candidate to display. Adjust the scenario or search bounds — see the

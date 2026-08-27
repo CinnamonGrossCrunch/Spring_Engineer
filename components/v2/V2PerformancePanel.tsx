@@ -31,9 +31,9 @@ interface Props {
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="border-t border-zinc-100 px-3 py-2 first:border-t-0">
+    <div className="min-w-0 border-t border-zinc-100 px-3 py-2 first:border-t-0 lg:border-t-0">
       <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-zinc-400">{title}</div>
-      <dl className="grid grid-cols-2 gap-x-3 gap-y-0.5">{children}</dl>
+      <dl className="grid grid-cols-1 gap-y-1">{children}</dl>
     </div>
   );
 }
@@ -172,47 +172,49 @@ export function V2PerformancePanel({
         <span className="ml-auto text-[10px] italic text-zinc-400">not vendor validated</span>
       </div>
 
-      <Group title="Geometry">
-        <Row label="Wire Diameter" value={fmtIn(c.d)} />
-        <Row label="Active Coils" value={fmtCoils(c.Na)} />
-        <Row label="Total Coils" value={fmtCoils(c.Nt)} />
-        <Row label="Spring Index C" value={formatValue(c.C)} />
-        <Row label="Outside Diameter" value={fmtIn(c.OD)} />
-        <Row label="Inside Diameter" value={fmtIn(c.ID)} />
-      </Group>
+      <div className="grid lg:grid-cols-4 lg:divide-x lg:divide-zinc-100">
+        <Group title="Geometry">
+          <Row label="Wire Diameter" value={fmtIn(c.d)} />
+          <Row label="Active Coils" value={fmtCoils(c.Na)} />
+          <Row label="Total Coils" value={fmtCoils(c.Nt)} />
+          <Row label="Spring Index C" value={formatValue(c.C)} />
+          <Row label="Outside Diameter" value={fmtIn(c.OD)} />
+          <Row label="Inside Diameter" value={fmtIn(c.ID)} />
+        </Group>
 
-      <Group title="Package">
-        <Row label="Max Solid Height" value={fmtIn(c.HsMax)} hint="Lee max = 1.05 × nominal solid height" />
-        <Row label={`${canonicalName("Lc")} ${canonicalSym("Lc")}`} value={fmtIn(c.Lc)} />
-        <Row label="Clearance above Hₛ,max" value={fmtIn(c.solidClearance)} />
-        <Row label="Deflection utilization" value={fmtPct(c.deflectionUtilization)} hint="Working deflection divided by free-to-maximum-solid travel" />
-        <Row label="Deflection reserve" value={fmtPct(c.deflectionReserve)} />
-        <Row label={`${canonicalName("s")} ${canonicalSym("s")}`} value={fmtIn(c.s)} hint="s = B − Lc" />
-        <Row label={`${canonicalName("Lf")} ${canonicalSym("Lf")}`} value={fmtIn(c.Lf)} hint="Output, not a target" />
-      </Group>
+        <Group title="Package">
+          <Row label="Max Solid Height" value={fmtIn(c.HsMax)} hint="Lee max = 1.05 × nominal solid height" />
+          <Row label={`${canonicalName("Lc")} ${canonicalSym("Lc")}`} value={fmtIn(c.Lc)} />
+          <Row label="Clearance above Hₛ,max" value={fmtIn(c.solidClearance)} />
+          <Row label="Deflection utilization" value={fmtPct(c.deflectionUtilization)} hint="Working deflection divided by free-to-maximum-solid travel" />
+          <Row label="Deflection reserve" value={fmtPct(c.deflectionReserve)} />
+          <Row label={`${canonicalName("s")} ${canonicalSym("s")}`} value={fmtIn(c.s)} hint="s = B − Lc" />
+          <Row label={`${canonicalName("Lf")} ${canonicalSym("Lf")}`} value={fmtIn(c.Lf)} hint="Output, not a target" />
+        </Group>
 
-      <Group title="Spring Behavior">
-        <Row label={`${canonicalName("k")} ${canonicalSym("k")}`} value={fmtRate(c.k)} />
-        <Row label={`${canonicalName("F0")} ${canonicalSym("F0")}`} value={fmtLbf(c.F0)} />
-        <Row label={`${canonicalName("F2")} ${canonicalSym("F2")}`} value={fmtLbf(c.F2)} hint="Spring force at hammer contact — not impact force" />
-        <Row label={`${canonicalName("F3")} ${canonicalSym("F3")}`} value={fmtLbf(c.F3)} />
-      </Group>
+        <Group title="Spring Behavior">
+          <Row label={`${canonicalName("k")} ${canonicalSym("k")}`} value={fmtRate(c.k)} />
+          <Row label={`${canonicalName("F0")} ${canonicalSym("F0")}`} value={fmtLbf(c.F0)} />
+          <Row label={`${canonicalName("F2")} ${canonicalSym("F2")}`} value={fmtLbf(c.F2)} hint="Spring force at hammer contact — not impact force" />
+          <Row label={`${canonicalName("F3")} ${canonicalSym("F3")}`} value={fmtLbf(c.F3)} />
+        </Group>
 
-      <Group title="Work">
-        <Row label={`${canonicalName("Whammer")} ${canonicalSym("Whammer")}`} value={fmtWork(c.Whammer)} />
-        <Row label={`${canonicalName("Wlatch")} ${canonicalSym("Wlatch")}`} value={fmtWork(c.Wlatch)} />
-        <Row label={`${canonicalName("WreleaseIdeal")} ${canonicalSym("WreleaseIdeal")}`} value={fmtWork(c.WreleaseIdeal)} hint="Ideal upper bound — not energy delivered to the latch" />
-        <Row label="Armed shear stress τ" value={`${(c.tau / 1000).toFixed(1)} ksi`} hint="Calculated from geometry, armed force, and Wahl correction" />
-        <Row
-          label="Stress / selected TS basis"
-          value={fmtPct(c.stressPctBasis)}
-          hint={`τ / ${(scenario.stressBasisPsi / 1000).toFixed(1)} ksi selected tensile-strength basis; published range ${Math.round(material.tensileMinPsi / 1000)}–${Math.round(material.tensileMaxPsi / 1000)} ksi`}
-        />
-        <Row
-          label="Stress / published TS range"
-          value={`${fmtPct(c.stressPctOptimistic)}–${fmtPct(c.stressPctConservative)}`}
-        />
-      </Group>
+        <Group title="Work">
+          <Row label={`${canonicalName("Whammer")} ${canonicalSym("Whammer")}`} value={fmtWork(c.Whammer)} />
+          <Row label={`${canonicalName("Wlatch")} ${canonicalSym("Wlatch")}`} value={fmtWork(c.Wlatch)} />
+          <Row label={`${canonicalName("WreleaseIdeal")} ${canonicalSym("WreleaseIdeal")}`} value={fmtWork(c.WreleaseIdeal)} hint="Ideal upper bound — not energy delivered to the latch" />
+          <Row label="Armed shear stress τ" value={`${(c.tau / 1000).toFixed(1)} ksi`} hint="Calculated from geometry, armed force, and Wahl correction" />
+          <Row
+            label="Stress / selected TS basis"
+            value={fmtPct(c.stressPctBasis)}
+            hint={`τ / ${(scenario.stressBasisPsi / 1000).toFixed(1)} ksi selected tensile-strength basis; published range ${Math.round(material.tensileMinPsi / 1000)}–${Math.round(material.tensileMaxPsi / 1000)} ksi`}
+          />
+          <Row
+            label="Stress / published TS range"
+            value={`${fmtPct(c.stressPctOptimistic)}–${fmtPct(c.stressPctConservative)}`}
+          />
+        </Group>
+      </div>
 
       {/* Ideal force-equivalent proxies — visually distinct from contact force */}
       <div className="border-t border-zinc-100 bg-blue-50/40 px-3 py-2">
