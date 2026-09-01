@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   V2Candidate,
   V2LandscapeMetric,
@@ -56,6 +56,7 @@ export function V2Workbench({
   const [metric, setMetric] = useState<V2LandscapeMetric>("FeqAvgIdeal");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [shortlist, setShortlist] = useState<V2ShortlistEntry[]>([]);
+  const lastSynchronizedSelectionRef = useRef<string | null>(null);
 
   const material = getV2Material(scenario.materialId);
 
@@ -76,7 +77,11 @@ export function V2Workbench({
   // Optimize is the single source of truth for the current candidate. Keep the
   // mounted Engineering audit synchronized without requiring a transfer click.
   useEffect(() => {
-    if (selected) onSelectedCandidateChange(selected, scenario);
+    if (!selected) return;
+    const synchronizationKey = `${selected.key}|${v2ScenarioSignature(scenario)}`;
+    if (lastSynchronizedSelectionRef.current === synchronizationKey) return;
+    lastSynchronizedSelectionRef.current = synchronizationKey;
+    onSelectedCandidateChange(selected, scenario);
   }, [onSelectedCandidateChange, scenario, selected]);
 
   const patchScenario = (patch: Partial<V2Scenario>) => {

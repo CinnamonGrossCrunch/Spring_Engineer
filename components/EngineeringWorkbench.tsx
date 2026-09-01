@@ -90,6 +90,13 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
   const [etaMode, setEtaMode] = useState<"unspecified" | "ideal" | "assumed" | "measured">("unspecified");
   const [constraintsOpen, setConstraintsOpen] = useState(false);
   const [deflectionConstraint, setDeflectionConstraint] = useState<DeflectionConstraintState>(() => sessionDeflectionConstraint);
+  const effectiveV2Scenario = useMemo(
+    () => ({
+      ...v2Scenario,
+      maxDeflectionUtilization: deflectionConstraint.maxUtilization,
+    }),
+    [deflectionConstraint.maxUtilization, v2Scenario],
+  );
 
   const solve = useMemo(() => solveModel(model), [model]);
   const constraints = useMemo(() => evaluateConstraints(solve.values), [solve]);
@@ -623,7 +630,7 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
           onOpenEngineering={openEngineering}
           deflectionConstraint={deflectionConstraint}
         onDeflectionConstraintChange={handleDeflectionConstraintChange}
-        scenario={{ ...v2Scenario, maxDeflectionUtilization: deflectionConstraint.maxUtilization }}
+        scenario={effectiveV2Scenario}
         onScenarioChange={handleV2ScenarioChange}
         onResetScenario={resetV2Scenario}
       />
