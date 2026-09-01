@@ -3,6 +3,8 @@ import {
   maximumFinishedSpringOuterDiameter,
   nominalSpringOuterDiameter,
 } from "./envelope";
+import { applyScenarioImpactLens } from "./impactLens";
+import { getImpactBodyMaterial } from "./impactMaterials";
 
 export type DataSheetAudience = "mechanism" | "vendor";
 export type ShareSheetFormat = "text" | "table";
@@ -202,6 +204,7 @@ export function generateMechanismSummary({
 }: SpringDataSheetInput): string {
   const nominalOuterDiameter = nominalSpringOuterDiameter(s);
   const maximumFinishedOuterDiameter = maximumFinishedSpringOuterDiameter(s);
+  const impact = applyScenarioImpactLens(c, s);
 
   return communicationText(`# Spring Candidate — Mechanism Review
 
@@ -239,11 +242,13 @@ For internal mechanism review. This summarizes what the mechanism requires and w
 - Hammer run-up work: ${work(c.Whammer)}
 - Latch follow-through work: ${work(c.Wlatch)}
 - Ideal total release work: ${work(c.WreleaseIdeal)} (not measured delivered energy)
+- Impact assumptions: η = ${(s.impactEfficiency * 100).toFixed(0)}%; restitution e = ${s.impactRestitution.toFixed(2)}; hammer mass ${s.hammerMassLbm === null ? "TBD" : `${s.hammerMassLbm.toFixed(4)} lbm`}; latch mass ${s.latchMassLbm === null ? "TBD" : `${s.latchMassLbm.toFixed(4)} lbm`}
+- Mass-adjusted latch-driving average force equivalent: ${impact.massAdjustedAverageEquivalent === undefined ? "not calculated — both masses are required" : `${lbf(impact.massAdjustedAverageEquivalent)} over the specified latch travel`} (energy-equivalent, not peak contact force)
 - Stress guidance: ${stressSummary(c)}
 
 ## Assumptions and Decisions to Confirm
 
-- Model uses ${materialName(material)} as a benchmark material with G = ${(s.shearModulusPsi / 1e6).toFixed(1)} Mpsi and a ${ksi(s.stressBasisPsi)} tensile-strength classification basis.
+- Model uses ${materialName(material)}, ${material.condition}, as a benchmark material with G = ${(s.shearModulusPsi / 1e6).toFixed(2)} Mpsi and a ${ksi(s.stressBasisPsi)} tensile-strength classification basis. Source: ${material.sourceUrl}
 - Nominal end form is squared and ground; CAD defaults to right-hand winding.
 - Confirm that the armed, contact, and released lengths match the actual mechanism stops.
 - Confirm the ${s.forceCap.toFixed(0)} lbf force cap, ${dualLength(s.housingInnerDiameter)} housing/OD ceiling, ${dualLength(s.outerDiameterTolerance)} positive OD tolerance allowance, and ${s.latchTravel.toFixed(3)} in latch travel.
@@ -264,6 +269,7 @@ export function generateVendorRfq({
 }: SpringDataSheetInput): string {
   const nominalOuterDiameter = nominalSpringOuterDiameter(s);
   const maximumFinishedOuterDiameter = maximumFinishedSpringOuterDiameter(s);
+  const impact = applyScenarioImpactLens(c, s);
 
   return communicationText(`# Compression Spring Prototype RFQ
 
@@ -306,11 +312,15 @@ Nominal solid height	${inch(c.HsNom)}
 Modeled maximum solid height	${inch(c.HsMax)}
 Armed-load shear stress	${ksi(c.tau)} (Wahl-corrected, K_w = ${c.Kw.toFixed(3)})
 Stress screening	${pct(c.stressPctBasis)} at the selected ${ksi(s.stressBasisPsi)} tensile-strength basis; ${stressSummary(c)}
+Hammer / latch mass	${s.hammerMassLbm === null ? "TBD" : `${s.hammerMassLbm.toFixed(4)} lbm`} / ${s.latchMassLbm === null ? "TBD" : `${s.latchMassLbm.toFixed(4)} lbm`}
+Impact efficiency / restitution	${pct(s.impactEfficiency)} / e = ${s.impactRestitution.toFixed(2)}
+Mass-adjusted average force equivalent	${impact.massAdjustedAverageEquivalent === undefined ? "Not calculated — both masses required" : lbf(impact.massAdjustedAverageEquivalent)} (over latch travel; not peak contact force)
 
 ## 3. Our Assumptions for Vendor Review
 
 Assumption	Current model value	Please assess / optimize
 Starting material	${materialName(material)}	Recommend the production material, wire condition, and temper—or a suitable alternative
+Material-property source	${material.sourceLabel}; ${material.condition}	Verify properties for the purchased wire size/condition; ${material.sourceUrl}
 Shear modulus, G	${(s.shearModulusPsi / 1e6).toFixed(1)} Mpsi	Confirm the value appropriate for the recommended material and condition
 Tensile-strength screening range	${ksi(material.tensileMinPsi)}–${ksi(material.tensileMaxPsi)}	Replace with applicable values for the actual wire size and temper; these are not allowable shear stresses
 Stress-classification basis	${ksi(s.stressBasisPsi)} (user-selected tensile basis)	Apply the appropriate set, allowable-shear, fatigue, and relaxation criteria
@@ -322,6 +332,8 @@ End condition	Squared and ground	Confirm feasibility and recommend any change
 Winding hand	Right-hand nominal	Confirm whether winding hand is functionally relevant
 Fatigue duty / cycle target	TBD	Tell us what duty information is needed and what cycle capability is realistic
 Temperature / corrosion / finish / cleanliness	TBD	Recommend requirements and identify any information needed from us
+Hammer / latch body materials	${getImpactBodyMaterial(s.hammerBodyMaterialId).name} / ${getImpactBodyMaterial(s.latchBodyMaterialId).name}	Used only for density-based mass estimates; confirm actual alloys and measured masses
+Collision elasticity	Coefficient of restitution e = ${s.impactRestitution.toFixed(2)} (assumed)	Empirical mechanism input; validate by test. It is not determined by material name alone
 
 Please return a recommended producible spring definition and identify any changes to the preliminary geometry or assumptions.
 

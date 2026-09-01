@@ -12,8 +12,8 @@ import {
   millimetersToInches,
   nominalSpringOuterDiameter,
 } from "@/lib/v2/envelope";
-
-const STRESS_BASIS_PRESETS_KSI = [270, 285, 300] as const;
+import { MaterialImpactInputs } from "./MaterialImpactInputs";
+import type { V2Candidate } from "@/lib/v2/types";
 
 interface Props {
   scenario: V2Scenario;
@@ -24,6 +24,7 @@ interface Props {
   onDeflectionConstraintChange: (value: DeflectionConstraintState) => void;
   referenceWorkingDeflection?: number;
   referenceShearStressPsi?: number;
+  selectedCandidate?: V2Candidate | null;
 }
 
 function SourceTag({ kind, children }: { kind: keyof typeof SOURCE_TAG; children: string }) {
@@ -119,6 +120,7 @@ export function V2ScenarioPanel({
   onDeflectionConstraintChange,
   referenceWorkingDeflection,
   referenceShearStressPsi,
+  selectedCandidate,
 }: Props) {
   const nominalOuterDiameter = nominalSpringOuterDiameter(scenario);
   const maximumFinishedOuterDiameter = maximumFinishedSpringOuterDiameter(scenario);
@@ -198,19 +200,16 @@ export function V2ScenarioPanel({
           <span>Worst-case finished OD</span>
           <span className="text-right font-mono text-zinc-700">{fmtInMm(maximumFinishedOuterDiameter)}</span>
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[11.5px] text-zinc-600">Material</span>
-          <span className="text-[11px] font-medium text-zinc-700">
-            {material.name}
-            {material.specification ? ` · ${material.specification}` : ""}
-          </span>
-        </div>
         <p className="text-[10px] leading-tight text-zinc-400">
           Nominal OD = housing limit − positive tolerance allowance. Add any required diametral
           fit clearance to this allowance. Benchmark material model — not an approved aerospace
           material.
         </p>
       </Section>
+
+      <div className="border-t border-zinc-100 bg-zinc-50/60 p-2">
+        <MaterialImpactInputs scenario={scenario} onChange={onChange} candidate={selectedCandidate} compact />
+      </div>
 
       <Section title="Lee-Derived Model Guidance" tag="Lee" tagKind="lee">
         <NumberField
@@ -254,11 +253,12 @@ export function V2ScenarioPanel({
         />
         <div className="flex flex-wrap items-center gap-1">
           <span className="text-[10px] text-zinc-400">Basis presets:</span>
-          {STRESS_BASIS_PRESETS_KSI.map((ksi) => {
+          {[material.tensileMinPsi, (material.tensileMinPsi + material.tensileMaxPsi) / 2, material.tensileMaxPsi].map((psi) => {
+            const ksi = psi / 1000;
             const active = Math.abs(scenario.stressBasisPsi / 1000 - ksi) < 1e-6;
             return (
               <button
-                key={ksi}
+                key={psi}
                 type="button"
                 onClick={() => onChange({ stressBasisPsi: ksi * 1000 })}
                 className={`rounded border px-1.5 py-0.5 font-mono text-[10px] transition-colors ${
@@ -267,7 +267,7 @@ export function V2ScenarioPanel({
                     : "border-zinc-300 text-zinc-500 hover:bg-zinc-100"
                 }`}
               >
-                {ksi} ksi
+                {ksi.toFixed(0)} ksi
               </button>
             );
           })}

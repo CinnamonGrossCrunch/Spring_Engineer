@@ -1,5 +1,5 @@
-import { inLbfToFtLbf, velocityFromKE, momentum } from "@/lib/engineering/hammer";
-import type { V2Candidate } from "./types";
+import { inLbfToFtLbf, velocityFromKE, momentum, kineticEnergy } from "@/lib/engineering/hammer";
+import type { V2Candidate, V2Scenario } from "./types";
 
 /**
  * OPTIONAL Advanced Impact Lens — NOT part of the primary V2 optimization.
@@ -26,6 +26,14 @@ export interface V2ImpactLens {
   velocity: number | undefined;
   /** Hammer momentum at contact [lbm·ft/s] (requires mass). */
   momentum: number | undefined;
+  /** Latch kinetic energy immediately after the assumed 1-D collision [ft·lbf]. */
+  postImpactKE: number | undefined;
+  /** Retained collision energy plus efficiency-adjusted follow-through work [in·lbf]. */
+  latchDriveWork: number | undefined;
+  /** Mass-adjusted average force equivalent over the known latch travel [lbf]. */
+  massAdjustedAverageEquivalent: number | undefined;
+  /** 2× average, only for a triangular force-over-travel assumption [lbf]. */
+  massAdjustedTriangularPeakEquivalent: number | undefined;
 }
 
 /**
@@ -37,7 +45,9 @@ export function applyImpactLens(
   candidate: V2Candidate,
   etaMode: V2EtaMode,
   etaValue: number,
-  mass: number | undefined,
+  hammerMass: number | undefined,
+  latchMass?: number | undefined,
+  restitution = 0,
 ): V2ImpactLens {
   const eta = etaMode === "ideal" ? 1.0 : etaMode === "unspecified" ? undefined : etaValue;
 
@@ -50,15 +60,34 @@ export function applyImpactLens(
       KE: undefined,
       velocity: undefined,
       momentum: undefined,
+      postImpactKE: undefined,
+      latchDriveWork: undefined,
+      massAdjustedAverageEquivalent: undefined,
+      massAdjustedTriangularPeakEquivalent: undefined,
     };
   }
 
   const WhammerAvailable = eta * candidate.Whammer;
-  const WreleaseEta = WhammerAvailable + candidate.Wlatch;
+  const WreleaseEta = eta * candidate.WreleaseIdeal;
   const KE = inLbfToFtLbf(WhammerAvailable); // ft·lbf
-  const hasMass = mass !== undefined && Number.isFinite(mass) && mass > 0;
-  const velocity = hasMass && KE > 0 ? velocityFromKE(KE, mass!) : undefined;
-  const p = velocity !== undefined ? momentum(mass!, velocity) : undefined;
+  const hasHammerMass = hammerMass !== undefined && Number.isFinite(hammerMass) && hammerMass > 0;
+  const hasLatchMass = latchMass !== undefined && Number.isFinite(latchMass) && latchMass > 0;
+  const velocity = hasHammerMass && KE > 0 ? velocityFromKE(KE, hammerMass!) : undefined;
+  const p = velocity !== undefined ? momentum(hammerMass!, velocity) : undefined;
+  const e = Math.max(0, Math.min(1, restitution));
+  const latchVelocity = velocity !== undefined && hasLatchMass
+    ? ((1 + e) * hammerMass! / (hammerMass! + latchMass!)) * velocity
+    : undefined;
+  const postImpactKE = latchVelocity === undefined
+    ? undefined
+    : kineticEnergy(latchMass!, latchVelocity);
+  const latchDriveWork = postImpactKE === undefined
+    ? undefined
+    : postImpactKE * 12 + eta * candidate.Wlatch;
+  const massAdjustedAverageEquivalent =
+    latchDriveWork !== undefined && candidate.L3 > candidate.L2
+      ? latchDriveWork / (candidate.L3 - candidate.L2)
+      : undefined;
 
   return {
     etaMode,
@@ -68,5 +97,22 @@ export function applyImpactLens(
     KE,
     velocity,
     momentum: p,
+    postImpactKE,
+    latchDriveWork,
+    massAdjustedAverageEquivalent,
+    massAdjustedTriangularPeakEquivalent:
+      massAdjustedAverageEquivalent === undefined ? undefined : 2 * massAdjustedAverageEquivalent,
   };
+}
+
+/** Shared-scenario convenience wrapper (100% efficiency is the default scenario assumption). */
+export function applyScenarioImpactLens(candidate: V2Candidate, scenario: V2Scenario): V2ImpactLens {
+  return applyImpactLens(
+    candidate,
+    "assumed",
+    Math.max(0, Math.min(1, scenario.impactEfficiency)),
+    scenario.hammerMassLbm ?? undefined,
+    scenario.latchMassLbm ?? undefined,
+    scenario.impactRestitution,
+  );
 }

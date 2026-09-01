@@ -29,7 +29,16 @@ export const DEFAULT_V2_SCENARIO: V2Scenario = {
   outerDiameterTolerance: DEFAULT_OD_TOLERANCE_IN,
   lockOuterDiameter: true,
   materialId: DEFAULT_MATERIAL_ID,
-  shearModulusPsi: 12_000_000,
+  shearModulusPsi: 11_200_000,
+
+  hammerMassLbm: null,
+  latchMassLbm: null,
+  impactEfficiency: 1.0,
+  hammerBodyMaterialId: "stainless17_4",
+  latchBodyMaterialId: "stainless17_4",
+  hammerVolumeIn3: null,
+  latchVolumeIn3: null,
+  impactRestitution: 0,
 
   // Lee-derived model guidance
   solidHeightTolerance: 0.05, // Lee +5% → Hs_max = 1.05·Hs_nom
@@ -45,7 +54,7 @@ export const DEFAULT_V2_SCENARIO: V2Scenario = {
   activeCoilsMax: 5.0,
   activeCoilsStep: 0.1,
 
-  stressBasisPsi: 270_000,
+  stressBasisPsi: 260_000,
 };
 
 /** Example working-deflection scenarios (screening guidance, not Lee requirements). */

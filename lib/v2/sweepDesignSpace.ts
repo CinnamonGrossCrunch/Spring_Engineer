@@ -1,5 +1,5 @@
 import { evaluateV2Candidate } from "./evaluateCandidate";
-import { computePareto } from "./pareto";
+import { computePareto, recommendTopCandidates } from "./pareto";
 import type {
   V2Candidate,
   V2ExclusionReason,
@@ -96,6 +96,7 @@ export function sweepV2DesignSpace(scenario: V2Scenario): V2SweepResult {
   }
 
   const defaultKey = pickDefaultCandidate(feasible);
+  const recommendations = recommendTopCandidates(feasible);
 
   return {
     candidates,
@@ -103,6 +104,8 @@ export function sweepV2DesignSpace(scenario: V2Scenario): V2SweepResult {
     coilValues,
     feasible,
     paretoKeys: [...paretoSet],
+    recommendedKeys: recommendations.keys,
+    recommendedRoles: recommendations.roles,
     exclusionStats,
     totalCount: candidates.length,
     feasibleCount: feasible.length,

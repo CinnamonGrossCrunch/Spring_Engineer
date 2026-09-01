@@ -42,6 +42,8 @@ export function candidateToV1Model(candidate: V2Candidate, scenario: V2Scenario)
 
   // Material shear modulus from the V2 benchmark material.
   next.G = { value: scenario.shearModulusPsi, status: "assumed" };
+  next.m = { value: scenario.hammerMassLbm ?? undefined, status: "variable" };
+  next.eta = { value: scenario.impactEfficiency, status: "assumed" };
 
   // Shared mechanism limits and engineering guidance from the active scenario.
   next.B = { value: scenario.axialBudget, status: "fixed" };

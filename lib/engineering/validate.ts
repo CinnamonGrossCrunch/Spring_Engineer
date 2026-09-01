@@ -25,11 +25,14 @@ import {
 } from "../../components/SpringStateIllustration/springSvgGeometry";
 import { evaluateV2Candidate, classifyStressBand } from "../v2/evaluateCandidate";
 import { sweepV2DesignSpace, buildRange } from "../v2/sweepDesignSpace";
-import { computePareto } from "../v2/pareto";
+import { computePareto, recommendTopCandidates } from "../v2/pareto";
 import { DEFAULT_V2_SCENARIO, computeHistoricalReference } from "../v2/defaults";
 import type { V2Candidate, V2Scenario } from "../v2/types";
 import { generateMechanismSummary, generateVendorRfq, shareSheetToHtml, shareSheetToTableHtml, springDataSheetFilename } from "../v2/dataSheet";
 import { getV2Material } from "../v2/materials";
+import { applyScenarioImpactLens } from "../v2/impactLens";
+import { estimateBodyMassLbm } from "../v2/impactMaterials";
+import { parseStoredV2Scenario } from "../v2/scenarioStorage";
 import { DataSheetButton } from "../../components/v2/DataSheetButton";
 import { candidateCsvFilename, generateCandidateCsv } from "../v2/candidateCsv";
 import { CandidateCsvButton } from "../../components/v2/CandidateCsvButton";
@@ -617,6 +620,15 @@ console.log("\n── V2 (d) Pareto frontier ───────────�
   assert("V2 pareto keeps C", front.has("C"));
   assert("V2 pareto removes dominated D", !front.has("D"));
   assert("V2 pareto frontier size = 3", front.size === 3);
+
+  const nearMax = [
+    { ...mk("H", 100, 2), WreleaseIdeal: 101 },
+    { ...mk("T", 99, 3), WreleaseIdeal: 102 },
+    { ...mk("L", 98, 4), WreleaseIdeal: 101.5 },
+    { ...mk("X", 110, 0.1), WreleaseIdeal: 90 },
+  ];
+  const recommendations = recommendTopCandidates(nearMax);
+  assert("V2 recommendations use near-max hammer / total / follow-through leaders", recommendations.keys.join("") === "HTL");
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -635,6 +647,8 @@ console.log("\n── V2 (e) Sweep grid + determinism ────────�
   assert("V2 sweep is deterministic (identical results + order)", JSON.stringify(a) === JSON.stringify(b));
   assert("V2 sweep finds feasible candidates", a.feasibleCount > 0);
   assert("V2 sweep suggests a default candidate", a.defaultKey !== null);
+  assert("V2 sweep exposes three green recommendations", a.recommendedKeys.length === Math.min(3, a.feasible.length));
+  assert("V2 recommendations are feasible", a.recommendedKeys.every((key) => a.feasible.some((candidate) => candidate.key === key)));
 
   // The suggested default is the feasible candidate with max ideal release equiv.
   const def = a.candidates.find((c) => c.key === a.defaultKey);
@@ -718,7 +732,9 @@ console.log("\n── V2 (g) Spring vendor data sheet ────────�
   assert("exports include editable shear modulus and numeric stress basis", vendor.includes(`${(scenario.shearModulusPsi / 1e6).toFixed(1)} Mpsi`) && vendor.includes(`${(scenario.stressBasisPsi / 1000).toFixed(1)} ksi`));
   assert("vendor RFQ places utilization and clearance together in assumptions", vendor.includes("Maximum deflection utilization\t") && vendor.includes("Equivalent armed height above maximum solid\t"));
   assert("vendor RFQ explains mechanism use and distinguishes spring from impact force", vendor.includes("accelerate a hammer") && vendor.includes("not dynamic impact-force claims"));
-  assert("vendor RFQ discloses ksi assumptions without unnecessary equation detail", vendor.includes("270.0 ksi–300.0 ksi") && vendor.includes("not allowable shear stresses") && !vendor.includes("τ = K_w·8·F·D/(π·d³)"));
+  assert("vendor RFQ discloses ksi assumptions without unnecessary equation detail", vendor.includes(`${(material.tensileMinPsi / 1000).toFixed(1)} ksi–${(material.tensileMaxPsi / 1000).toFixed(1)} ksi`) && vendor.includes("not allowable shear stresses") && !vendor.includes("τ = K_w·8·F·D/(π·d³)"));
+  assert("exports disclose missing impact masses instead of inventing force", mechanism.includes("both masses are required") && vendor.includes("both masses required"));
+  assert("exports cite the selected material source", mechanism.includes(material.sourceUrl) && vendor.includes(material.sourceUrl));
   assert("vendor RFQ requests optimization of material assumptions", vendor.includes("Recommend the production material") && vendor.includes("Replace with applicable values"));
   assert("vendor RFQ includes prototype quantity placeholder", vendor.includes("Prototype quantity: ___"));
   assert("vendor RFQ keeps unspecified requirements TBD", vendor.includes("Fatigue duty / cycle target\tTBD") && vendor.includes("Temperature / corrosion / finish / cleanliness\tTBD"));
@@ -743,6 +759,26 @@ console.log("\n── V2 (g) Spring vendor data sheet ────────�
   buttonProps.onClick();
   assert("Export Data Sheet UI trigger invokes its handler", opened);
   assert("Export Data Sheet UI trigger is discoverable", buttonProps["data-testid"] === "export-data-sheet-button");
+}
+
+console.log("\n── V2 (g2) Shared impact assumptions and persistence ─────────");
+{
+  const sweep = sweepV2DesignSpace(DEFAULT_V2_SCENARIO);
+  const candidate = sweep.feasible.find((item) => item.key === sweep.defaultKey) ?? sweep.feasible[0];
+  assert("impact test has a feasible candidate", candidate !== undefined);
+  const scenario: V2Scenario = {
+    ...DEFAULT_V2_SCENARIO,
+    hammerMassLbm: 0.25,
+    latchMassLbm: 0.05,
+    impactEfficiency: 1,
+    impactRestitution: 0,
+  };
+  const lens = applyScenarioImpactLens(candidate, scenario);
+  assert("impact lens calculates velocity when hammer mass exists", lens.velocity !== undefined && lens.velocity > 0);
+  assert("impact lens calculates mass-adjusted equivalent when both masses exist", lens.massAdjustedAverageEquivalent !== undefined && lens.massAdjustedAverageEquivalent > 0);
+  check("tungsten mass estimate uses density × volume", estimateBodyMassLbm("tungstenHeavyAlloy", 0.38473079) ?? undefined, 0.650 * 0.38473079, 0.001);
+  const restored = parseStoredV2Scenario(JSON.stringify(scenario));
+  assert("shared scenario storage round-trips material, masses and efficiency", restored?.hammerMassLbm === 0.25 && restored.latchMassLbm === 0.05 && restored.impactEfficiency === 1);
 }
 
 // ───────────────────────────────────────────────────────────────────────

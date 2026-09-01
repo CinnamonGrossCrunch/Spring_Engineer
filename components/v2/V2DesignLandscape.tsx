@@ -118,6 +118,7 @@ export function V2DesignLandscape({
 
   const hoverCandidate = hover ? byKey.get(hover.key) : undefined;
   const shortlistSet = useMemo(() => new Set(shortlist), [shortlist]);
+  const recommendedSet = useMemo(() => new Set(sweep.recommendedKeys), [sweep.recommendedKeys]);
 
   const isVisibleCol = (col: number) => col >= viewMinCol && col <= viewMaxCol;
   const colX = (col: number) => PAD.left + (col - viewMinCol) * cellW;
@@ -196,12 +197,13 @@ export function V2DesignLandscape({
             const val = metricInfo.get(c);
             const t = (val - range.lo) / (range.hi - range.lo);
             const redesign = c.feasibility.stressBand === "redesign";
+            const recommended = recommendedSet.has(c.key);
             const fill = !alive
               ? "#f4f4f5"
               : redesign
                 ? "url(#v2-redhatch)"
                 : Number.isFinite(t)
-                  ? sequentialColor(t)
+                  ? recommended ? "#86efac" : sequentialColor(t)
                   : "#f4f4f5";
             return (
               <rect
@@ -381,6 +383,9 @@ export function V2DesignLandscape({
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="inline-block h-2.5 w-2.5 border-[1.4px] border-zinc-900 bg-white" /> Pareto
+        </span>
+        <span className="inline-flex items-center gap-1" title="Hammer-, total-, and follow-through-work leaders within 1% of maximum total work; next total-work candidate fills any duplicate role">
+          <span className="inline-block h-2.5 w-2.5 border border-emerald-700 bg-green-300" /> recommended three
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="inline-block h-2.5 w-2.5 border-2 border-yellow-500 bg-white" /> selected

@@ -9,6 +9,7 @@ import {
 } from "@/lib/v2/dataSheet";
 import type { DataSheetAudience, ShareSheetFormat } from "@/lib/v2/dataSheet";
 import type { V2Candidate, V2Material, V2Scenario } from "@/lib/v2/types";
+import { CandidateDataSheetHero } from "./CandidateDataSheetHero";
 
 interface Props {
   candidate: V2Candidate;
@@ -82,7 +83,7 @@ export function DataSheetModal({ candidate, scenario, material, isOpen, onClose 
         if (event.target === event.currentTarget) handleClose();
       }}
     >
-      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-zinc-900/10">
+      <div className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-zinc-900/10">
         <div className="flex items-start justify-between gap-3 border-b border-zinc-200 px-5 py-3.5">
           <div>
             <h2 id="data-sheet-modal-title" className="text-base font-semibold text-zinc-900">
@@ -103,6 +104,9 @@ export function DataSheetModal({ candidate, scenario, material, isOpen, onClose 
             </svg>
           </button>
         </div>
+
+        <div className="min-h-0 overflow-y-auto">
+        <CandidateDataSheetHero candidate={candidate} scenario={scenario} material={material} />
 
         <div className="grid gap-2 border-b border-zinc-200 bg-zinc-50 px-5 py-3 sm:grid-cols-2">
           {([
@@ -165,12 +169,13 @@ export function DataSheetModal({ candidate, scenario, material, isOpen, onClose 
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 p-4">
+        <div className="p-4">
           <div
             aria-label="Spring engineering data sheet preview"
             className="h-full min-h-[45vh] w-full overflow-y-auto rounded-lg border border-zinc-300 bg-white p-4 text-[12px] leading-relaxed text-zinc-800 [&_p]:mb-2 [&_strong]:font-semibold [&_strong]:text-zinc-950 [&_ul]:mb-3 [&_ul]:list-disc [&_ul]:space-y-0.5 [&_ul]:pl-5"
             dangerouslySetInnerHTML={{ __html: clipboardHtml }}
           />
+        </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-200 bg-zinc-50 px-5 py-3">

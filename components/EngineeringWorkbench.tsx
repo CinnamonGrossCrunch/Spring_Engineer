@@ -33,6 +33,8 @@ import {
 import type { V2Candidate, V2Scenario } from "@/lib/v2/types";
 import { candidateToV1Model, defaultV2CandidateToV1Model } from "@/lib/v2/inspectBridge";
 import { DEFAULT_V2_SCENARIO } from "@/lib/v2/defaults";
+import { MaterialImpactInputs } from "./v2/MaterialImpactInputs";
+import { parseStoredV2Scenario, V2_SCENARIO_STORAGE_KEY } from "@/lib/v2/scenarioStorage";
 
 const MODES: DesignMode[] = ["forward", "reverse", "explore"];
 const ACTIVE_PRESET: PresetId = "currentCandidate";
@@ -70,6 +72,12 @@ interface EngineeringWorkbenchProps {
 
 export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWorkbenchProps) {
   const [workspace, setWorkspace] = useState<WorkspaceVersion>(initialWorkspace);
+  const [v2Scenario, setV2Scenario] = useState<V2Scenario>(() => ({
+    ...DEFAULT_V2_SCENARIO,
+    maxDeflectionUtilization: sessionDeflectionConstraint.maxUtilization,
+  }));
+  const [selectedV2Candidate, setSelectedV2Candidate] = useState<V2Candidate | null>(null);
+  const [scenarioStorageReady, setScenarioStorageReady] = useState(false);
   const [mode, setMode] = useState<DesignMode>("explore");
   const [model, setModel] = useState<ModelState>(() =>
     defaultV2CandidateToV1Model({
@@ -143,6 +151,44 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
     window.addEventListener("popstate", syncWorkspaceToHistory);
     return () => window.removeEventListener("popstate", syncWorkspaceToHistory);
   }, []);
+
+  const handleV2ScenarioChange = useCallback((patch: Partial<V2Scenario>) => {
+    setV2Scenario((previous) => ({ ...previous, ...patch }));
+    if (patch.maxDeflectionUtilization !== undefined) {
+      handleDeflectionConstraintChange({
+        ...sessionDeflectionConstraint,
+        maxUtilization: patch.maxDeflectionUtilization,
+      });
+    }
+  }, [handleDeflectionConstraintChange]);
+
+  const resetV2Scenario = useCallback(() => {
+    setV2Scenario(DEFAULT_V2_SCENARIO);
+    handleDeflectionConstraintChange({
+      ...sessionDeflectionConstraint,
+      maxUtilization: DEFAULT_V2_SCENARIO.maxDeflectionUtilization,
+    });
+  }, [handleDeflectionConstraintChange]);
+
+  useEffect(() => {
+    const restoreTimer = window.setTimeout(() => {
+      const restored = parseStoredV2Scenario(window.localStorage.getItem(V2_SCENARIO_STORAGE_KEY));
+      if (restored) {
+        setV2Scenario(restored);
+        handleDeflectionConstraintChange({
+          ...sessionDeflectionConstraint,
+          maxUtilization: restored.maxDeflectionUtilization,
+        });
+      }
+      setScenarioStorageReady(true);
+    }, 0);
+    return () => window.clearTimeout(restoreTimer);
+  }, [handleDeflectionConstraintChange]);
+
+  useEffect(() => {
+    if (!scenarioStorageReady) return;
+    window.localStorage.setItem(V2_SCENARIO_STORAGE_KEY, JSON.stringify(v2Scenario));
+  }, [scenarioStorageReady, v2Scenario]);
 
   const navigateWorkspace = useCallback((next: WorkspaceVersion, href: string) => {
     if (next === "v1") {
@@ -260,6 +306,7 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
    * synchronized as scenario inputs or the selected landscape cell change.
    */
   const syncV2Candidate = useCallback((candidate: V2Candidate, scenario: V2Scenario) => {
+    setSelectedV2Candidate(candidate);
     const next = candidateToV1Model(candidate, scenario);
     canonicalV2ModelRef.current = next;
     setModel(next);
@@ -375,6 +422,9 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
       <div className={workspace === "v1" ? "contents" : "hidden"}>
       {/* ── Main workspace ── */}
       <div className="flex-1 p-3">
+        <div className="mb-3">
+          <MaterialImpactInputs scenario={v2Scenario} onChange={handleV2ScenarioChange} candidate={selectedV2Candidate} />
+        </div>
         <div className="mb-3 rounded-lg border border-violet-200 bg-white p-3 shadow-sm">
           <div className="mb-2">
             <div className="text-[11px] font-bold uppercase tracking-wide text-violet-700">Governing deflection constraint</div>
@@ -568,12 +618,15 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
 
       {/* ── V2 workspace body (kept mounted so V2 scenario state persists) ── */}
       <div className={workspace === "v2" ? "contents" : "hidden"}>
-        <V2Workbench
+      <V2Workbench
           onSelectedCandidateChange={syncV2Candidate}
           onOpenEngineering={openEngineering}
           deflectionConstraint={deflectionConstraint}
-          onDeflectionConstraintChange={handleDeflectionConstraintChange}
-        />
+        onDeflectionConstraintChange={handleDeflectionConstraintChange}
+        scenario={{ ...v2Scenario, maxDeflectionUtilization: deflectionConstraint.maxUtilization }}
+        onScenarioChange={handleV2ScenarioChange}
+        onResetScenario={resetV2Scenario}
+      />
       </div>
     </div>
   );

@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import type { V2Candidate, V2Material, V2Scenario } from "@/lib/v2/types";
 import { computeHistoricalReference } from "@/lib/v2/defaults";
-import { applyImpactLens, type V2EtaMode } from "@/lib/v2/impactLens";
+import { applyScenarioImpactLens } from "@/lib/v2/impactLens";
 import {
   STRESS_BAND_META,
   fmtCoils,
@@ -66,15 +66,10 @@ export function V2PerformancePanel({
 }: Props) {
   const [cadOpen, setCadOpen] = useState(false);
   const [dataSheetOpen, setDataSheetOpen] = useState(false);
-  const [etaMode, setEtaMode] = useState<V2EtaMode>("unspecified");
-  const [etaValue, setEtaValue] = useState(0.9);
-  const [massMode, setMassMode] = useState<"specified" | "undefined">("specified");
-  const [massValue, setMassValue] = useState(0.28);
-  const mass = massMode === "undefined" ? undefined : massValue;
 
   const band = STRESS_BAND_META[c.feasibility.stressBand];
   const hist = computeHistoricalReference();
-  const lens = applyImpactLens(c, etaMode, etaValue, mass);
+  const lens = applyScenarioImpactLens(c, scenario);
 
   // Geometry validity only. Stress band, Pareto status and shortlist membership
   // are engineering judgements, not reasons a solid cannot be built.
@@ -256,112 +251,26 @@ export function V2PerformancePanel({
         </div>
       </details>
 
-      {/* Advanced impact lens — optional, not core optimization */}
+      {/* Shared impact-equivalent lens — inputs live in the scenario panel. */}
       <details className="border-t border-zinc-100">
         <summary className="cursor-pointer px-3 py-2 text-[11px] font-semibold text-zinc-600">
-          Advanced Impact Lens (efficiency + hammer mass)
+          Impact-equivalent estimate (shared masses + efficiency)
         </summary>
         <div className="flex flex-col gap-2 px-3 pb-3">
-          <div className="flex flex-wrap items-center gap-1">
-            {(["unspecified", "ideal", "assumed", "measured"] as V2EtaMode[]).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setEtaMode(m)}
-                className={`rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
-                  etaMode === m ? "border-zinc-800 bg-zinc-800 text-white" : "border-zinc-300 text-zinc-500 hover:bg-zinc-100"
-                }`}
-              >
-                {m === "unspecified" ? "Not specified" : m === "ideal" ? "Ideal η=1.0" : m === "assumed" ? "Assumed" : "Measured"}
-              </button>
-            ))}
-          </div>
-
-          {(etaMode === "assumed" || etaMode === "measured") && (
-            <div className="flex items-center gap-2">
-              <label className="text-[11px] text-zinc-600">η</label>
-              <input
-                type="number"
-                value={etaValue}
-                step={0.05}
-                min={0}
-                max={1}
-                onChange={(e) => setEtaValue(Number.parseFloat(e.target.value) || 0)}
-                className="w-[70px] rounded border border-zinc-300 px-1.5 py-1 text-right font-mono text-[12px] focus:border-blue-500 focus:outline-none"
-              />
-              <span
-                className={`rounded border px-1.5 py-0.5 text-[9px] font-semibold ${
-                  etaMode === "measured"
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                    : "border-amber-300 bg-amber-50 text-amber-700"
-                }`}
-              >
-                {etaMode === "measured" ? "measured input" : "assumed input"}
-              </span>
-            </div>
-          )}
-
           <p className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] text-amber-800">
-            {etaMode === "unspecified"
-              ? "Efficiency not specified — the primary V2 metric operates on ideal spring work."
-              : etaMode === "ideal"
-                ? "η = 1.0 lossless upper bound only."
-                : etaMode === "assumed"
-                  ? "η is a user assumption, treated as external input — not a measured result."
-                  : "η reflects testing/field data — treated as a measured external input."}
+            η = {(scenario.impactEfficiency * 100).toFixed(0)}% and e = {scenario.impactRestitution.toFixed(2)} are assumptions. This is an energy-over-travel equivalent, not a peak contact-force prediction.
           </p>
-
           <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
             <Row label="Ideal hammer work" value={fmtWork(c.Whammer)} />
             <Row label="η · hammer work" value={lens.WhammerAvailable === undefined ? "—" : fmtWork(lens.WhammerAvailable)} />
-            <Row label="Ideal release work" value={fmtWork(c.WreleaseIdeal)} />
-            <Row label="Efficiency-adj. release" value={lens.WreleaseEta === undefined ? "—" : fmtWork(lens.WreleaseEta)} />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-[11px] text-zinc-600">Hammer mass (secondary)</label>
-            <div className="flex items-center gap-1">
-              {(["specified", "undefined"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMassMode(m)}
-                  className={`rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
-                    massMode === m ? "border-zinc-800 bg-zinc-800 text-white" : "border-zinc-300 text-zinc-500 hover:bg-zinc-100"
-                  }`}
-                >
-                  {m === "specified" ? "Specified" : "Undefined"}
-                </button>
-              ))}
-            </div>
-            <input
-              type="number"
-              value={massMode === "undefined" ? "" : massValue}
-              step={0.01}
-              min={0}
-              disabled={massMode === "undefined"}
-              onChange={(e) => {
-                const next = Number.parseFloat(e.target.value);
-                if (Number.isFinite(next)) setMassValue(next);
-              }}
-              className="w-[70px] rounded border border-zinc-300 px-1.5 py-1 text-right font-mono text-[12px] focus:border-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
-            />
-            <span className="text-[10px] text-zinc-400">lbm</span>
-          </div>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
             <Row label="Hammer KE" value={lens.KE === undefined ? "—" : `${formatValue(lens.KE)} ft·lbf`} />
-            <Row
-              label="Hammer velocity"
-              value={massMode === "undefined" ? "No Mass Applied" : lens.velocity === undefined ? "—" : `${formatValue(lens.velocity)} ft/s`}
-            />
-            <Row
-              label="Hammer momentum"
-              value={massMode === "undefined" ? "No Mass Applied" : lens.momentum === undefined ? "—" : `${formatValue(lens.momentum)} lbm·ft/s`}
-            />
+            <Row label="Hammer velocity" value={lens.velocity === undefined ? "mass required" : `${formatValue(lens.velocity)} ft/s`} />
+            <Row label="Latch-drive work" value={lens.latchDriveWork === undefined ? "both masses required" : fmtWork(lens.latchDriveWork)} />
+            <Row label="Average force equivalent" value={lens.massAdjustedAverageEquivalent === undefined ? "—" : fmtLbf(lens.massAdjustedAverageEquivalent)} />
+            <Row label="Triangular peak equivalent" value={lens.massAdjustedTriangularPeakEquivalent === undefined ? "—" : fmtLbf(lens.massAdjustedTriangularPeakEquivalent)} />
           </div>
           <p className="text-[9.5px] italic leading-tight text-zinc-400">
-            Hammer mass is not needed for the spring geometry optimization; it only feeds these
-            secondary kinematics. None of these determine dynamic contact force.
+            Missing masses suppress collision outputs. Contact stiffness, duration, local deformation and rebound still govern real peak force.
           </p>
         </div>
       </details>

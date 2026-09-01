@@ -35,6 +35,11 @@ export interface V2Material {
   /** Optimistic (high) end of the published tensile-strength range [psi]. */
   tensileMaxPsi: number;
   sourceLabel: string;
+  sourceUrl: string;
+  /** Wire condition represented by the benchmark values. */
+  condition: string;
+  /** Scope caveat shown next to the preset. */
+  note: string;
 }
 
 /**
@@ -62,6 +67,22 @@ export interface V2Scenario {
   materialId: string;
   /** Scenario shear modulus G [psi]; initialized from the benchmark material. */
   shearModulusPsi: number;
+
+  // ── Impact-equivalent assumptions (shared by Engineer + Optimize) ──
+  /** Hammer moving mass [lbm], or null when not supplied. */
+  hammerMassLbm: number | null;
+  /** HF latch moving mass [lbm], or null when not supplied. */
+  latchMassLbm: number | null;
+  /** Assumed spring-work transfer efficiency [0..1]. Default 1.0. */
+  impactEfficiency: number;
+  /** Optional body-material presets used only for density-based mass estimates. */
+  hammerBodyMaterialId: string;
+  latchBodyMaterialId: string;
+  /** Modeled body volumes [in³], or null when mass is entered directly. */
+  hammerVolumeIn3: number | null;
+  latchVolumeIn3: number | null;
+  /** 1-D coefficient of restitution [0..1]; empirical/advisory, not a spring property. */
+  impactRestitution: number;
 
   // ── Lee-derived model guidance ──
   /** Nominal-solid-height tolerance fraction (Lee +5% → 0.05). Hs_max = (1+tol)·Hs_nom. */
@@ -208,6 +229,9 @@ export interface V2SweepResult {
   feasible: V2Candidate[];
   /** Keys of the Pareto-frontier candidates. */
   paretoKeys: string[];
+  /** Three explainable near-maximum recommendations: hammer, total, follow-through. */
+  recommendedKeys: string[];
+  recommendedRoles: Record<string, "hammer" | "total" | "follow-through">;
   /** How many candidates were excluded and why. */
   exclusionStats: V2ExclusionStats;
   totalCount: number;

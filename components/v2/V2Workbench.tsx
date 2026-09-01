@@ -7,7 +7,6 @@ import type {
   V2Scenario,
   V2ShortlistEntry,
 } from "@/lib/v2/types";
-import { DEFAULT_V2_SCENARIO } from "@/lib/v2/defaults";
 import { sweepV2DesignSpace } from "@/lib/v2/sweepDesignSpace";
 import { getV2Material } from "@/lib/v2/materials";
 import {
@@ -42,21 +41,22 @@ export function V2Workbench({
   onOpenEngineering,
   deflectionConstraint,
   onDeflectionConstraintChange,
+  scenario,
+  onScenarioChange,
+  onResetScenario,
 }: {
   onSelectedCandidateChange: (candidate: V2Candidate, scenario: V2Scenario) => void;
   onOpenEngineering: () => void;
   deflectionConstraint: DeflectionConstraintState;
   onDeflectionConstraintChange: (value: DeflectionConstraintState) => void;
+  scenario: V2Scenario;
+  onScenarioChange: (patch: Partial<V2Scenario>) => void;
+  onResetScenario: () => void;
 }) {
-  const [localScenario, setLocalScenario] = useState<V2Scenario>(DEFAULT_V2_SCENARIO);
   const [metric, setMetric] = useState<V2LandscapeMetric>("FeqAvgIdeal");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [shortlist, setShortlist] = useState<V2ShortlistEntry[]>([]);
 
-  const scenario = useMemo(
-    () => ({ ...localScenario, maxDeflectionUtilization: deflectionConstraint.maxUtilization }),
-    [localScenario, deflectionConstraint.maxUtilization],
-  );
   const material = getV2Material(scenario.materialId);
 
   // Pure sweep — recomputed ONLY when the scenario changes.
@@ -86,17 +86,11 @@ export function V2Workbench({
         maxUtilization: patch.maxDeflectionUtilization,
       });
     }
-    const localPatch = { ...patch };
-    delete localPatch.maxDeflectionUtilization;
-    if (Object.keys(localPatch).length > 0) setLocalScenario((prev) => ({ ...prev, ...localPatch }));
+    onScenarioChange(patch);
   };
 
   const resetScenario = () => {
-    setLocalScenario(DEFAULT_V2_SCENARIO);
-    onDeflectionConstraintChange({
-      ...deflectionConstraint,
-      maxUtilization: DEFAULT_V2_SCENARIO.maxDeflectionUtilization,
-    });
+    onResetScenario();
   };
 
   const currentScenarioSignature = useMemo(() => v2ScenarioSignature(scenario), [scenario]);
@@ -123,7 +117,7 @@ export function V2Workbench({
   };
 
   const restoreShortlistEntry = (entry: V2ShortlistEntry) => {
-    setLocalScenario({ ...entry.scenario });
+    onScenarioChange(entry.scenario);
     onDeflectionConstraintChange({
       ...deflectionConstraint,
       maxUtilization: entry.scenario.maxDeflectionUtilization,
@@ -178,6 +172,7 @@ export function V2Workbench({
             onDeflectionConstraintChange={onDeflectionConstraintChange}
             referenceWorkingDeflection={selected?.x0}
             referenceShearStressPsi={selected?.tau}
+            selectedCandidate={selected}
           />
         </div>
         <div
