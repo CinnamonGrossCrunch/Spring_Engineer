@@ -775,7 +775,20 @@ console.log("\n── V2 (g2) Shared impact assumptions and persistence ──�
   };
   const lens = applyScenarioImpactLens(candidate, scenario);
   assert("impact lens calculates velocity when hammer mass exists", lens.velocity !== undefined && lens.velocity > 0);
-  assert("impact lens calculates mass-adjusted equivalent when both masses exist", lens.massAdjustedAverageEquivalent !== undefined && lens.massAdjustedAverageEquivalent > 0);
+  assert("impact lens calculates latch-only KE transfer when both masses exist", lens.latchPostImpactKE !== undefined && lens.latchPostImpactKE > 0);
+  assert("impact lens calculates coupled-drive equivalent when both masses exist", lens.coupledAverageEquivalent !== undefined && lens.coupledAverageEquivalent > 0);
+  const equalMassScenario: V2Scenario = { ...scenario, hammerMassLbm: 0.05 };
+  const heavyHammerScenario: V2Scenario = { ...scenario, hammerMassLbm: 0.15 };
+  const equalMassLens = applyScenarioImpactLens(candidate, equalMassScenario);
+  const heavyHammerLens = applyScenarioImpactLens(candidate, heavyHammerScenario);
+  assert(
+    "heavier hammer retains more coupled-drive energy at fixed incoming spring work",
+    (heavyHammerLens.coupledDriveWork ?? 0) > (equalMassLens.coupledDriveWork ?? 0),
+  );
+  assert(
+    "latch-only KE can fall above the equal-mass transfer point",
+    (heavyHammerLens.latchPostImpactKE ?? Infinity) < (equalMassLens.latchPostImpactKE ?? 0),
+  );
   check("tungsten mass estimate uses density × volume", estimateBodyMassLbm("tungstenHeavyAlloy", 0.38473079) ?? undefined, 0.650 * 0.38473079, 0.001);
   const restored = parseStoredV2Scenario(JSON.stringify(scenario));
   assert("shared scenario storage round-trips material, masses and efficiency", restored?.hammerMassLbm === 0.25 && restored.latchMassLbm === 0.05 && restored.impactEfficiency === 1);

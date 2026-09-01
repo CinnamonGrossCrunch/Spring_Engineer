@@ -35,10 +35,11 @@ export function CandidateDataSheetHero({ candidate: c, scenario, material }: { c
               ["Hammer travel", `${c.s.toFixed(3)} in`],
               ["Hammer work", `${c.Whammer.toFixed(2)} in·lbf`],
               ["Contact force", `${c.F2.toFixed(1)} lbf`],
-              ["Avg equivalent", lens.massAdjustedAverageEquivalent === undefined ? "masses required" : `${lens.massAdjustedAverageEquivalent.toFixed(0)} lbf`],
+              ["Coupled avg equiv.*", lens.coupledAverageEquivalent === undefined ? "masses required" : `${lens.coupledAverageEquivalent.toFixed(0)} lbf`],
             ].map(([label, value]) => <div key={label} className="rounded-lg border border-white/15 bg-white/10 p-2"><div className="text-[9px] uppercase tracking-wide text-zinc-400">{label}</div><div className="mt-0.5 font-mono text-sm font-semibold">{value}</div></div>)}
           </div>
-          {lens.massAdjustedAverageEquivalent === undefined && <p className="mt-2 rounded border border-amber-400/30 bg-amber-400/10 px-2 py-1.5 text-[10px] text-amber-200">Hammer and latch masses are incomplete, so this sheet shows spring work and ideal force equivalents only.</p>}
+          {lens.coupledAverageEquivalent === undefined && <p className="mt-2 rounded border border-amber-400/30 bg-amber-400/10 px-2 py-1.5 text-[10px] text-amber-200">Hammer and latch masses are incomplete, so this sheet shows spring work and ideal force equivalents only.</p>}
+          {lens.coupledAverageEquivalent !== undefined && <p className="mt-2 text-[9px] leading-snug text-zinc-400">*Uses combined post-impact hammer+latch KE and assumes the hammer remains engaged through follow-through; not peak contact force.</p>}
         </div>
         <div className="rounded-xl border border-white/10 bg-white p-3 text-zinc-900 shadow-xl">
           <svg viewBox="0 0 430 220" className="h-auto w-full" role="img" aria-label="Spring at armed, hammer-contact and follow-through lengths">

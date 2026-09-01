@@ -265,12 +265,15 @@ export function V2PerformancePanel({
             <Row label="η · hammer work" value={lens.WhammerAvailable === undefined ? "—" : fmtWork(lens.WhammerAvailable)} />
             <Row label="Hammer KE" value={lens.KE === undefined ? "—" : `${formatValue(lens.KE)} ft·lbf`} />
             <Row label="Hammer velocity" value={lens.velocity === undefined ? "mass required" : `${formatValue(lens.velocity)} ft/s`} />
-            <Row label="Latch-drive work" value={lens.latchDriveWork === undefined ? "both masses required" : fmtWork(lens.latchDriveWork)} />
-            <Row label="Average force equivalent" value={lens.massAdjustedAverageEquivalent === undefined ? "—" : fmtLbf(lens.massAdjustedAverageEquivalent)} />
-            <Row label="Triangular peak equivalent" value={lens.massAdjustedTriangularPeakEquivalent === undefined ? "—" : fmtLbf(lens.massAdjustedTriangularPeakEquivalent)} />
+            <Row label="Hammer momentum" value={lens.momentum === undefined ? "mass required" : `${formatValue(lens.momentum)} lbm·ft/s`} />
+            <Row label="Latch KE transfer" value={lens.latchPostImpactKE === undefined ? "both masses required" : fmtWork(lens.latchPostImpactKE * 12)} />
+            <Row label="Combined post-impact KE" value={lens.combinedPostImpactKE === undefined ? "both masses required" : `${formatValue(lens.combinedPostImpactKE)} ft·lbf`} />
+            <Row label="Coupled-drive work*" value={lens.coupledDriveWork === undefined ? "both masses required" : fmtWork(lens.coupledDriveWork)} />
+            <Row label="Coupled average equivalent*" value={lens.coupledAverageEquivalent === undefined ? "—" : fmtLbf(lens.coupledAverageEquivalent)} />
+            <Row label="Coupled triangular equivalent*" value={lens.coupledTriangularPeakEquivalent === undefined ? "—" : fmtLbf(lens.coupledTriangularPeakEquivalent)} />
           </div>
           <p className="text-[9.5px] italic leading-tight text-zinc-400">
-            Missing masses suppress collision outputs. Contact stiffness, duration, local deformation and rebound still govern real peak force.
+            *Coupled drive counts total hammer+latch translational KE plus follow-through spring work and applies only while the hammer remains engaged. Latch KE transfer is the latch-only amount immediately after collision. Missing masses suppress collision outputs; contact stiffness, duration, deformation and rebound still govern real peak force.
           </p>
         </div>
       </details>

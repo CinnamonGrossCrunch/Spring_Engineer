@@ -27,13 +27,17 @@ export interface V2ImpactLens {
   /** Hammer momentum at contact [lbm·ft/s] (requires mass). */
   momentum: number | undefined;
   /** Latch kinetic energy immediately after the assumed 1-D collision [ft·lbf]. */
-  postImpactKE: number | undefined;
-  /** Retained collision energy plus efficiency-adjusted follow-through work [in·lbf]. */
-  latchDriveWork: number | undefined;
-  /** Mass-adjusted average force equivalent over the known latch travel [lbf]. */
-  massAdjustedAverageEquivalent: number | undefined;
-  /** 2× average, only for a triangular force-over-travel assumption [lbf]. */
-  massAdjustedTriangularPeakEquivalent: number | undefined;
+  latchPostImpactKE: number | undefined;
+  /** Hammer kinetic energy immediately after the assumed 1-D collision [ft·lbf]. */
+  hammerPostImpactKE: number | undefined;
+  /** Total translational KE of hammer + latch immediately after collision [ft·lbf]. */
+  combinedPostImpactKE: number | undefined;
+  /** Total post-impact translational KE plus follow-through spring work [in·lbf]. */
+  coupledDriveWork: number | undefined;
+  /** Coupled-drive energy divided by the known latch travel [lbf]. */
+  coupledAverageEquivalent: number | undefined;
+  /** 2× coupled average, only for a triangular force-over-travel assumption [lbf]. */
+  coupledTriangularPeakEquivalent: number | undefined;
 }
 
 /**
@@ -60,10 +64,12 @@ export function applyImpactLens(
       KE: undefined,
       velocity: undefined,
       momentum: undefined,
-      postImpactKE: undefined,
-      latchDriveWork: undefined,
-      massAdjustedAverageEquivalent: undefined,
-      massAdjustedTriangularPeakEquivalent: undefined,
+      latchPostImpactKE: undefined,
+      hammerPostImpactKE: undefined,
+      combinedPostImpactKE: undefined,
+      coupledDriveWork: undefined,
+      coupledAverageEquivalent: undefined,
+      coupledTriangularPeakEquivalent: undefined,
     };
   }
 
@@ -78,15 +84,24 @@ export function applyImpactLens(
   const latchVelocity = velocity !== undefined && hasLatchMass
     ? ((1 + e) * hammerMass! / (hammerMass! + latchMass!)) * velocity
     : undefined;
-  const postImpactKE = latchVelocity === undefined
+  const hammerVelocityAfterImpact = velocity !== undefined && hasLatchMass
+    ? ((hammerMass! - e * latchMass!) / (hammerMass! + latchMass!)) * velocity
+    : undefined;
+  const latchPostImpactKE = latchVelocity === undefined
     ? undefined
     : kineticEnergy(latchMass!, latchVelocity);
-  const latchDriveWork = postImpactKE === undefined
+  const hammerPostImpactKE = hammerVelocityAfterImpact === undefined
     ? undefined
-    : postImpactKE * 12 + eta * candidate.Wlatch;
-  const massAdjustedAverageEquivalent =
-    latchDriveWork !== undefined && candidate.L3 > candidate.L2
-      ? latchDriveWork / (candidate.L3 - candidate.L2)
+    : kineticEnergy(hammerMass!, hammerVelocityAfterImpact);
+  const combinedPostImpactKE = latchPostImpactKE === undefined || hammerPostImpactKE === undefined
+    ? undefined
+    : latchPostImpactKE + hammerPostImpactKE;
+  const coupledDriveWork = combinedPostImpactKE === undefined
+    ? undefined
+    : combinedPostImpactKE * 12 + eta * candidate.Wlatch;
+  const coupledAverageEquivalent =
+    coupledDriveWork !== undefined && candidate.L3 > candidate.L2
+      ? coupledDriveWork / (candidate.L3 - candidate.L2)
       : undefined;
 
   return {
@@ -97,11 +112,13 @@ export function applyImpactLens(
     KE,
     velocity,
     momentum: p,
-    postImpactKE,
-    latchDriveWork,
-    massAdjustedAverageEquivalent,
-    massAdjustedTriangularPeakEquivalent:
-      massAdjustedAverageEquivalent === undefined ? undefined : 2 * massAdjustedAverageEquivalent,
+    latchPostImpactKE,
+    hammerPostImpactKE,
+    combinedPostImpactKE,
+    coupledDriveWork,
+    coupledAverageEquivalent,
+    coupledTriangularPeakEquivalent:
+      coupledAverageEquivalent === undefined ? undefined : 2 * coupledAverageEquivalent,
   };
 }
 

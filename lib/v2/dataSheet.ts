@@ -243,7 +243,8 @@ For internal mechanism review. This summarizes what the mechanism requires and w
 - Latch follow-through work: ${work(c.Wlatch)}
 - Ideal total release work: ${work(c.WreleaseIdeal)} (not measured delivered energy)
 - Impact assumptions: η = ${(s.impactEfficiency * 100).toFixed(0)}%; restitution e = ${s.impactRestitution.toFixed(2)}; hammer mass ${s.hammerMassLbm === null ? "TBD" : `${s.hammerMassLbm.toFixed(4)} lbm`}; latch mass ${s.latchMassLbm === null ? "TBD" : `${s.latchMassLbm.toFixed(4)} lbm`}
-- Mass-adjusted latch-driving average force equivalent: ${impact.massAdjustedAverageEquivalent === undefined ? "not calculated — both masses are required" : `${lbf(impact.massAdjustedAverageEquivalent)} over the specified latch travel`} (energy-equivalent, not peak contact force)
+- Collision lens: latch-only KE ${impact.latchPostImpactKE === undefined ? "not calculated — both masses are required" : work(impact.latchPostImpactKE * 12)}; coupled-drive work* ${impact.coupledDriveWork === undefined ? "not calculated — both masses are required" : work(impact.coupledDriveWork)}; coupled average* ${impact.coupledAverageEquivalent === undefined ? "not calculated — both masses are required" : `${lbf(impact.coupledAverageEquivalent)} over the specified latch travel`}
+- *Coupled drive counts total hammer+latch translational KE after collision plus follow-through spring work and is available to drive the latch only while the hammer remains engaged. It is not peak contact force.
 - Stress guidance: ${stressSummary(c)}
 
 ## Assumptions and Decisions to Confirm
@@ -314,7 +315,7 @@ Armed-load shear stress	${ksi(c.tau)} (Wahl-corrected, K_w = ${c.Kw.toFixed(3)})
 Stress screening	${pct(c.stressPctBasis)} at the selected ${ksi(s.stressBasisPsi)} tensile-strength basis; ${stressSummary(c)}
 Hammer / latch mass	${s.hammerMassLbm === null ? "TBD" : `${s.hammerMassLbm.toFixed(4)} lbm`} / ${s.latchMassLbm === null ? "TBD" : `${s.latchMassLbm.toFixed(4)} lbm`}
 Impact efficiency / restitution	${pct(s.impactEfficiency)} / e = ${s.impactRestitution.toFixed(2)}
-Mass-adjusted average force equivalent	${impact.massAdjustedAverageEquivalent === undefined ? "Not calculated — both masses required" : lbf(impact.massAdjustedAverageEquivalent)} (over latch travel; not peak contact force)
+Collision lens	Latch-only KE: ${impact.latchPostImpactKE === undefined ? "Not calculated — both masses required" : work(impact.latchPostImpactKE * 12)}; coupled-drive work*: ${impact.coupledDriveWork === undefined ? "Not calculated — both masses required" : work(impact.coupledDriveWork)}; coupled average*: ${impact.coupledAverageEquivalent === undefined ? "Not calculated — both masses required" : lbf(impact.coupledAverageEquivalent)} over latch travel. *Counts total post-impact hammer+latch KE plus follow-through spring work and applies only while the hammer remains engaged; not peak contact force
 
 ## 3. Our Assumptions for Vendor Review
 

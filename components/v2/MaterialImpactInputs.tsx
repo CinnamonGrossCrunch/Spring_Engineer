@@ -128,11 +128,14 @@ export function MaterialImpactInputs({ scenario, onChange, candidate, compact = 
         {lens && (
           <div className="mt-2 grid grid-cols-2 gap-1 rounded bg-blue-50 p-2 text-[9.5px] text-blue-900">
             <span>Hammer speed</span><b className="text-right font-mono">{lens.velocity === undefined ? "mass required" : `${lens.velocity.toFixed(1)} ft/s`}</b>
-            <span>Latch-drive work</span><b className="text-right font-mono">{lens.latchDriveWork === undefined ? "both masses required" : `${lens.latchDriveWork.toFixed(2)} in·lbf`}</b>
-            <span>Avg force equivalent</span><b className="text-right font-mono">{lens.massAdjustedAverageEquivalent === undefined ? "—" : `${lens.massAdjustedAverageEquivalent.toFixed(0)} lbf`}</b>
+            <span>Hammer momentum</span><b className="text-right font-mono">{lens.momentum === undefined ? "mass required" : `${lens.momentum.toFixed(2)} lbm·ft/s`}</b>
+            <span>Latch KE transfer</span><b className="text-right font-mono">{lens.latchPostImpactKE === undefined ? "both masses required" : `${(lens.latchPostImpactKE * 12).toFixed(2)} in·lbf`}</b>
+            <span>Coupled-drive work*</span><b className="text-right font-mono">{lens.coupledDriveWork === undefined ? "both masses required" : `${lens.coupledDriveWork.toFixed(2)} in·lbf`}</b>
+            <span>Coupled avg equivalent*</span><b className="text-right font-mono">{lens.coupledAverageEquivalent === undefined ? "—" : `${lens.coupledAverageEquivalent.toFixed(0)} lbf`}</b>
           </div>
         )}
-        <p className="mt-2 text-[9px] leading-snug text-zinc-400">Density estimates mass from CAD volume. Restitution is an empirical 1-D collision input; verify it by test because hardness, geometry, finish and speed dominate the real contact event.</p>
+        <p className="mt-2 text-[9px] leading-snug text-zinc-400">*Coupled drive uses total hammer+latch translational KE after impact plus follow-through spring work. It is available to drive the latch only while the hammer remains engaged; latch KE transfer is the latch-only amount immediately after collision. Neither value is peak contact force.</p>
+        <p className="mt-1 text-[9px] leading-snug text-zinc-400">Density estimates mass from CAD volume. Restitution is an empirical 1-D collision input; verify it by test because hardness, geometry, finish and speed dominate the real contact event.</p>
       </section>
     </div>
   );
