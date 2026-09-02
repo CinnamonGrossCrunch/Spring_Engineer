@@ -29,7 +29,7 @@ import { computePareto, recommendTopCandidates } from "../v2/pareto";
 import { DEFAULT_V2_SCENARIO, computeHistoricalReference } from "../v2/defaults";
 import type { V2Candidate, V2Scenario } from "../v2/types";
 import { generateMechanismSummary, generateVendorRfq, shareSheetToHtml, shareSheetToTableHtml, springDataSheetFilename } from "../v2/dataSheet";
-import { getV2Material } from "../v2/materials";
+import { getV2Material, listV2Materials } from "../v2/materials";
 import { applyScenarioImpactLens } from "../v2/impactLens";
 import { estimateBodyMassLbm } from "../v2/impactMaterials";
 import { parseStoredV2Scenario } from "../v2/scenarioStorage";
@@ -704,6 +704,13 @@ console.log("\n── V2 (f2) Deflection constraint representations ────
 // ──────────────────────────────────────────────────────────────────────
 console.log("\n── V2 (g) Spring vendor data sheet ───────────────────");
 {
+  const stainless177 = getV2Material("stainless177Ph");
+  assert("17-7 PH appears in the spring-material selector library", listV2Materials().some((material) => material.id === stainless177.id));
+  check("17-7 PH uses Lee's published shear modulus", stainless177.shearModulusPsi, 11_000_000);
+  check("17-7 PH uses Lee's CH900 tensile minimum", stainless177.tensileMinPsi, 230_000);
+  check("17-7 PH uses Lee's CH900 tensile maximum", stainless177.tensileMaxPsi, 343_000);
+  assert("17-7 PH records AMS 5678, CH900 and Lee provenance", stainless177.specification === "AMS 5678" && stainless177.condition.includes("CH900") && stainless177.sourceUrl.includes("leespring.com"));
+
   const scenario = DEFAULT_V2_SCENARIO;
   const candidate = evaluateV2Candidate(scenario, 0.137, 3.6);
   const material = getV2Material(scenario.materialId);

@@ -8,9 +8,8 @@ import type { V2Material } from "./types";
  * tensile range is a published property window, not an exact certification for
  * the eventual wire diameter / heat-treatment condition.
  *
- * The structure is deliberately open so future options (17-7 PH, Inconel
- * X-750, chrome silicon, …) can be added later. Elgiloy alone is enough for the
- * V2 initial optimization.
+ * The structure is deliberately open so future options (Inconel X-750, other
+ * stainless grades, …) can be added without duplicating optimization logic.
  */
 export const V2_MATERIALS: Record<string, V2Material> = {
   elgiloy: {
@@ -24,6 +23,18 @@ export const V2_MATERIALS: Record<string, V2Material> = {
     sourceUrl: "https://www.elgiloy.com/wire-elgiloy-alloy",
     condition: "Spring temper + aged",
     note: "Typical published properties; final strength depends on supplied wire condition and aging.",
+  },
+  stainless177Ph: {
+    id: "stainless177Ph",
+    name: "17-7 PH Stainless Steel",
+    specification: "AMS 5678",
+    shearModulusPsi: 11_000_000,
+    tensileMinPsi: 230_000,
+    tensileMaxPsi: 343_000,
+    sourceLabel: "Lee Spring material guidance — 17-7 PH, Condition CH900",
+    sourceUrl: "https://www.leespring.com/spring-materials",
+    condition: "Condition CH900; precipitation hardened after spring fabrication",
+    note: "Lee-published benchmark: G = 11.0 Mpsi and 230–343 ksi in CH900. Final wire-size properties and heat treatment must be confirmed with the spring supplier.",
   },
   musicWire: {
     id: "musicWire",
