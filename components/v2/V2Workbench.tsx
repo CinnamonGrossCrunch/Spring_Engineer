@@ -196,7 +196,7 @@ export function V2Workbench({
             shortlist={currentScenarioShortlistKeys}
             onToggleShortlist={toggleShortlist}
           />
-          {selected && <V2ForceWorkChart candidate={selected} />}
+          {selected && <V2ForceWorkChart candidate={selected} scenario={scenario} />}
         </div>
         {selected && (
           <div className="min-w-0 space-y-3 xl:col-span-4">
@@ -285,6 +285,7 @@ export function V2Workbench({
       {/* Candidate table */}
       <V2CandidateTable
         sweep={sweep}
+        scenario={scenario}
         selectedKey={selected?.key ?? null}
         onSelect={setSelectedKey}
         shortlist={currentScenarioShortlistKeys}

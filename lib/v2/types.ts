@@ -84,9 +84,17 @@ export interface V2Scenario {
   /** 1-D coefficient of restitution [0..1]; empirical/advisory, not a spring property. */
   impactRestitution: number;
 
-  // ── Lee-derived model guidance ──
-  /** Nominal-solid-height tolerance fraction (Lee +5% → 0.05). Hs_max = (1+tol)·Hs_nom. */
+  // ── Derived model guidance ──
+  /** Nominal-solid-height tolerance fraction. Hs_max = (1+tol)·Hs_nom. */
   solidHeightTolerance: number;
+
+  // ── Optional manufacturing-tolerance estimate ──
+  /** Whether advisory rate/free-length tolerance envelopes are shown. */
+  manufacturingToleranceEnabled: boolean;
+  /** Symmetric spring-rate tolerance fraction (for example, 0.10 = ±10%). */
+  springRateTolerance: number;
+  /** Symmetric free-length tolerance [in]. */
+  freeLengthTolerance: number;
 
   // ── Working-deflection constraint ──
   /** Maximum x_work / (Lf − Hs,max), held constant across every candidate in the scenario. */

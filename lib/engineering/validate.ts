@@ -36,7 +36,11 @@ import { parseStoredV2Scenario } from "../v2/scenarioStorage";
 import { DataSheetButton } from "../../components/v2/DataSheetButton";
 import { candidateCsvFilename, generateCandidateCsv } from "../v2/candidateCsv";
 import { CandidateCsvButton } from "../../components/v2/CandidateCsvButton";
-import { requiredSolidClearance, utilizationFromClearance } from "./deflectionConstraint";
+import {
+  DEFAULT_DEFLECTION_CONSTRAINT,
+  requiredSolidClearance,
+  utilizationFromClearance,
+} from "./deflectionConstraint";
 import { sortV2CandidatesByPriorities } from "../v2/candidateSort";
 import {
   DEFAULT_HOUSING_INNER_DIAMETER_MM,
@@ -55,6 +59,14 @@ import {
 } from "../v2/shortlist";
 import { candidateToV1Model, defaultV2CandidateToV1Model } from "../v2/inspectBridge";
 import { mechanismLatchBottoms } from "./mechanismLayout";
+import {
+  calculateManufacturingToleranceEnvelope,
+  forceAtHeight,
+  workBetweenHeights,
+} from "../v2/toleranceEnvelope";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { ScenarioAccordion, V2ScenarioPanel } from "../../components/v2/V2ScenarioPanel";
 
 let failures = 0;
 
@@ -745,7 +757,7 @@ console.log("\n── V2 (g) Spring vendor data sheet ────────�
   assert("vendor RFQ requests optimization of material assumptions", vendor.includes("Recommend the production material") && vendor.includes("Replace with applicable values"));
   assert("vendor RFQ includes prototype quantity placeholder", vendor.includes("Prototype quantity: ___"));
   assert("vendor RFQ keeps unspecified requirements TBD", vendor.includes("Fatigue duty / cycle target\tTBD") && vendor.includes("Temperature / corrosion / finish / cleanliness\tTBD"));
-  assert("mechanism summary stays concise", mechanism.split("\n").length < 55);
+  assert("mechanism summary stays concise", mechanism.split("\n").length < 65);
   assert("vendor RFQ stays concise", vendor.split("\n").filter(Boolean).length < 60);
   assert("mechanism export contains no Markdown headings", !mechanism.includes("# "));
   assert("vendor export contains plain-text bullets", vendor.includes("• "));
@@ -766,6 +778,125 @@ console.log("\n── V2 (g) Spring vendor data sheet ────────�
   buttonProps.onClick();
   assert("Export Data Sheet UI trigger invokes its handler", opened);
   assert("Export Data Sheet UI trigger is discoverable", buttonProps["data-testid"] === "export-data-sheet-button");
+}
+
+console.log("\n── V2 (g1) Manufacturing tolerance envelope ─────────");
+{
+  const base = evaluateV2Candidate(DEFAULT_V2_SCENARIO, 0.137, 2.8);
+  const k = 211.32;
+  const Lf = 1.461;
+  const Lc = 0.8;
+  const L2 = 1.15;
+  const L3 = 1.22;
+  const F0 = forceAtHeight(k, Lf, Lc);
+  const F2 = forceAtHeight(k, Lf, L2);
+  const F3 = forceAtHeight(k, Lf, L3);
+  const Whammer = workBetweenHeights(k, Lf, Lc, L2);
+  const Wlatch = workBetweenHeights(k, Lf, L2, L3);
+  const fixture: V2Candidate = {
+    ...base,
+    k,
+    Lf,
+    Lc,
+    L2,
+    L3,
+    s: L2 - Lc,
+    F0,
+    F2,
+    F3,
+    Whammer,
+    Wlatch,
+    WreleaseIdeal: Whammer + Wlatch,
+  };
+  const enabled: V2Scenario = {
+    ...DEFAULT_V2_SCENARIO,
+    forceCap: 140,
+    manufacturingToleranceEnabled: true,
+    springRateTolerance: 0.10,
+    freeLengthTolerance: 0.030,
+  };
+  const envelope = calculateManufacturingToleranceEnvelope(fixture, enabled);
+  assert("enabled tolerance scenario produces an envelope", envelope !== null);
+  check("tolerance nominal armed force", envelope?.forces.armed.nominal, 139.68252, 0.0001);
+  check("tolerance minimum armed force", envelope?.forces.armed.min, 120.008628, 0.0001);
+  check("tolerance maximum armed force", envelope?.forces.armed.max, 160.624332, 0.0001);
+  check("tolerance minimum contact force", envelope?.forces.contact.min, 53.442828, 0.0001);
+  check("tolerance maximum contact force", envelope?.forces.contact.max, 79.266132, 0.0001);
+  check("tolerance minimum released force", envelope?.forces.released.min, 40.129668, 0.0001);
+  check("tolerance maximum released force", envelope?.forces.released.max, 62.994492, 0.0001);
+  check("tolerance minimum hammer work", envelope?.work.hammer.min, 30.3540048, 0.0001);
+  check("tolerance maximum hammer work", envelope?.work.hammer.max, 41.9808312, 0.0001);
+  check("tolerance minimum total work", envelope?.work.total.min, 33.62904216, 0.0001);
+  check("tolerance maximum total work", envelope?.work.total.max, 46.95995304, 0.0001);
+  assert("nominal force passes while stacked maximum exceeds the hard cap", envelope?.nominalForceCapPass === true && envelope.worstCaseForceCapPass === false);
+  assert(
+    "every coherent corner total equals its hammer and latch work",
+    envelope?.corners.every((corner) => Math.abs(corner.totalWork - corner.hammerWork - corner.latchWork) < 1e-9) === true,
+  );
+
+  check(
+    "partially slack travel integrates only until free length",
+    workBetweenHeights(100, 1.18, 1.15, 1.22),
+    0.045,
+    0.0001,
+  );
+
+  const zeroEnvelope = calculateManufacturingToleranceEnvelope(fixture, {
+    ...enabled,
+    springRateTolerance: 0,
+    freeLengthTolerance: 0,
+  });
+  check("zero-tolerance minimum collapses to nominal", zeroEnvelope?.forces.contact.min, F2, 0.0001);
+  check("zero-tolerance maximum collapses to nominal", zeroEnvelope?.forces.contact.max, F2, 0.0001);
+  assert("disabled tolerance leaves no advisory envelope", calculateManufacturingToleranceEnvelope(fixture, { ...enabled, manufacturingToleranceEnabled: false }) === null);
+
+  const slackEnvelope = calculateManufacturingToleranceEnvelope(fixture, {
+    ...enabled,
+    freeLengthTolerance: 1,
+  });
+  check("slack tolerance corner clamps released force to zero", slackEnvelope?.forces.released.min, 0, 0.0001);
+  assert("slack tolerance corners never produce negative work", slackEnvelope?.corners.every((corner) => corner.hammerWork >= 0 && corner.latchWork >= 0 && corner.totalWork >= 0) === true);
+
+  const disabledSweep = sweepV2DesignSpace(DEFAULT_V2_SCENARIO);
+  const enabledSweep = sweepV2DesignSpace(enabled);
+  assert("advisory tolerances do not change Pareto membership", JSON.stringify(disabledSweep.paretoKeys) === JSON.stringify(enabledSweep.paretoKeys));
+  assert("advisory tolerances do not change recommended candidates", JSON.stringify(disabledSweep.recommendedKeys) === JSON.stringify(enabledSweep.recommendedKeys));
+  assert("advisory tolerances do not change nominal default candidate", disabledSweep.defaultKey === enabledSweep.defaultKey);
+
+  const material = getV2Material(enabled.materialId);
+  const exportCandidate = (enabledSweep.candidates.find((candidate) => candidate.key === enabledSweep.defaultKey) ?? enabledSweep.feasible[0])!;
+  assert("tolerance export test has a coherent evaluated candidate", exportCandidate !== undefined);
+  const mechanism = generateMechanismSummary({ candidate: exportCandidate, scenario: enabled, material, generatedAt: "2026-09-02T00:00:00.000Z" });
+  const vendor = generateVendorRfq({ candidate: exportCandidate, scenario: enabled, material, generatedAt: "2026-09-02T00:00:00.000Z" });
+  assert("enabled mechanism sheet includes min/nominal/max tolerance estimates", mechanism.includes("Manufacturing Tolerance Estimate") && mechanism.includes("Minimum estimate*") && mechanism.includes("Maximum estimate*"));
+  assert("enabled vendor RFQ asks supplier to replace advisory stack with guaranteed loads", vendor.includes("supplier-guaranteed loads") && vendor.includes("independent corner"));
+  assert("tolerance exports disclaim statistical certainty and omitted contributors", mechanism.includes("not a statistical confidence interval") && mechanism.includes("temperature") && mechanism.includes("correlated production data") && mechanism.includes("remain nominal"));
+  const disabledMechanism = generateMechanismSummary({ candidate: exportCandidate, scenario: { ...enabled, manufacturingToleranceEnabled: false }, material });
+  assert("disabled data sheet remains nominal-only", !disabledMechanism.includes("Manufacturing Tolerance Estimate"));
+
+  const oldStored = parseStoredV2Scenario(JSON.stringify({ forceCap: 125 }));
+  assert("old stored scenarios receive disabled backward-compatible tolerance defaults", oldStored?.manufacturingToleranceEnabled === false && oldStored.springRateTolerance === DEFAULT_V2_SCENARIO.springRateTolerance && oldStored.freeLengthTolerance === DEFAULT_V2_SCENARIO.freeLengthTolerance);
+  const restored = parseStoredV2Scenario(JSON.stringify(enabled));
+  assert("tolerance scenario round-trips through shared storage", restored?.manufacturingToleranceEnabled === true && restored.springRateTolerance === 0.10 && restored.freeLengthTolerance === 0.030);
+  assert("shortlist identity includes tolerance assumptions", v2ScenarioSignature(enabled) !== v2ScenarioSignature({ ...enabled, springRateTolerance: 0.05 }));
+
+  const accordionHtml = renderToStaticMarkup(createElement(
+    ScenarioAccordion,
+    { title: "Actual Mechanism Boundaries", tag: "Constraint", tagKind: "mechanism", testId: "scenario-test", info: "Details" },
+    createElement("div", null, "Inputs"),
+  ));
+  assert("scenario subset starts collapsed with accessible disclosure state", accordionHtml.includes('aria-expanded="false"') && accordionHtml.includes(" hidden=\"\""));
+  assert("scenario info trigger is independent and accessible", accordionHtml.includes('aria-controls=') && accordionHtml.includes('aria-expanded="false"') && accordionHtml.includes("Information about Actual Mechanism Boundaries"));
+
+  const scenarioPanelHtml = renderToStaticMarkup(createElement(V2ScenarioPanel, {
+    scenario: enabled,
+    material,
+    onChange: () => undefined,
+    onReset: () => undefined,
+    deflectionConstraint: DEFAULT_DEFLECTION_CONSTRAINT,
+    onDeflectionConstraintChange: () => undefined,
+  }));
+  assert("scenario guidance header is renamed in the full panel", scenarioPanelHtml.includes("Derived Model Guidance") && !scenarioPanelHtml.includes("Lee-Derived Model Guidance"));
 }
 
 console.log("\n── V2 (g2) Shared impact assumptions and persistence ─────────");
@@ -815,10 +946,20 @@ console.log("\n── V2 (h) Candidate CSV export ──────────
   assert("candidate CSV includes solid-height fields", lines[0].includes("nominal_solid_height_in") && lines[0].includes("maximum_solid_height_in"));
   assert("candidate CSV includes deflection constraint fields", lines[0].includes("required_clearance_above_maximum_solid_in") && lines[0].includes("deflection_utilization_pct"));
   assert("candidate CSV includes selected stress-basis fields", lines[0].includes("stress_basis_psi") && lines[0].includes("stress_pct_selected_basis"));
+  assert("candidate CSV reserves explicit manufacturing-tolerance fields", lines[0].includes("manufacturing_tolerance_enabled") && lines[0].includes("independent_corner_estimate_armed_force_min_lbf") && lines[0].includes("independent_corner_estimate_ideal_release_work_max_in_lbf"));
+  assert("candidate CSV identifies tolerance method and cap context", lines[0].includes("manufacturing_tolerance_method") && lines[0].includes("mechanism_force_cap_lbf") && lines[0].includes("independent_corner_estimate_armed_force_cap_excess_lbf"));
   assert("candidate CSV includes every supplied row", lines.length === candidates.length + 1);
   assert("candidate CSV preserves table row order", candidates.length === 0 || lines[1].startsWith(candidates[0].key));
   assert("candidate CSV records shortlist state", candidates.length === 0 || lines[1].includes(",true,"));
   assert("candidate CSV filename identifies view and date", candidateCsvFilename("pareto", new Date("2026-08-19T12:00:00.000Z")) === "spring-candidates_pareto_2026-08-19.csv");
+
+  const toleranceCsv = generateCandidateCsv(candidates, [], {
+    ...DEFAULT_V2_SCENARIO,
+    manufacturingToleranceEnabled: true,
+    springRateTolerance: 0.10,
+    freeLengthTolerance: 0.030,
+  });
+  assert("enabled candidate CSV writes tolerance assumptions, provenance, and calculated ranges", candidates.length === 0 || (toleranceCsv.includes(",true,independent_rate_free_length_corner_stack,140,10,0.03,") && toleranceCsv.split("\r\n")[1].split(",").length === toleranceCsv.split("\r\n")[0].split(",").length));
 
   let exported = false;
   const button = CandidateCsvButton({ onClick: () => { exported = true; } });

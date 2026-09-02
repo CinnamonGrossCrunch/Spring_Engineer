@@ -5,6 +5,10 @@ import {
 } from "./envelope";
 import { applyScenarioImpactLens } from "./impactLens";
 import { getImpactBodyMaterial } from "./impactMaterials";
+import {
+  calculateManufacturingToleranceEnvelope,
+  type ManufacturingToleranceEnvelope,
+} from "./toleranceEnvelope";
 
 export type DataSheetAudience = "mechanism" | "vendor";
 export type ShareSheetFormat = "text" | "table";
@@ -23,6 +27,9 @@ const rate = (value: number) => `${value.toFixed(2)} lbf/in (${(value * 0.175126
 const work = (value: number) => `${value.toFixed(2)} in·lbf (${(value * 0.112984829).toFixed(2)} J)`;
 const pct = (value: number) => `${(value * 100).toFixed(1)}%`;
 const ksi = (valuePsi: number) => `${(valuePsi / 1000).toFixed(1)} ksi`;
+const shortLbf = (value: number) => `${value.toFixed(2)} lbf`;
+const tableForce = (value: number) => `${value.toFixed(2)} lbf / ${(value * 4.4482216153).toFixed(1)} N`;
+const shortWork = (value: number) => `${value.toFixed(2)} in·lbf`;
 
 function materialName(material: V2Material): string {
   return `${material.name}${material.specification ? ` (${material.specification})` : ""}`;
@@ -35,6 +42,42 @@ function stressSummary(candidate: V2Candidate): string {
       ? "set/preset review band"
       : "redesign guidance band";
   return `${pct(candidate.stressPctOptimistic)}–${pct(candidate.stressPctConservative)} of published tensile range; ${band}`;
+}
+
+function operatingStateTable(
+  candidate: V2Candidate,
+  tolerance: ManufacturingToleranceEnvelope | null,
+): string {
+  if (!tolerance) {
+    return `State\tSpring length\tCalculated spring force
+Armed / compressed\t${inch(candidate.Lc)}\t${lbf(candidate.F0)} nominal at mechanism cap
+Hammer contact\t${inch(candidate.L2)}\t${lbf(candidate.F2)} nominal
+Released / follow-through\t${inch(candidate.L3)}\t${lbf(candidate.F3)} nominal`;
+  }
+  return `State\tSpring length\tMinimum estimate*\tNominal\tMaximum estimate*
+Armed / compressed\t${inch(candidate.Lc)}\t${tableForce(tolerance.forces.armed.min)}\t${tableForce(tolerance.forces.armed.nominal)}\t${tableForce(tolerance.forces.armed.max)}
+Hammer contact\t${inch(candidate.L2)}\t${tableForce(tolerance.forces.contact.min)}\t${tableForce(tolerance.forces.contact.nominal)}\t${tableForce(tolerance.forces.contact.max)}
+Released / follow-through\t${inch(candidate.L3)}\t${tableForce(tolerance.forces.released.min)}\t${tableForce(tolerance.forces.released.nominal)}\t${tableForce(tolerance.forces.released.max)}`;
+}
+
+function tolerancePerformanceTable(
+  tolerance: ManufacturingToleranceEnvelope | null,
+  scenario: V2Scenario,
+): string {
+  if (!tolerance) return "";
+  const capStatus = tolerance.worstCaseForceCapPass
+    ? `Estimated armed maximum remains within the ${shortLbf(scenario.forceCap)} mechanism cap.`
+    : `Estimated armed maximum is ${shortLbf(tolerance.worstCaseForceCapExcess)} above the ${shortLbf(scenario.forceCap)} mechanism cap.`;
+  return `
+Manufacturing Tolerance Estimate
+Work metric\tMinimum estimate*\tNominal\tMaximum estimate*
+Hammer run-up work\t${shortWork(tolerance.work.hammer.min)}\t${shortWork(tolerance.work.hammer.nominal)}\t${shortWork(tolerance.work.hammer.max)}
+Latch follow-through work\t${shortWork(tolerance.work.latch.min)}\t${shortWork(tolerance.work.latch.nominal)}\t${shortWork(tolerance.work.latch.max)}
+Ideal total release work\t${shortWork(tolerance.work.total.min)}\t${shortWork(tolerance.work.total.nominal)}\t${shortWork(tolerance.work.total.max)}
+
+• Force-cap check: ${capStatus}
+• *Advisory independent corner stack using only ±${pct(scenario.springRateTolerance)} spring rate and ±${dualLength(scenario.freeLengthTolerance)} free length at fixed mechanism heights. This is not a statistical confidence interval or a supplier-guaranteed load range. Operating-height tolerance, temperature, friction, nonlinearity, solid-height variation beyond the separate modeled H_s,max allowance, and correlated production data are not included.
+• Stress, deflection/utilization, impact-equivalent values, Pareto ranking, and feasibility remain nominal; the tolerance envelope is not propagated into those outputs.`;
 }
 
 const SHARE_SHEET_HEADINGS = new Set([
@@ -54,6 +97,7 @@ const SHARE_SHEET_SUBHEADINGS = new Set([
   "Preliminary Candidate Geometry",
   "Operating States",
   "Calculated Results",
+  "Manufacturing Tolerance Estimate",
 ]);
 
 function communicationText(source: string): string {
@@ -205,6 +249,7 @@ export function generateMechanismSummary({
   const nominalOuterDiameter = nominalSpringOuterDiameter(s);
   const maximumFinishedOuterDiameter = maximumFinishedSpringOuterDiameter(s);
   const impact = applyScenarioImpactLens(c, s);
+  const tolerance = calculateManufacturingToleranceEnvelope(c, s);
 
   return communicationText(`# Spring Candidate — Mechanism Review
 
@@ -231,10 +276,10 @@ For internal mechanism review. This summarizes what the mechanism requires and w
 
 - Solid-height reference, nominal / modeled maximum: ${inch(c.HsNom)} / ${inch(c.HsMax)}
 - Free state: length ${inch(c.Lf)}
-- Armed / compressed state: length ${inch(c.Lc)}; spring force ${lbf(c.F0)}
-- Hammer-contact state: length ${inch(c.L2)}; spring force ${lbf(c.F2)}
-- Released / follow-through state: length ${inch(c.L3)}; spring force ${lbf(c.F3)}
 - Hammer run-up: ${inch(c.s)}
+
+Operating States
+${operatingStateTable(c, tolerance)}
 
 ## Predicted Mechanism Performance
 
@@ -245,7 +290,8 @@ For internal mechanism review. This summarizes what the mechanism requires and w
 - Impact assumptions: η = ${(s.impactEfficiency * 100).toFixed(0)}%; restitution e = ${s.impactRestitution.toFixed(2)}; hammer mass ${s.hammerMassLbm === null ? "TBD" : `${s.hammerMassLbm.toFixed(4)} lbm`}; latch mass ${s.latchMassLbm === null ? "TBD" : `${s.latchMassLbm.toFixed(4)} lbm`}
 - Collision lens: latch-only KE ${impact.latchPostImpactKE === undefined ? "not calculated — both masses are required" : work(impact.latchPostImpactKE * 12)}; coupled-drive work* ${impact.coupledDriveWork === undefined ? "not calculated — both masses are required" : work(impact.coupledDriveWork)}; coupled average* ${impact.coupledAverageEquivalent === undefined ? "not calculated — both masses are required" : `${lbf(impact.coupledAverageEquivalent)} over the specified latch travel`}
 - *Coupled drive counts total hammer+latch translational KE after collision plus follow-through spring work and is available to drive the latch only while the hammer remains engaged. It is not peak contact force.
-- Stress guidance: ${stressSummary(c)}
+- Nominal stress guidance: ${stressSummary(c)}
+${tolerancePerformanceTable(tolerance, s)}
 
 ## Assumptions and Decisions to Confirm
 
@@ -254,6 +300,7 @@ For internal mechanism review. This summarizes what the mechanism requires and w
 - Confirm that the armed, contact, and released lengths match the actual mechanism stops.
 - Confirm the ${s.forceCap.toFixed(0)} lbf force cap, ${dualLength(s.housingInnerDiameter)} housing/OD ceiling, ${dualLength(s.outerDiameterTolerance)} positive OD tolerance allowance, and ${s.latchTravel.toFixed(3)} in latch travel.
 - Confirm the ${(s.maxDeflectionUtilization * 100).toFixed(1)}% maximum-deflection-utilization scenario; equivalent clearance for this candidate is ${inch(c.solidClearance)} above modeled H_s,max.
+${tolerance ? `- Confirm the entered/assumed ±${pct(s.springRateTolerance)} rate and ±${dualLength(s.freeLengthTolerance)} free-length values, or replace this estimate with supplier-guaranteed loads at the three specified heights.` : ""}
 - If those inputs are correct, decide whether to send this candidate for vendor review and prototype quotation.
 
 Source: Spring Mechanism Explorer V2 · Candidate ${c.key} · Exported ${generatedAt}
@@ -271,6 +318,7 @@ export function generateVendorRfq({
   const nominalOuterDiameter = nominalSpringOuterDiameter(s);
   const maximumFinishedOuterDiameter = maximumFinishedSpringOuterDiameter(s);
   const impact = applyScenarioImpactLens(c, s);
+  const tolerance = calculateManufacturingToleranceEnvelope(c, s);
 
   return communicationText(`# Compression Spring Prototype RFQ
 
@@ -301,21 +349,19 @@ Active / total coils	${c.Na.toFixed(2)} / ${c.Nt.toFixed(2)}
 Free length	${inch(c.Lf)}
 
 Operating States
-State	Spring length	Calculated spring force
-Armed / compressed	${inch(c.Lc)}	${lbf(c.F0)} maximum
-Hammer contact	${inch(c.L2)}	${lbf(c.F2)} nominal
-Released / follow-through	${inch(c.L3)}	${lbf(c.F3)} nominal
+${operatingStateTable(c, tolerance)}
 
 Calculated Results
 Result	Preliminary value
 Spring rate	${rate(c.k)}
 Nominal solid height	${inch(c.HsNom)}
 Modeled maximum solid height	${inch(c.HsMax)}
-Armed-load shear stress	${ksi(c.tau)} (Wahl-corrected, K_w = ${c.Kw.toFixed(3)})
-Stress screening	${pct(c.stressPctBasis)} at the selected ${ksi(s.stressBasisPsi)} tensile-strength basis; ${stressSummary(c)}
+Nominal armed-load shear stress	${ksi(c.tau)} (Wahl-corrected, K_w = ${c.Kw.toFixed(3)})
+Nominal stress screening	${pct(c.stressPctBasis)} at the selected ${ksi(s.stressBasisPsi)} tensile-strength basis; ${stressSummary(c)}
 Hammer / latch mass	${s.hammerMassLbm === null ? "TBD" : `${s.hammerMassLbm.toFixed(4)} lbm`} / ${s.latchMassLbm === null ? "TBD" : `${s.latchMassLbm.toFixed(4)} lbm`}
 Impact efficiency / restitution	${pct(s.impactEfficiency)} / e = ${s.impactRestitution.toFixed(2)}
 Collision lens	Latch-only KE: ${impact.latchPostImpactKE === undefined ? "Not calculated — both masses required" : work(impact.latchPostImpactKE * 12)}; coupled-drive work*: ${impact.coupledDriveWork === undefined ? "Not calculated — both masses required" : work(impact.coupledDriveWork)}; coupled average*: ${impact.coupledAverageEquivalent === undefined ? "Not calculated — both masses required" : lbf(impact.coupledAverageEquivalent)} over latch travel. *Counts total post-impact hammer+latch KE plus follow-through spring work and applies only while the hammer remains engaged; not peak contact force
+${tolerancePerformanceTable(tolerance, s)}
 
 ## 3. Our Assumptions for Vendor Review
 
@@ -335,6 +381,7 @@ Fatigue duty / cycle target	TBD	Tell us what duty information is needed and what
 Temperature / corrosion / finish / cleanliness	TBD	Recommend requirements and identify any information needed from us
 Hammer / latch body materials	${getImpactBodyMaterial(s.hammerBodyMaterialId).name} / ${getImpactBodyMaterial(s.latchBodyMaterialId).name}	Used only for density-based mass estimates; confirm actual alloys and measured masses
 Collision elasticity	Coefficient of restitution e = ${s.impactRestitution.toFixed(2)} (assumed)	Empirical mechanism input; validate by test. It is not determined by material name alone
+${tolerance ? `Manufacturing load estimate	Enabled: ±${pct(s.springRateTolerance)} rate and ±${dualLength(s.freeLengthTolerance)} free length	Replace this independent worst-case estimate with supplier-guaranteed loads at the specified heights when available` : ""}
 
 Please return a recommended producible spring definition and identify any changes to the preliminary geometry or assumptions.
 

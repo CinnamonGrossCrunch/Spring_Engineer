@@ -19,6 +19,7 @@ import { canGenerateCad } from "@/lib/cad/validation";
 import { CadGenerationModal } from "./CadGenerationModal";
 import { DataSheetButton } from "./DataSheetButton";
 import { DataSheetModal } from "./DataSheetModal";
+import { ManufacturingToleranceSummary } from "./ManufacturingToleranceSummary";
 
 interface Props {
   candidate: V2Candidate;
@@ -198,18 +199,20 @@ export function V2PerformancePanel({
           <Row label={`${canonicalName("Whammer")} ${canonicalSym("Whammer")}`} value={fmtWork(c.Whammer)} />
           <Row label={`${canonicalName("Wlatch")} ${canonicalSym("Wlatch")}`} value={fmtWork(c.Wlatch)} />
           <Row label={`${canonicalName("WreleaseIdeal")} ${canonicalSym("WreleaseIdeal")}`} value={fmtWork(c.WreleaseIdeal)} hint="Ideal upper bound — not energy delivered to the latch" />
-          <Row label="Armed shear stress τ" value={`${(c.tau / 1000).toFixed(1)} ksi`} hint="Calculated from geometry, armed force, and Wahl correction" />
+          <Row label="Nominal armed shear stress τ" value={`${(c.tau / 1000).toFixed(1)} ksi`} hint="Calculated from nominal geometry, armed force, and Wahl correction" />
           <Row
-            label="Stress / selected TS basis"
+            label="Nominal stress / selected TS basis"
             value={fmtPct(c.stressPctBasis)}
             hint={`τ / ${(scenario.stressBasisPsi / 1000).toFixed(1)} ksi selected tensile-strength basis; published range ${Math.round(material.tensileMinPsi / 1000)}–${Math.round(material.tensileMaxPsi / 1000)} ksi`}
           />
           <Row
-            label="Stress / published TS range"
+            label="Nominal stress / published TS range"
             value={`${fmtPct(c.stressPctOptimistic)}–${fmtPct(c.stressPctConservative)}`}
           />
         </Group>
       </div>
+
+      <ManufacturingToleranceSummary candidate={c} scenario={scenario} />
 
       {/* Ideal force-equivalent proxies — visually distinct from contact force */}
       <div className="border-t border-zinc-100 bg-blue-50/40 px-3 py-2">

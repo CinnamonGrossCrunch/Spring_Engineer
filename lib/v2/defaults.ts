@@ -14,7 +14,8 @@ import {
  * Epistemic tiers (see the scenario panel):
  *   · Actual mechanism boundaries — forceCap, axialBudget, latchTravel
  *   · Fixed for this study        — housing envelope / OD tolerance, material
- *   · Lee-derived model guidance  — solidHeightTolerance, stress bands
+ *   · Derived model guidance      — solidHeightTolerance, stress bands
+ *   · Optional mfg. tolerances    — springRateTolerance, freeLengthTolerance
  *   · Working-deflection constraint — maxDeflectionUtilization
  *   · Numerical search bounds     — wire/coil ranges (NOT manufacturing limits)
  */
@@ -40,8 +41,14 @@ export const DEFAULT_V2_SCENARIO: V2Scenario = {
   latchVolumeIn3: null,
   impactRestitution: 0,
 
-  // Lee-derived model guidance
+  // Derived model guidance
   solidHeightTolerance: 0.05, // Lee +5% → Hs_max = 1.05·Hs_nom
+
+  // Optional manufacturing-tolerance estimate. Values mirror the current
+  // prototype quote but are inert until the user explicitly enables them.
+  manufacturingToleranceEnabled: false,
+  springRateTolerance: 0.10,
+  freeLengthTolerance: 0.030,
 
   // Working-deflection constraint — study default, not a Lee/vendor requirement
   maxDeflectionUtilization: DEFAULT_MAX_DEFLECTION_UTILIZATION,

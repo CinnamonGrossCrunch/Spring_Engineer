@@ -12,7 +12,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { V2Candidate } from "@/lib/v2/types";
+import type { V2Candidate, V2Scenario } from "@/lib/v2/types";
+import { calculateManufacturingToleranceEnvelope } from "@/lib/v2/toleranceEnvelope";
 import { formatLengthValue, formatValue } from "../StatusBadge";
 import { fmtWork } from "./v2format";
 
@@ -23,7 +24,7 @@ import { fmtWork } from "./v2format";
  * with their work integrals. There is deliberately NO 450/900 lbf latch line —
  * those numbers are not requirements.
  */
-export function V2ForceWorkChart({ candidate: c }: { candidate: V2Candidate }) {
+export function V2ForceWorkChart({ candidate: c, scenario }: { candidate: V2Candidate; scenario: V2Scenario }) {
   const { s, F0, F2, F3, Whammer, Wlatch } = c;
   const y = c.L3 - c.L2;
   const total = s + y;
@@ -41,6 +42,7 @@ export function V2ForceWorkChart({ candidate: c }: { candidate: V2Candidate }) {
   const yMax = ready ? Math.max(F0, 1) * 1.12 : 1;
   const yMin = ready ? Math.min(F3, 0) : 0;
   const xTicks = ready ? uniqueTicks([0, s, total]) : [0, 1];
+  const tolerance = calculateManufacturingToleranceEnvelope(c, scenario);
 
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-4">
@@ -126,10 +128,19 @@ export function V2ForceWorkChart({ candidate: c }: { candidate: V2Candidate }) {
             </span>
             <span className="ml-auto italic">Slope = −k. Spring force at contact is not impact force.</span>
           </div>
+          {tolerance && (
+            <p className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[9.5px] leading-snug text-amber-900">
+              Nominal line shown. Manufacturing estimate: F₀ {fmtForceRange(tolerance.forces.armed)}, F₂ {fmtForceRange(tolerance.forces.contact)}, F₃ {fmtForceRange(tolerance.forces.released)}. Independent rate/free-length tolerance stack; not a peak contact-force range.
+            </p>
+          )}
         </>
       )}
     </div>
   );
+}
+
+function fmtForceRange(range: { min: number; max: number }): string {
+  return `${formatValue(range.min)}–${formatValue(range.max)} lbf`;
 }
 
 function uniqueTicks(ticks: number[]): number[] {

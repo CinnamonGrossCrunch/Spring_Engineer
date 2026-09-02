@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useMemo, useState } from "react";
-import type { V2Candidate, V2SweepResult } from "@/lib/v2/types";
+import type { V2Candidate, V2Scenario, V2SweepResult } from "@/lib/v2/types";
 import { canonicalName, canonicalSym } from "@/lib/engineering/nomenclature";
 import { STRESS_BAND_META, fmtCoils } from "./v2format";
 import { formatValue } from "../StatusBadge";
@@ -15,6 +15,7 @@ import {
 
 interface Props {
   sweep: V2SweepResult;
+  scenario: V2Scenario;
   selectedKey: string | null;
   onSelect: (key: string) => void;
   shortlist: string[];
@@ -64,7 +65,7 @@ const COLS: Col[] = [
  * the top feasible candidates by the selected sort. Header is "Best by selected
  * metric", never "the answer".
  */
-export function V2CandidateTable({ sweep, selectedKey, onSelect, shortlist, onToggleShortlist }: Props) {
+export function V2CandidateTable({ sweep, scenario, selectedKey, onSelect, shortlist, onToggleShortlist }: Props) {
   const [mode, setMode] = useState<"pareto" | "feasible">("pareto");
   const [sortPriorities, setSortPriorities] = useState<V2CandidateSortPriority[]>([
     { key: "FeqAvgIdeal", direction: "desc" },
@@ -108,7 +109,7 @@ export function V2CandidateTable({ sweep, selectedKey, onSelect, shortlist, onTo
   const columnFor = (key: V2CandidateSortKey) => COLS.find((column) => column.key === key)!;
 
   const exportCsv = () => {
-    const csv = generateCandidateCsv(rows, shortlist);
+    const csv = generateCandidateCsv(rows, shortlist, scenario);
     const url = URL.createObjectURL(new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" }));
     const anchor = document.createElement("a");
     anchor.href = url;

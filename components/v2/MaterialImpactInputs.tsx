@@ -16,6 +16,10 @@ interface Props {
   compact?: boolean;
 }
 
+interface EmbeddedProps extends Omit<Props, "compact"> {
+  embedded?: boolean;
+}
+
 function OptionalNumber({
   value,
   onChange,
@@ -86,13 +90,15 @@ function BodyInput({
   );
 }
 
-export function MaterialImpactInputs({ scenario, onChange, candidate, compact = false }: Props) {
+function PanelShell({ embedded, children }: { embedded: boolean; children: React.ReactNode }) {
+  return embedded ? <>{children}</> : <section className="rounded-lg border border-zinc-200 bg-white p-3">{children}</section>;
+}
+
+export function SpringMaterialInputs({ scenario, onChange, embedded = false }: EmbeddedProps) {
   const material = getV2Material(scenario.materialId);
-  const lens = candidate ? applyScenarioImpactLens(candidate, scenario) : null;
   return (
-    <div className={compact ? "space-y-2" : "grid gap-3 lg:grid-cols-2"}>
-      <section className="rounded-lg border border-zinc-200 bg-white p-3">
-        <div className="mb-2 text-[10px] font-bold uppercase tracking-wide text-zinc-500">Spring material benchmark</div>
+    <PanelShell embedded={embedded}>
+        {!embedded && <div className="mb-2 text-[10px] font-bold uppercase tracking-wide text-zinc-500">Spring material benchmark</div>}
         <select
           value={scenario.materialId}
           onChange={(event) => {
@@ -110,11 +116,16 @@ export function MaterialImpactInputs({ scenario, onChange, candidate, compact = 
         </div>
         <p className="mt-2 text-[9.5px] leading-snug text-zinc-400">{material.note}</p>
         <a href={material.sourceUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[9.5px] text-blue-600 hover:underline">{material.sourceLabel} ↗</a>
-      </section>
+    </PanelShell>
+  );
+}
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-3">
+export function ImpactEquivalentInputs({ scenario, onChange, candidate, embedded = false }: EmbeddedProps) {
+  const lens = candidate ? applyScenarioImpactLens(candidate, scenario) : null;
+  return (
+    <PanelShell embedded={embedded}>
         <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">Impact-equivalent assumptions</span>
+          {!embedded && <span className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">Impact-equivalent assumptions</span>}
           <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">not peak contact force</span>
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
@@ -136,7 +147,15 @@ export function MaterialImpactInputs({ scenario, onChange, candidate, compact = 
         )}
         <p className="mt-2 text-[9px] leading-snug text-zinc-400">*Coupled drive uses total hammer+latch translational KE after impact plus follow-through spring work. It is available to drive the latch only while the hammer remains engaged; latch KE transfer is the latch-only amount immediately after collision. Neither value is peak contact force.</p>
         <p className="mt-1 text-[9px] leading-snug text-zinc-400">Density estimates mass from CAD volume. Restitution is an empirical 1-D collision input; verify it by test because hardness, geometry, finish and speed dominate the real contact event.</p>
-      </section>
+    </PanelShell>
+  );
+}
+
+export function MaterialImpactInputs({ scenario, onChange, candidate, compact = false }: Props) {
+  return (
+    <div className={compact ? "space-y-2" : "grid gap-3 lg:grid-cols-2"}>
+      <SpringMaterialInputs scenario={scenario} onChange={onChange} candidate={candidate} />
+      <ImpactEquivalentInputs scenario={scenario} onChange={onChange} candidate={candidate} />
     </div>
   );
 }

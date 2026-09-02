@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { V2Material, V2Scenario } from "@/lib/v2/types";
 import { DEFLECTION_UTILIZATION_SCENARIOS } from "@/lib/v2/defaults";
 import { SOURCE_TAG, fmtInMm, fmtPct } from "./v2format";
@@ -12,7 +12,7 @@ import {
   millimetersToInches,
   nominalSpringOuterDiameter,
 } from "@/lib/v2/envelope";
-import { MaterialImpactInputs } from "./MaterialImpactInputs";
+import { ImpactEquivalentInputs, SpringMaterialInputs } from "./MaterialImpactInputs";
 import type { V2Candidate } from "@/lib/v2/types";
 
 interface Props {
@@ -37,24 +37,94 @@ function SourceTag({ kind, children }: { kind: keyof typeof SOURCE_TAG; children
   );
 }
 
-function Section({
+export function ScenarioAccordion({
   title,
   tag,
   tagKind,
   children,
+  info,
+  testId,
 }: {
   title: string;
   tag: string;
   tagKind: keyof typeof SOURCE_TAG;
-  children: React.ReactNode;
+  children?: React.ReactNode;
+  info?: React.ReactNode;
+  testId: string;
 }) {
+  const [open, setOpen] = useState(false);
+  const contentId = useId();
+
   return (
-    <div className="border-t border-zinc-100 px-3 py-2.5 first:border-t-0">
-      <div className="mb-2 flex items-center gap-1.5">
-        <SourceTag kind={tagKind}>{tag}</SourceTag>
-        <span className="text-[11px] font-bold uppercase tracking-wide text-zinc-600">{title}</span>
+    <section className="border-t border-zinc-100 first:border-t-0" data-testid={testId}>
+      <div className="flex items-stretch">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={contentId}
+          onClick={() => setOpen((current) => !current)}
+          className="flex min-w-0 flex-1 items-center gap-1.5 px-3 py-2.5 text-left hover:bg-zinc-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-blue-600"
+        >
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center text-[12px] font-bold text-zinc-400" aria-hidden="true">
+            {open ? "−" : "+"}
+          </span>
+          <SourceTag kind={tagKind}>{tag}</SourceTag>
+          <span className="min-w-0 text-[11px] font-bold uppercase tracking-wide text-zinc-600">{title}</span>
+        </button>
+        {info && (
+          <InfoPopover title={title}>{info}</InfoPopover>
+        )}
       </div>
-      <div className="flex flex-col gap-2">{children}</div>
+      <div id={contentId} hidden={!open} className="flex flex-col gap-2 px-3 pb-3">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function InfoPopover({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const popoverId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative mr-2 my-2 flex shrink-0 items-center">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={popoverId}
+        aria-label={`Information about ${title}`}
+        onClick={() => setOpen((current) => !current)}
+        className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-300 text-[11px] font-semibold text-zinc-500 hover:border-blue-400 hover:text-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
+      >
+        i
+      </button>
+      {open && (
+        <div
+          id={popoverId}
+          role="note"
+          aria-label={`${title} information`}
+          className="absolute right-0 top-7 z-50 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-zinc-300 bg-white p-3 text-[11px] leading-relaxed text-zinc-600 shadow-xl"
+        >
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -95,7 +165,13 @@ function NumberField({
           max={max}
           onChange={(e) => {
             const v = Number.parseFloat(e.target.value);
-            if (Number.isFinite(v)) onChange(v);
+            if (Number.isFinite(v)) {
+              const bounded = Math.min(
+                max ?? Number.POSITIVE_INFINITY,
+                Math.max(min ?? Number.NEGATIVE_INFINITY, v),
+              );
+              onChange(bounded);
+            }
           }}
           className="w-[74px] rounded border border-zinc-300 bg-white px-1.5 py-1 text-right font-mono text-[12px] text-zinc-800 focus:border-blue-500 focus:outline-none"
         />
@@ -107,7 +183,7 @@ function NumberField({
 
 /**
  * V2 scenario panel with a strong epistemic hierarchy: actual mechanism
- * boundaries vs. study assumptions vs. Lee-derived guidance vs. design margin.
+ * boundaries vs. study assumptions vs. derived guidance vs. design margin.
  * Editing any value updates the parent scenario, which re-runs the memoized
  * sweep.
  */
@@ -139,7 +215,13 @@ export function V2ScenarioPanel({
         </button>
       </div>
 
-      <Section title="Actual Mechanism Boundaries" tag="Constraint" tagKind="mechanism">
+      <ScenarioAccordion
+        title="Actual Mechanism Boundaries"
+        tag="Constraint"
+        tagKind="mechanism"
+        testId="scenario-section-mechanism"
+        info={<>Candidates are evaluated <strong>at</strong> the force cap (F₀ = {scenario.forceCap} lbf), maximizing nominal mechanism performance under it. The housing bore is the hard finished-spring OD ceiling.</>}
+      >
         <NumberField
           label="Starting force cap"
           symbol="F₀ ≤"
@@ -176,14 +258,9 @@ export function V2ScenarioPanel({
           unit="mm"
           onChange={(v) => onChange({ housingInnerDiameter: millimetersToInches(v) })}
         />
-        <p className="text-[10px] leading-tight text-zinc-400">
-          Candidates are evaluated <span className="font-semibold">at</span> the force cap
-          (F₀ = {scenario.forceCap} lbf), maximizing mechanism performance under it. The housing
-          bore is the hard finished-spring OD ceiling.
-        </p>
-      </Section>
+      </ScenarioAccordion>
 
-      <Section title="Fixed For This Study" tag="Study" tagKind="study">
+      <ScenarioAccordion title="Fixed For This Study" tag="Study" tagKind="study" testId="scenario-section-study">
         <NumberField
           label="Positive OD tolerance allowance"
           symbol="+tolOD"
@@ -205,15 +282,19 @@ export function V2ScenarioPanel({
           fit clearance to this allowance. Benchmark material model — not an approved aerospace
           material.
         </p>
-      </Section>
+      </ScenarioAccordion>
 
-      <div className="border-t border-zinc-100 bg-zinc-50/60 p-2">
-        <MaterialImpactInputs scenario={scenario} onChange={onChange} candidate={selectedCandidate} compact />
-      </div>
+      <ScenarioAccordion title="Spring Material Benchmark" tag="Study" tagKind="study" testId="scenario-section-material">
+        <SpringMaterialInputs scenario={scenario} onChange={onChange} candidate={selectedCandidate} embedded />
+      </ScenarioAccordion>
 
-      <Section title="Lee-Derived Model Guidance" tag="Lee" tagKind="lee">
+      <ScenarioAccordion title="Impact-Equivalent Assumptions" tag="Assumed" tagKind="vendor" testId="scenario-section-impact">
+        <ImpactEquivalentInputs scenario={scenario} onChange={onChange} candidate={selectedCandidate} embedded />
+      </ScenarioAccordion>
+
+      <ScenarioAccordion title="Derived Model Guidance" tag="Derived" tagKind="derived" testId="scenario-section-guidance">
         <NumberField
-          label="Solid-height tolerance (Lee +%)"
+          label="Maximum solid-height allowance"
           symbol="Hₛ,max"
           value={scenario.solidHeightTolerance * 100}
           step={1}
@@ -280,9 +361,55 @@ export function V2ScenarioPanel({
           . It is not an &quot;allowable shear stress.&quot; The 40 / 60% bands are set / redesign
           guidance, not yield or ultimate limits.
         </p>
-      </Section>
+      </ScenarioAccordion>
 
-      <Section title="Deflection / Coil-Bind Margin" tag="Constraint" tagKind="mechanism">
+      <ScenarioAccordion
+        title="Manufacturing Tolerance Assumptions"
+        tag="Optional"
+        tagKind="vendor"
+        testId="scenario-section-tolerances"
+        info={<>This is a conservative independent stack of spring-rate and free-length tolerances at fixed mechanism heights. It is not a statistical confidence interval or a vendor-guaranteed load range.</>}
+      >
+        <label className="flex cursor-pointer items-start gap-2 rounded border border-zinc-200 bg-zinc-50 p-2 text-[10.5px] text-zinc-600">
+          <input
+            type="checkbox"
+            checked={scenario.manufacturingToleranceEnabled}
+            onChange={(event) => onChange({ manufacturingToleranceEnabled: event.target.checked })}
+            className="mt-0.5 h-3.5 w-3.5 accent-blue-600"
+          />
+          <span>
+            <strong className="text-zinc-700">Show estimated force and work ranges</strong>
+            <span className="mt-0.5 block text-[9.5px] leading-snug text-zinc-400">Nominal candidate math and Pareto ranking stay unchanged.</span>
+          </span>
+        </label>
+        <NumberField
+          label="Spring-rate tolerance"
+          symbol="±k"
+          value={scenario.springRateTolerance * 100}
+          step={1}
+          min={0}
+          max={99}
+          unit="%"
+          onChange={(v) => onChange({ springRateTolerance: Math.min(0.99, Math.max(0, v / 100)) })}
+        />
+        <NumberField
+          label="Free-length tolerance"
+          symbol="±Lf"
+          value={scenario.freeLengthTolerance}
+          step={0.001}
+          min={0}
+          unit="in"
+          onChange={(v) => onChange({ freeLengthTolerance: Math.max(0, v) })}
+        />
+        <p className="text-[10px] leading-tight text-zinc-400">
+          Prefilled values reflect the current quote, not a universal spring tolerance. ±{fmtInMm(scenario.freeLengthTolerance)} free length. When enabled, the selected-candidate panel, export sheet, and CSV show min / nominal / max estimates.
+        </p>
+        <p className="rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[9.5px] leading-snug text-amber-800">
+          The optimizer still sets nominal F₀ at the mechanism cap. Any positive tolerance can therefore put the estimated maximum above the cap; this pass reports that risk but does not remove candidates.
+        </p>
+      </ScenarioAccordion>
+
+      <ScenarioAccordion title="Deflection / Coil-Bind Margin" tag="Constraint" tagKind="mechanism" testId="scenario-section-deflection">
         <DeflectionConstraintControl
           value={deflectionConstraint}
           workingDeflection={referenceWorkingDeflection}
@@ -312,13 +439,9 @@ export function V2ScenarioPanel({
         <p className="text-[10px] leading-tight text-zinc-400">
           This is a design-scenario input, not a Lee requirement. Lower utilization reserves more travel above Hₛ,max and can remove candidates by consuming axial run-up budget.
         </p>
-      </Section>
+      </ScenarioAccordion>
 
-      <details className="border-t border-zinc-100">
-        <summary className="cursor-pointer px-3 py-2 text-[11px] font-semibold text-zinc-600">
-          Advanced sweep settings
-        </summary>
-        <div className="flex flex-col gap-2 px-3 pb-3">
+      <ScenarioAccordion title="Advanced Sweep Settings" tag="Sweep" tagKind="study" testId="scenario-section-advanced">
           <p className="text-[10px] leading-tight text-zinc-400">
             Numerical search ranges — NOT manufacturing limits. Fractional coil counts are
             supported.
@@ -343,8 +466,7 @@ export function V2ScenarioPanel({
             Solid-height boundary is Lee max (Hₛ,max = {fmtPct(scenario.solidHeightTolerance)} over
             nominal). The shared utilization limit is applied after that boundary and determines each candidate&apos;s required operating clearance.
           </p>
-        </div>
-      </details>
+      </ScenarioAccordion>
     </div>
   );
 }

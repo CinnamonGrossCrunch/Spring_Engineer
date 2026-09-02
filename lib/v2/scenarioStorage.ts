@@ -15,6 +15,7 @@ export function parseStoredV2Scenario(raw: string | null): V2Scenario | null {
     const numeric: Array<keyof V2Scenario> = [
       "forceCap", "axialBudget", "latchTravel", "housingInnerDiameter",
       "outerDiameterTolerance", "shearModulusPsi", "solidHeightTolerance",
+      "springRateTolerance", "freeLengthTolerance",
       "maxDeflectionUtilization", "wireMin", "wireMax", "wireStep",
       "activeCoilsMin", "activeCoilsMax", "activeCoilsStep", "stressBasisPsi",
       "impactEfficiency", "impactRestitution",
@@ -22,6 +23,9 @@ export function parseStoredV2Scenario(raw: string | null): V2Scenario | null {
     if (numeric.some((key) => !Number.isFinite(merged[key] as number))) return null;
     merged.impactEfficiency = Math.max(0, Math.min(1, merged.impactEfficiency));
     merged.impactRestitution = Math.max(0, Math.min(1, merged.impactRestitution));
+    merged.manufacturingToleranceEnabled = merged.manufacturingToleranceEnabled === true;
+    merged.springRateTolerance = Math.max(0, Math.min(0.99, merged.springRateTolerance));
+    merged.freeLengthTolerance = Math.max(0, merged.freeLengthTolerance);
     return merged;
   } catch {
     return null;

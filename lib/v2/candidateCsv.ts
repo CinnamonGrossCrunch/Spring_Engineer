@@ -1,4 +1,5 @@
-import type { V2Candidate } from "./types";
+import type { V2Candidate, V2Scenario } from "./types";
+import { calculateManufacturingToleranceEnvelope } from "./toleranceEnvelope";
 
 export type CandidateCsvMode = "pareto" | "feasible";
 
@@ -40,6 +41,25 @@ const HEADERS = [
   "stress_pct_conservative",
   "stress_pct_optimistic",
   "stress_band",
+  "manufacturing_tolerance_enabled",
+  "manufacturing_tolerance_method",
+  "mechanism_force_cap_lbf",
+  "spring_rate_tolerance_pct",
+  "free_length_tolerance_in",
+  "independent_corner_estimate_armed_force_min_lbf",
+  "independent_corner_estimate_armed_force_max_lbf",
+  "independent_corner_estimate_contact_force_min_lbf",
+  "independent_corner_estimate_contact_force_max_lbf",
+  "independent_corner_estimate_released_force_min_lbf",
+  "independent_corner_estimate_released_force_max_lbf",
+  "independent_corner_estimate_hammer_work_min_in_lbf",
+  "independent_corner_estimate_hammer_work_max_in_lbf",
+  "independent_corner_estimate_latch_work_min_in_lbf",
+  "independent_corner_estimate_latch_work_max_in_lbf",
+  "independent_corner_estimate_ideal_release_work_min_in_lbf",
+  "independent_corner_estimate_ideal_release_work_max_in_lbf",
+  "independent_corner_estimate_worst_case_force_cap_pass",
+  "independent_corner_estimate_armed_force_cap_excess_lbf",
   "exclusion_reasons",
 ] as const;
 
@@ -48,7 +68,10 @@ function escapeCsv(value: string | number | boolean): string {
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
-function candidateRow(candidate: V2Candidate, shortlisted: boolean): Array<string | number | boolean> {
+function candidateRow(candidate: V2Candidate, shortlisted: boolean, scenario?: V2Scenario): Array<string | number | boolean> {
+  const tolerance = scenario
+    ? calculateManufacturingToleranceEnvelope(candidate, scenario)
+    : null;
   return [
     candidate.key,
     shortlisted,
@@ -87,17 +110,40 @@ function candidateRow(candidate: V2Candidate, shortlisted: boolean): Array<strin
     candidate.stressPctConservative * 100,
     candidate.stressPctOptimistic * 100,
     candidate.feasibility.stressBand,
+    scenario?.manufacturingToleranceEnabled ?? false,
+    tolerance ? "independent_rate_free_length_corner_stack" : "",
+    scenario?.forceCap ?? "",
+    scenario ? scenario.springRateTolerance * 100 : "",
+    scenario?.freeLengthTolerance ?? "",
+    tolerance?.forces.armed.min ?? "",
+    tolerance?.forces.armed.max ?? "",
+    tolerance?.forces.contact.min ?? "",
+    tolerance?.forces.contact.max ?? "",
+    tolerance?.forces.released.min ?? "",
+    tolerance?.forces.released.max ?? "",
+    tolerance?.work.hammer.min ?? "",
+    tolerance?.work.hammer.max ?? "",
+    tolerance?.work.latch.min ?? "",
+    tolerance?.work.latch.max ?? "",
+    tolerance?.work.total.min ?? "",
+    tolerance?.work.total.max ?? "",
+    tolerance?.worstCaseForceCapPass ?? "",
+    tolerance?.worstCaseForceCapExcess ?? "",
     candidate.feasibility.reasons.join(";"),
   ];
 }
 
 /** Export the exact ordered candidate rows supplied by the table. */
-export function generateCandidateCsv(candidates: V2Candidate[], shortlist: string[]): string {
+export function generateCandidateCsv(
+  candidates: V2Candidate[],
+  shortlist: string[],
+  scenario?: V2Scenario,
+): string {
   const shortlisted = new Set(shortlist);
   const lines = [
     HEADERS.map(escapeCsv).join(","),
     ...candidates.map((candidate) =>
-      candidateRow(candidate, shortlisted.has(candidate.key)).map(escapeCsv).join(","),
+      candidateRow(candidate, shortlisted.has(candidate.key), scenario).map(escapeCsv).join(","),
     ),
   ];
   return `${lines.join("\r\n")}\r\n`;
