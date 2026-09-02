@@ -150,7 +150,13 @@ export function V2Workbench({
             spring + hammer stroke = {formatValue(scenario.axialBudget)} in
           </span>
           <span className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10.5px] text-white">
-            latch + {formatValue(scenario.latchTravel)} in
+            critical + {formatValue(scenario.latchTravel)} in
+          </span>
+          <span className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10.5px] text-white">
+            coupled + {formatValue(scenario.totalLatchTravel)} in
+          </span>
+          <span className="rounded bg-emerald-700 px-1.5 py-0.5 font-mono text-[10.5px] text-white">
+            Fend ≥ {formatValue(scenario.minimumEndForce)} lbf
           </span>
           <span className="rounded bg-violet-700 px-1.5 py-0.5 font-mono text-[10.5px] text-white">
             working deflection ≤ {(scenario.maxDeflectionUtilization * 100).toFixed(0)}%
@@ -245,13 +251,13 @@ export function V2Workbench({
                           </button>
                         </div>
                         <div className="mb-1 rounded bg-white/70 px-1.5 py-1 font-mono text-[9.5px] leading-4 text-zinc-500">
-                          B={savedScenario.axialBudget.toFixed(3)} in · u≤{(savedScenario.maxDeflectionUtilization * 100).toFixed(0)}% · F₀≤{savedScenario.forceCap.toFixed(0)} lbf
+                          B={savedScenario.axialBudget.toFixed(3)} in · ytotal={savedScenario.totalLatchTravel.toFixed(3)} in · Fend≥{savedScenario.minimumEndForce.toFixed(0)} lbf
                           <br />
-                          OD≤{savedScenario.housingInnerDiameter.toFixed(3)} in · G={(savedScenario.shearModulusPsi / 1e6).toFixed(1)} Mpsi · TS={(savedScenario.stressBasisPsi / 1000).toFixed(0)} ksi
+                          u≤{(savedScenario.maxDeflectionUtilization * 100).toFixed(0)}% · OD≤{savedScenario.housingInnerDiameter.toFixed(3)} in · TS={(savedScenario.stressBasisPsi / 1000).toFixed(0)} ksi
                         </div>
                         <dl className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-zinc-500">
                           <dt>{canonicalName("FeqAvgIdeal")}</dt><dd className="text-right font-mono text-zinc-700">{fmtLbf(c.FeqAvgIdeal)}</dd>
-                          <dt>{canonicalName("F3")} {canonicalSym("F3")}</dt><dd className="text-right font-mono text-zinc-700">{fmtLbf(c.F3)}</dd>
+                          <dt>End force F₄</dt><dd className="text-right font-mono text-zinc-700">{fmtLbf(c.F4)}</dd>
                           <dt>Stress %TS basis</dt><dd className="text-right font-mono text-zinc-700">{(c.stressPctBasis * 100).toFixed(0)}%</dd>
                           <dt>{canonicalName("s")} {canonicalSym("s")}</dt><dd className="text-right font-mono text-zinc-700">{c.s.toFixed(3)} in</dd>
                         </dl>

@@ -129,7 +129,7 @@ function InfoPopover({ title, children }: { title: string; children: React.React
   );
 }
 
-function NumberField({
+export function NumberField({
   label,
   symbol,
   value,
@@ -220,7 +220,7 @@ export function V2ScenarioPanel({
         tag="Constraint"
         tagKind="mechanism"
         testId="scenario-section-mechanism"
-        info={<>Candidates are evaluated <strong>at</strong> the force cap (F₀ = {scenario.forceCap} lbf), maximizing nominal mechanism performance under it. The housing bore is the hard finished-spring OD ceiling.</>}
+        info={<>Candidates are evaluated <strong>at</strong> the nominal force cap (F₀ = {scenario.forceCap} lbf). B is the spring length at hammer contact. The first post-contact distance is the critical release window; the hammer and latch then remain coupled through the total travel.</>}
       >
         <NumberField
           label="Starting force cap"
@@ -241,13 +241,43 @@ export function V2ScenarioPanel({
           onChange={(v) => onChange({ axialBudget: v })}
         />
         <NumberField
-          label="Latch follow-through"
-          symbol="y"
+          label="Critical release travel"
+          symbol="ycritical"
           value={scenario.latchTravel}
           step={0.005}
-          min={0}
+          min={0.005}
           unit="in"
-          onChange={(v) => onChange({ latchTravel: v })}
+          onChange={(v) => onChange({
+            latchTravel: v,
+            totalLatchTravel: Math.max(v, scenario.totalLatchTravel),
+          })}
+        />
+        <NumberField
+          label="Total hammer / latch travel"
+          symbol="ytotal"
+          value={scenario.totalLatchTravel}
+          step={0.005}
+          min={scenario.latchTravel}
+          unit="in"
+          onChange={(v) => onChange({ totalLatchTravel: Math.max(scenario.latchTravel, v) })}
+        />
+        <NumberField
+          label="Minimum spring force at end"
+          symbol="Fend,min"
+          value={scenario.minimumEndForce}
+          step={1}
+          min={0}
+          unit="lbf"
+          onChange={(v) => onChange({ minimumEndForce: v })}
+        />
+        <NumberField
+          label="Opposing latch preload"
+          symbol="Fopp"
+          value={scenario.opposingPreload}
+          step={0.1}
+          min={0}
+          unit="lbf"
+          onChange={(v) => onChange({ opposingPreload: v })}
         />
         <NumberField
           label="Housing ID / absolute spring OD"
@@ -258,6 +288,45 @@ export function V2ScenarioPanel({
           unit="mm"
           onChange={(v) => onChange({ housingInnerDiameter: millimetersToInches(v) })}
         />
+        <div className="rounded border border-blue-100 bg-blue-50/60 px-2 py-1.5 text-[10px] leading-snug text-blue-800">
+          End position: <span className="font-mono">B + ytotal = {fmtInMm(scenario.axialBudget + scenario.totalLatchTravel)}</span>. The end-force floor is a nominal quasi-static requirement; enabled manufacturing tolerances are reported separately.
+        </div>
+        <label className="flex cursor-pointer items-start gap-2 rounded border border-zinc-200 bg-zinc-50 p-2 text-[10.5px] text-zinc-600">
+          <input
+            type="checkbox"
+            checked={scenario.armedHeightConstraintEnabled}
+            onChange={(event) => onChange({ armedHeightConstraintEnabled: event.target.checked })}
+            className="mt-0.5 h-3.5 w-3.5 accent-blue-600"
+          />
+          <span>
+            <strong className="text-zinc-700">Constrain armed spring height</strong>
+            <span className="mt-0.5 block text-[9.5px] leading-snug text-zinc-400">Optional mechanism packaging range. This is separate from clearance above solid.</span>
+          </span>
+        </label>
+        {scenario.armedHeightConstraintEnabled && (
+          <div className="rounded border border-zinc-200 bg-white p-2">
+            <NumberField
+              label="Minimum armed height"
+              symbol="Larmed,min"
+              value={scenario.armedHeightMin}
+              step={0.005}
+              min={0}
+              max={scenario.armedHeightMax}
+              unit="in"
+              onChange={(v) => onChange({ armedHeightMin: Math.min(v, scenario.armedHeightMax) })}
+            />
+            <NumberField
+              label="Maximum armed height"
+              symbol="Larmed,max"
+              value={scenario.armedHeightMax}
+              step={0.005}
+              min={scenario.armedHeightMin}
+              max={scenario.axialBudget}
+              unit="in"
+              onChange={(v) => onChange({ armedHeightMax: Math.max(v, scenario.armedHeightMin) })}
+            />
+          </div>
+        )}
       </ScenarioAccordion>
 
       <ScenarioAccordion title="Fixed For This Study" tag="Study" tagKind="study" testId="scenario-section-study">

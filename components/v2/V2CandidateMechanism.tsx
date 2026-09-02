@@ -6,15 +6,15 @@ import { ParametricCompressionSpring } from "../SpringStateIllustration/Parametr
 import { isRenderableSpring } from "../SpringStateIllustration/springSvgGeometry";
 import { fmtWork } from "./v2format";
 
-const SVG_W = 720;
+const SVG_W = 900;
 const LEFT_PAD = 150;
 const RIGHT_PAD = 16;
-const STATE_W = (SVG_W - LEFT_PAD - RIGHT_PAD) / 3;
-const SVG_H = 372;
+const STATE_W = (SVG_W - LEFT_PAD - RIGHT_PAD) / 4;
+const SVG_H = 390;
 const TOP_PAD = 8;
 const BOTTOM_PAD = 92;
 
-const FORCE_COLORS = ["#2563eb", "#059669", "#b45309"]; // F0 · F2 · F3
+const FORCE_COLORS = ["#2563eb", "#059669", "#d97706", "#b45309"]; // F0 · F2 · F3 · F4
 
 const COLORS = {
   springFront: "#52525b",
@@ -48,39 +48,43 @@ function arrowHead(x: number, y: number, dir: "up" | "down" | "left" | "right", 
 }
 
 /**
- * V2 three-state mechanism. Reuses the shared parametric compression-spring
+ * V2 four-state mechanism. Reuses the shared parametric compression-spring
  * renderer (no drawing logic duplicated) and re-labels it for the V2
  * first-principles problem:
  *
  *   STATE 1 ARMED/COMPRESSED   spring = Lc, F0, visible hammer gap s, Lc + s = B
  *   STATE 2 HAMMER CONTACT      spring = L2 = B, F2, Whammer
- *   STATE 3 LATCH FOLLOW-THROUGH spring = L3 = B + y, F3, Wlatch
+ *   STATE 3 CRITICAL RELEASE     spring = L3 = B + y_critical, F3, Wlatch
+ *   STATE 4 COUPLED TRAVEL END   spring = L4 = B + y_total, F4, WpostCritical
  */
 export function V2CandidateMechanism({ candidate: c }: Props) {
-  const { d, D, OD, ID, Nt, Na, Lc, s, L2, L3, F0, F2, F3, Whammer, Wlatch } = c;
+  const { d, D, OD, ID, Nt, Na, Lc, s, L2, L3, L4, F0, F2, F3, F4, Whammer, Wlatch, WpostCritical } = c;
   const B = c.L2; // axial budget (= Lc + s)
-  const y = c.L3 - c.L2; // latch follow-through
+  const yCritical = c.L3 - c.L2;
+  const yTotal = c.L4 - c.L2;
+  const yPostCritical = c.L4 - c.L3;
 
   const inch = (x: number) => `${formatValue(x)} in`;
   const mm = (x: number) => `${formatValue(inchesToMm(x))} mm`;
   const lbf = (x: number) => `${Math.round(x)} lbf`;
 
   const ready =
-    [Lc, L2, L3].every((L) => isRenderableSpring({ wireDiameter: d, meanDiameter: D, totalCoils: Nt, currentLength: L })) &&
+    [Lc, L2, L3, L4].every((L) => isRenderableSpring({ wireDiameter: d, meanDiameter: D, totalCoils: Nt, currentLength: L })) &&
     s > 0;
 
   const stateTitles = [
     { n: 1, title: "Armed / Compressed", sub: "Maximum operating load", accent: FORCE_COLORS[0] },
     { n: 2, title: "Hammer Contact", sub: "After hammer run-up stroke", accent: FORCE_COLORS[1] },
-    { n: 3, title: "Latch Follow-Through", sub: "After additional latch follow-through travel", accent: FORCE_COLORS[2] },
+    { n: 3, title: "Critical Release", sub: "Point-of-no-return window", accent: FORCE_COLORS[2] },
+    { n: 4, title: "Coupled Travel End", sub: "Hammer and latch at final stop", accent: FORCE_COLORS[3] },
   ];
 
-  const gridCols = `${LEFT_PAD}fr ${STATE_W}fr ${STATE_W}fr ${STATE_W}fr`;
+  const gridCols = `${LEFT_PAD}fr ${STATE_W}fr ${STATE_W}fr ${STATE_W}fr ${STATE_W}fr`;
 
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold text-zinc-800">Selected Candidate — Three-State Mechanism</h2>
+        <h2 className="text-sm font-semibold text-zinc-800">Selected Candidate — Four-State Mechanism</h2>
         <p className="text-[11px] text-zinc-400">Spring force at contact ≠ dynamic impact force.</p>
       </div>
 
@@ -120,13 +124,13 @@ export function V2CandidateMechanism({ candidate: c }: Props) {
             className="mt-0.5 block h-auto w-full"
             preserveAspectRatio="xMidYMid meet"
             role="img"
-            aria-label="V2 three-state mechanism: armed/compressed, hammer contact, latch follow-through"
+            aria-label="V2 four-state mechanism: armed, hammer contact, critical release and coupled-travel end"
           >
             {(() => {
               const hammerH = 0.1 * OD;
               const latchH = 0.1 * OD;
               const latchBase = B + hammerH; // latch bottom for states 1 and 2
-              const envelope = latchBase + y + latchH;
+              const envelope = latchBase + yTotal + latchH;
               const availH = SVG_H - TOP_PAD - BOTTOM_PAD;
               const maxVisualWidthUnits = OD + d;
               const pxPerUnit = Math.min(availH / envelope, (STATE_W * 0.82) / maxVisualWidthUnits);
@@ -139,7 +143,8 @@ export function V2CandidateMechanism({ candidate: c }: Props) {
               const svgStates = [
                 { L: Lc, hammerBottom: Lc, latchBottom: latchBase },
                 { L: L2, hammerBottom: L2, latchBottom: latchBase },
-                { L: L3, hammerBottom: L3, latchBottom: latchBase + y },
+                { L: L3, hammerBottom: L3, latchBottom: latchBase + yCritical },
+                { L: L4, hammerBottom: L4, latchBottom: latchBase + yTotal },
               ];
 
               // Below-datum dimension rows (State 1).
@@ -300,20 +305,39 @@ export function V2CandidateMechanism({ candidate: c }: Props) {
                     );
                   })()}
 
-                  {/* Transition: latch follow-through travel +y (between state 2 and 3) */}
+                  {/* Transition: critical release travel (between state 2 and 3) */}
                   {(() => {
                     const xMid = (cx(1) + cx(2)) / 2;
-                    const yTop = toY(latchBase + y + latchH);
+                    const yTop = toY(latchBase + yCritical + latchH);
                     const yBot = toY(latchBase + latchH);
                     return (
                       <g>
                         <line x1={xMid} y1={yBot} x2={xMid} y2={yTop} stroke={COLORS.latchStroke} strokeWidth={2} />
                         {arrowHead(xMid, yTop, "up", COLORS.latchStroke, 4.8)}
                         <text x={xMid} y={yTop - 15} fontSize={9} textAnchor="middle" fontWeight={700} fill={COLORS.latchStroke}>
-                          Latch Travel
+                          Critical Travel
                         </text>
                         <text x={xMid} y={yTop - 5} fontSize={9} textAnchor="middle" fontFamily="var(--font-geist-mono), monospace" fill={COLORS.latchStroke}>
-                          + {inch(y)}
+                          + {inch(yCritical)}
+                        </text>
+                      </g>
+                    );
+                  })()}
+
+                  {/* Transition: remaining coupled travel (between state 3 and 4) */}
+                  {(() => {
+                    const xMid = (cx(2) + cx(3)) / 2;
+                    const yTop = toY(latchBase + yTotal + latchH);
+                    const yBot = toY(latchBase + yCritical + latchH);
+                    return (
+                      <g>
+                        <line x1={xMid} y1={yBot} x2={xMid} y2={yTop} stroke={COLORS.latchStroke} strokeWidth={2} />
+                        {arrowHead(xMid, yTop, "up", COLORS.latchStroke, 4.8)}
+                        <text x={xMid} y={yTop - 15} fontSize={9} textAnchor="middle" fontWeight={700} fill={COLORS.latchStroke}>
+                          Remaining Travel
+                        </text>
+                        <text x={xMid} y={yTop - 5} fontSize={9} textAnchor="middle" fontFamily="var(--font-geist-mono), monospace" fill={COLORS.latchStroke}>
+                          + {inch(yPostCritical)}
                         </text>
                       </g>
                     );
@@ -396,7 +420,8 @@ export function V2CandidateMechanism({ candidate: c }: Props) {
             {[
               { n: 1, accent: FORCE_COLORS[0], Lsym: "L₁", L: Lc, Fsym: "F₀", F: F0, extra: undefined as string | undefined, note: "Starting force at the cap." },
               { n: 2, accent: FORCE_COLORS[1], Lsym: "L₂", L: L2, Fsym: "F₂", F: F2, extra: `Hammer run-up work ${fmtWork(Whammer)}`, note: "Spring force at contact ≠ impact force." },
-              { n: 3, accent: FORCE_COLORS[2], Lsym: "L₃", L: L3, Fsym: "F₃", F: F3, extra: `Latch follow-through work ${fmtWork(Wlatch)}`, note: undefined },
+              { n: 3, accent: FORCE_COLORS[2], Lsym: "L₃", L: L3, Fsym: "F₃", F: F3, extra: `Critical-window work ${fmtWork(Wlatch)}`, note: "Release point; motion continues." },
+              { n: 4, accent: FORCE_COLORS[3], Lsym: "L₄", L: L4, Fsym: "F₄", F: F4, extra: `Post-critical work ${fmtWork(WpostCritical)} gross / ${fmtWork(c.WpostCriticalNet)} net`, note: `Net end force ${c.netEndForce.toFixed(1)} lbf.` },
             ].map((cst) => (
               <div key={cst.n} className="flex flex-col gap-1 px-1">
                 <div className="flex flex-col items-start rounded border border-transparent px-1.5 py-0.5">

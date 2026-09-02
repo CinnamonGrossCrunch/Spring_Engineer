@@ -6,16 +6,16 @@ import { PARAMETER_MAP } from "@/lib/engineering/parameters";
 import { formatValue, inchesToMm } from "../StatusBadge";
 import { ParametricCompressionSpring } from "./ParametricCompressionSpring";
 import { isRenderableSpring } from "./springSvgGeometry";
-import { mechanismLatchBottoms } from "@/lib/engineering/mechanismLayout";
+import { mechanismLatchBottoms4 } from "@/lib/engineering/mechanismLayout";
 
 /**
- * Parametric three-state elevation schematic of the spring/hammer/latch
+ * Parametric four-state elevation schematic of the spring/hammer/latch
  * mechanism. Every displayed value is consumed from the solver output —
  * no engineering equations live in this component. Only unit→pixel
  * mapping and schematic body sizing happen here.
  *
  * Visual conventions documented inline:
- *  - ONE uniform pxPerUnit scale is used for both axes and all 3 states,
+ *  - ONE uniform pxPerUnit scale is used for both axes and all 4 states,
  *    so spring width vs. height is proportionally meaningful.
  *  - Force-arrow length scales modestly with F/F1 (base 18 px + up to
  *    16 px) — qualitative, not a quantitative force scale.
@@ -43,7 +43,7 @@ const COLORS = {
   hammerStroke: "#0f766e",
   latchFill: "#ffedd5",
   latchStroke: "#c2410c",
-  force: ["#2563eb", "#059669", "#b45309"],
+  force: ["#2563eb", "#059669", "#d97706", "#b45309"],
 };
 
 interface Props {
@@ -103,12 +103,16 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
   const L1 = num("L_min");
   const L2 = num("L2");
   const L3 = num("L3");
+  const L4 = num("L4");
   const s_h = num("s_h");
   const y_latch = num("y_latch");
+  const y_total = num("y_total");
+  const y_post = num("y_post");
   const x1 = num("x1");
   const F1 = num("F1");
   const F2 = num("F2");
   const F3 = num("F3");
+  const F4 = num("F4");
   const HsMax = num("Hs_max");
   const cExtra = num("c_extra") ?? 0;
 
@@ -123,12 +127,16 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
     L1 !== undefined &&
     L2 !== undefined &&
     L3 !== undefined &&
+    L4 !== undefined &&
     s_h !== undefined &&
     y_latch !== undefined &&
+    y_total !== undefined &&
+    y_post !== undefined &&
     F1 !== undefined &&
     F2 !== undefined &&
     F3 !== undefined &&
-    [L1, L2, L3].every((L) => isRenderableSpring({ wireDiameter: d, meanDiameter: D, totalCoils: Nt, currentLength: L }));
+    F4 !== undefined &&
+    [L1, L2, L3, L4].every((L) => isRenderableSpring({ wireDiameter: d, meanDiameter: D, totalCoils: Nt, currentLength: L }));
 
   const layout = (() => {
     if (!ready) return null;
@@ -139,8 +147,8 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
     const latchW = 2.1 * OD!;
     // Use the actual tallest displayed state so exploratory/inconsistent input
     // combinations cannot clip or invert the mechanism bodies.
-    const envelope = Math.max(L1!, L2!, L3!) + hammerH + latchH;
-    const colW = SVG_W / 3;
+    const envelope = Math.max(L1!, L2!, L3!, L4!) + hammerH + latchH;
+    const colW = SVG_W / 4;
     const availH = SVG_H - TOP_PAD - BOTTOM_PAD;
     // ONE uniform engineering-unit → px scale for both axes / all states.
     const pxPerUnit = Math.min(availH / envelope, (colW * 0.62) / Math.max(latchW, OD!));
@@ -180,7 +188,8 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
     ? [
         { n: 1, title: "Maximum Working Deflection", sub: "Starting state", accent: COLORS.force[0], forceLabel: "Starting force", F: F1, Fid: "F1", Fsym: "F1", L: L1, Lid: "L_min", Lsym: "L1" },
         { n: 2, title: "Hammer Contact", sub: "after sₕ run-up stroke", accent: COLORS.force[1], forceLabel: "Spring force at contact", F: F2, Fid: "F2", Fsym: "F2", L: L2, Lid: "L2", Lsym: "L2" },
-        { n: 3, title: "HF Latch Follow-Through", sub: "additional yₗ follow-through travel", accent: COLORS.force[2], forceLabel: "After latch follow-through", F: F3, Fid: "F3", Fsym: "F3", L: L3, Lid: "L3", Lsym: "L3" },
+        { n: 3, title: "Critical Release", sub: "point of no return", accent: COLORS.force[2], forceLabel: "Force at critical release", F: F3, Fid: "F3", Fsym: "F3", L: L3, Lid: "L3", Lsym: "L3" },
+        { n: 4, title: "Coupled-Travel End", sub: "residual spring drive", accent: COLORS.force[3], forceLabel: "Spring force at end", F: F4, Fid: "F4", Fsym: "F4", L: L4, Lid: "L4", Lsym: "L4" },
       ]
     : [];
 
@@ -216,7 +225,7 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
       ) : (
         <>
           {/* State headers — strong, readable titles */}
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className="mt-3 grid grid-cols-4 gap-2">
             {stateCards.map((s) => (
               <div key={s.n} className="flex items-start gap-1.5">
                 <span
@@ -239,12 +248,12 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
             className="mt-2 block h-auto w-full"
             preserveAspectRatio="xMidYMid meet"
             role="img"
-            aria-label="Three-state elevation schematic: maximum working deflection, hammer contact, latch follow-through"
+            aria-label="Four-state elevation schematic: maximum working deflection, hammer contact, critical release, coupled-travel end"
           >
             {(() => {
               const { hammerH, hammerW, latchH, latchW, colW, pxPerUnit, baselineY } = layout;
               const toY = (units: number) => baselineY - units * pxPerUnit;
-              const latchBottoms = mechanismLatchBottoms(L2!, L3!, hammerH);
+              const latchBottoms = mechanismLatchBottoms4(L2!, L3!, L4!, hammerH);
               const maxF = Math.max(F1!, 1e-9);
               const dimC = (sel: boolean) => (sel ? COLORS.dimSelected : COLORS.dim);
 
@@ -252,6 +261,7 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
                 { L: L1!, F: F1!, Fid: "F1", Lid: "L_min", color: COLORS.force[0], hammerBottom: L1!, latchBottom: latchBottoms[0] },
                 { L: L2!, F: F2!, Fid: "F2", Lid: "L2", color: COLORS.force[1], hammerBottom: L2!, latchBottom: latchBottoms[1] },
                 { L: L3!, F: F3!, Fid: "F3", Lid: "L3", color: COLORS.force[2], hammerBottom: L3!, latchBottom: latchBottoms[2] },
+                { L: L4!, F: F4!, Fid: "F4", Lid: "L4", color: COLORS.force[3], hammerBottom: L4!, latchBottom: latchBottoms[3] },
               ];
 
               return (
@@ -382,7 +392,7 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
           </div>
 
           {/* Level 1 (force outcome) + Level 2 (loaded length / deflection) */}
-          <div className="mt-2 grid grid-cols-3 gap-2">
+          <div className="mt-2 grid grid-cols-4 gap-2">
             {stateCards.map((s) => (
               <div key={s.n} className="flex flex-col gap-1">
                 <button
@@ -438,13 +448,13 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
             ))}
           </div>
 
-          {/* Transition travel: sₕ run-up stroke (1→2) and yₗ follow-through travel (2→3) */}
+          {/* Transition travel: run-up, critical window, then residual coupled travel. */}
           <div className="relative mt-1.5 h-7">
             <button
               type="button"
               onClick={() => onSelect("s_h")}
               title={`${PARAMETER_MAP["s_h"]?.name ?? "s_h"} — click to inspect`}
-              style={{ left: "33.333%" }}
+              style={{ left: "25%" }}
               className={`absolute top-0 inline-flex -translate-x-1/2 items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] transition-colors hover:border-zinc-400 ${
                 selectedId === "s_h" ? "border-blue-400 bg-blue-50 text-blue-700" : "border-zinc-200 bg-white text-zinc-600"
               }`}
@@ -457,21 +467,33 @@ export function SpringStateIllustration({ values, selectedId, constraints, onSel
               type="button"
               onClick={() => onSelect("y_latch")}
               title={`${PARAMETER_MAP["y_latch"]?.name ?? "y_latch"} — click to inspect`}
-              style={{ left: "66.666%" }}
+              style={{ left: "50%" }}
               className={`absolute top-0 inline-flex -translate-x-1/2 items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] transition-colors hover:border-zinc-400 ${
                 selectedId === "y_latch" ? "border-blue-400 bg-blue-50 text-blue-700" : "border-zinc-200 bg-white text-zinc-600"
               }`}
             >
               <span className="text-zinc-400">─</span>
-              <span className="font-mono">+ yₗ = {inch(y_latch)}</span>
+              <span className="font-mono">+ ycritical = {inch(y_latch)}</span>
+              <span aria-hidden className="text-zinc-400">▶</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelect("y_post")}
+              title={`${PARAMETER_MAP["y_post"]?.name ?? "y_post"} — click to inspect; total ${inch(y_total)}`}
+              style={{ left: "75%" }}
+              className={`absolute top-0 inline-flex -translate-x-1/2 items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] transition-colors hover:border-zinc-400 ${
+                selectedId === "y_post" || selectedId === "y_total" ? "border-blue-400 bg-blue-50 text-blue-700" : "border-zinc-200 bg-white text-zinc-600"
+              }`}
+            >
+              <span className="text-zinc-400">─</span>
+              <span className="font-mono">+ ypost = {inch(y_post)}</span>
               <span aria-hidden className="text-zinc-400">▶</span>
             </button>
           </div>
 
           {/* Subtle disambiguation note — kept out of the main visual story */}
           <p className="mt-1 text-[10px] leading-4 text-zinc-400">
-            Spring force at contact (F2) is not the dynamic impact force — peak impact also depends on
-            contact stiffness and collision duration.
+            Spring force at contact (F2) is not the dynamic impact force. After critical release, no minimum velocity is required; F4 verifies residual quasi-static drive at the final stop.
           </p>
 
           {/* Level 3 — shared spring geometry (shown once, not repeated per state) */}

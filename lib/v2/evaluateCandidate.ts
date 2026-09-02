@@ -46,11 +46,12 @@ export function candidateKey(d: number, Na: number): string {
  *   Hs_nom = Nt·d         Hs_max = (1+tol)·Hs_nom
  *   x0 = F0/k               c_solid = x0·(1/u_max − 1)
  *   Lc = Hs_max + c_solid   s = B − Lc     Lf = Lc + x0
- *   L2 = B (= Lc + s)     L3 = B + y
- *   F2 = F0 − k·s         F3 = F0 − k·(s + y)
- *   W_hammer = F0·s − ½·k·s²        W_latch = F2·y − ½·k·y²
- *   W_release_ideal = W_hammer + W_latch
- *   F_eq_avg_ideal  = W_release_ideal / y       (ideal equivalent AVERAGE release force)
+ *   L2 = B (= Lc + s)     L3 = B + y_critical     L4 = B + y_total
+ *   F2 = F0 − k·s         F3 = F2 − k·y_critical  F4 = F2 − k·y_total
+ *   W_hammer = F0·s − ½·k·s²
+ *   W_critical = F2·y_critical − ½·k·y_critical²
+ *   W_release_ideal = W_hammer + W_critical
+ *   F_eq_avg_ideal  = W_release_ideal / y_critical (historical release proxy)
  *   F_eq_tri_peak   = 2 · F_eq_avg_ideal        (ideal TRIANGULAR peak-equivalent proxy)
  */
 export function evaluateV2Candidate(scenario: V2Scenario, d: number, Na: number): V2Candidate {
@@ -59,7 +60,8 @@ export function evaluateV2Candidate(scenario: V2Scenario, d: number, Na: number)
 
   const OD = nominalSpringOuterDiameter(scenario);
   const B = scenario.axialBudget;
-  const y = scenario.latchTravel;
+  const yCritical = scenario.latchTravel;
+  const yTotal = scenario.totalLatchTravel;
   const F0 = scenario.forceCap;
 
   // ── Geometry (OD locked) ──
@@ -93,19 +95,28 @@ export function evaluateV2Candidate(scenario: V2Scenario, d: number, Na: number)
 
   // ── State lengths ──
   const L2 = B; // Lc + s
-  const L3 = B + y;
+  const L3 = B + yCritical;
+  const L4 = B + yTotal;
 
   // ── Force states ──
   const F2 = F0 - k * s;
-  const F3 = F0 - k * (s + y);
+  const F3 = F0 - k * (s + yCritical);
+  const F4 = F0 - k * (s + yTotal);
+  const endForceMargin = F4 - scenario.minimumEndForce;
+  const netEndForce = F4 - scenario.opposingPreload;
 
   // ── Work (ideal spring work; area under the force–travel line) ──
   const Whammer = runUpWork(F0, k, s); // F0·s − ½·k·s²
-  const Wlatch = runUpWork(F2, k, y); // F2·y − ½·k·y²
+  const Wlatch = positiveReleaseWork(F2, k, yCritical);
+  const Wcoupled = positiveReleaseWork(F2, k, yTotal);
+  const WpostCritical = Math.max(0, Wcoupled - Wlatch);
+  const Wopposing = Math.max(0, scenario.opposingPreload) * Math.max(0, yTotal - yCritical);
+  const WpostCriticalNet = WpostCritical - Wopposing;
+  const WthroughEnd = Whammer + Wcoupled;
   const WreleaseIdeal = Whammer + Wlatch;
 
   // ── Ideal force-equivalent metrics (NOT actual contact force) ──
-  const FeqAvgIdeal = y !== 0 ? WreleaseIdeal / y : NaN;
+  const FeqAvgIdeal = yCritical !== 0 ? WreleaseIdeal / yCritical : NaN;
   const FeqTriPeakIdeal = 2 * FeqAvgIdeal;
 
   // ── Wahl-corrected operating shear stress at F0 ──
@@ -126,8 +137,16 @@ export function evaluateV2Candidate(scenario: V2Scenario, d: number, Na: number)
     s,
     Lc,
     B,
+    yCritical,
+    yTotal,
     F2,
     F3,
+    F4,
+    minimumEndForce: scenario.minimumEndForce,
+    opposingPreload: scenario.opposingPreload,
+    armedHeightConstraintEnabled: scenario.armedHeightConstraintEnabled,
+    armedHeightMin: scenario.armedHeightMin,
+    armedHeightMax: scenario.armedHeightMax,
     stressPctBasis,
   });
 
@@ -154,10 +173,19 @@ export function evaluateV2Candidate(scenario: V2Scenario, d: number, Na: number)
     Lf,
     L2,
     L3,
+    L4,
     F2,
     F3,
+    F4,
+    endForceMargin,
+    netEndForce,
     Whammer,
     Wlatch,
+    WpostCritical,
+    Wopposing,
+    WpostCriticalNet,
+    Wcoupled,
+    WthroughEnd,
     WreleaseIdeal,
     FeqAvgIdeal,
     FeqTriPeakIdeal,
@@ -182,8 +210,16 @@ interface FeasibilityInputs {
   s: number;
   Lc: number;
   B: number;
+  yCritical: number;
+  yTotal: number;
   F2: number;
   F3: number;
+  F4: number;
+  minimumEndForce: number;
+  opposingPreload: number;
+  armedHeightConstraintEnabled: boolean;
+  armedHeightMin: number;
+  armedHeightMax: number;
   stressPctBasis: number;
 }
 
@@ -199,17 +235,39 @@ function evaluateFeasibility(i: FeasibilityInputs): V2Feasibility {
 
   const positiveRunUp = geometryValid && i.s > 0;
   const fitsBudget = geometryValid && i.Lc < i.B;
+  const travelOrderValid =
+    Number.isFinite(i.yCritical) &&
+    Number.isFinite(i.yTotal) &&
+    i.yCritical > 0 &&
+    i.yTotal >= i.yCritical;
+  const armedHeightInRange =
+    !i.armedHeightConstraintEnabled ||
+    (Number.isFinite(i.armedHeightMin) &&
+      Number.isFinite(i.armedHeightMax) &&
+      i.armedHeightMin <= i.armedHeightMax &&
+      i.Lc >= i.armedHeightMin - 1e-9 &&
+      i.Lc <= i.armedHeightMax + 1e-9);
   const loadedAtContact = geometryValid && i.F2 > 0;
   const drivingAfterLatch = geometryValid && i.F3 > 0;
+  const drivingAtEnd = geometryValid && travelOrderValid && i.F4 > 0;
+  const endForceSufficient =
+    drivingAtEnd && Number.isFinite(i.minimumEndForce) && i.F4 + 1e-9 >= i.minimumEndForce;
+  const hasPostCriticalTravel = i.yTotal > i.yCritical + 1e-9;
+  const overcomesOpposingPreload =
+    !hasPostCriticalTravel ||
+    (drivingAtEnd && Number.isFinite(i.opposingPreload) && i.F4 > i.opposingPreload);
   const stressBand = classifyStressBand(i.stressPctBasis);
   const springIndexAdvisoryOk = i.C >= 4 && i.C <= 12;
 
   const reasons: V2ExclusionReason[] = [];
   if (!geometryValid) reasons.push("invalid-geometry");
   else {
+    if (!travelOrderValid) reasons.push("invalid-travel");
     if (!positiveRunUp || !fitsBudget) reasons.push("no-run-up");
+    if (!armedHeightInRange) reasons.push("armed-height-out-of-range");
     if (!loadedAtContact) reasons.push("slack-at-contact");
-    if (!drivingAfterLatch) reasons.push("stops-driving");
+    if (!drivingAtEnd) reasons.push("stops-driving");
+    else if (!endForceSufficient || !overcomesOpposingPreload) reasons.push("insufficient-end-force");
     if (stressBand === "redesign") reasons.push("stress-redesign");
   }
 
@@ -220,19 +278,36 @@ function evaluateFeasibility(i: FeasibilityInputs): V2Feasibility {
     geometryValid &&
     positiveRunUp &&
     fitsBudget &&
+    travelOrderValid &&
+    armedHeightInRange &&
     loadedAtContact &&
     drivingAfterLatch &&
+    drivingAtEnd &&
+    endForceSufficient &&
+    overcomesOpposingPreload &&
     stressBand !== "redesign";
 
   return {
     geometryValid,
     positiveRunUp,
     fitsBudget,
+    travelOrderValid,
+    armedHeightInRange,
     loadedAtContact,
     drivingAfterLatch,
+    drivingAtEnd,
+    endForceSufficient,
+    overcomesOpposingPreload,
     stressBand,
     springIndexAdvisoryOk,
     feasible,
     reasons,
   };
+}
+
+/** Positive spring work over an unloading interval, clipped when the spring goes slack. */
+function positiveReleaseWork(startForce: number, springRateValue: number, travel: number): number {
+  if (startForce <= 0 || springRateValue <= 0 || travel <= 0) return 0;
+  const loadedTravel = Math.min(travel, startForce / springRateValue);
+  return runUpWork(startForce, springRateValue, loadedTravel);
 }

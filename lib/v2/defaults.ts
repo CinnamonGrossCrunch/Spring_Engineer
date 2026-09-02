@@ -12,7 +12,7 @@ import {
  * The default V2 study scenario (Sweep #1).
  *
  * Epistemic tiers (see the scenario panel):
- *   · Actual mechanism boundaries — forceCap, axialBudget, latchTravel
+ *   · Actual mechanism boundaries — forceCap, axialBudget, critical/total travel, end force
  *   · Fixed for this study        — housing envelope / OD tolerance, material
  *   · Derived model guidance      — solidHeightTolerance, stress bands
  *   · Optional mfg. tolerances    — springRateTolerance, freeLengthTolerance
@@ -23,7 +23,13 @@ export const DEFAULT_V2_SCENARIO: V2Scenario = {
   // Actual mechanism boundaries
   forceCap: 140, // F0 ≤ 140 lbf; evaluated AT the cap for Sweep #1
   axialBudget: 1.15, // B = compressed spring length + hammer run-up [in]
-  latchTravel: 0.07, // y = HF latch follow-through [in]
+  latchTravel: 0.07, // y_critical = point-of-no-return travel after contact [in]
+  totalLatchTravel: 0.20, // y_total = full hammer/latch coupled travel after contact [in]
+  minimumEndForce: 10, // minimum nominal spring force at B + y_total [lbf]
+  opposingPreload: 0.6, // modeled opposing latch preload [lbf]
+  armedHeightConstraintEnabled: false,
+  armedHeightMin: 0.70,
+  armedHeightMax: 1.00,
 
   // Fixed for this study
   housingInnerDiameter: millimetersToInches(DEFAULT_HOUSING_INNER_DIAMETER_MM),
@@ -170,15 +176,22 @@ export const V2_LANDSCAPE_METRICS: V2LandscapeMetricInfo[] = [
   },
   {
     id: "Wlatch",
-    label: "Latch Follow-Through Work",
+    label: "Critical-Window Spring Work",
     get: (c: V2Candidate) => c.Wlatch,
     unit: "in·lbf",
     higherIsBetter: true,
   },
   {
     id: "F3",
-    label: "Final Spring Force",
+    label: "Critical-Point Spring Force",
     get: (c: V2Candidate) => c.F3,
+    unit: "lbf",
+    higherIsBetter: true,
+  },
+  {
+    id: "F4",
+    label: "End-of-Travel Spring Force",
+    get: (c: V2Candidate) => c.F4,
     unit: "lbf",
     higherIsBetter: true,
   },

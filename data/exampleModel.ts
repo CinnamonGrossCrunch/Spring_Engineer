@@ -33,7 +33,12 @@ export const DEFAULT_PRESET: PresetId = "currentCandidate";
 
 /** Mechanism boundaries + Lee guidance shared across all presets. */
 const COMMON_MECHANISM_GUIDANCE: Preset = {
-  y_latch: { value: 0.07, status: "fixed" }, // latch follow-through travel
+  y_latch: { value: 0.07, status: "fixed" }, // critical release travel after contact
+  y_total: { value: 0.20, status: "fixed" }, // full hammer/latch coupled travel after contact
+  F_end_min: { value: 10, status: "fixed" }, // minimum nominal spring force at full travel
+  F_opposing: { value: 0.6, status: "fixed" }, // opposing preload during post-critical travel
+  L_armed_min: { status: "fixed" }, // optional mechanism packaging range
+  L_armed_max: { status: "fixed" },
   B: { value: 1.15, status: "fixed" }, // axial budget = L_min + s_h
   F1_cap: { value: 140, status: "fixed" }, // starting spring-force cap
 
@@ -153,9 +158,13 @@ const DERIVED_IDS = [
   "F1",
   "F2",
   "F3",
+  "F4",
+  "F4_net",
   "L_min",
   "L2",
   "L3",
+  "L4",
+  "y_post",
   "D",
   "OD",
   "ID",
@@ -172,6 +181,11 @@ const DERIVED_IDS = [
   "utilization",
   "clearance",
   "W_run",
+  "W_critical",
+  "W_post",
+  "W_opposing",
+  "W_post_net",
+  "W_coupled",
   "KE",
   "v",
   "p",
@@ -265,7 +279,7 @@ export const PRESET_INFO: Record<
     label: "Current Candidate — Elgiloy Optimization",
     short: "Current candidate",
     blurb:
-      "Current-design baseline: d=0.137 in, OD=1.100 in, N_t=5.10, G=12.0 Mpsi, B=1.150 in, y_latch=0.070 in, Lee +5% solid-height tolerance, and a 60% default maximum-deflection-utilization constraint. Hammer mass/efficiency and 900/450 latch-force assumptions are left unset in this preset.",
+      "Current-design baseline: d=0.137 in, OD=1.100 in, N_t=5.10, G=12.0 Mpsi, B=1.150 in, critical travel=0.070 in, total coupled travel=0.200 in, a 10 lbf nominal end-force floor, +5% solid-height tolerance, and a 60% default maximum-deflection-utilization constraint. Hammer mass/efficiency and 900/450 latch-force assumptions are left unset in this preset.",
   },
   literalSketch: {
     label: "Historical Baseline — Literal",

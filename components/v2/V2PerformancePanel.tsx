@@ -165,6 +165,16 @@ export function V2PerformancePanel({
             Index advisory
           </span>
         )}
+        <span
+          className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
+            c.feasibility.endForceSufficient
+              ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+              : "border-red-300 bg-red-50 text-red-700"
+          }`}
+          title={`Required nominal end force: ${fmtLbf(scenario.minimumEndForce)}`}
+        >
+          F₄ {c.feasibility.endForceSufficient ? "meets" : "below"} end-force floor
+        </span>
         <span className="ml-auto text-[10px] italic text-zinc-400">not vendor validated</span>
       </div>
 
@@ -185,6 +195,8 @@ export function V2PerformancePanel({
           <Row label="Deflection utilization" value={fmtPct(c.deflectionUtilization)} hint="Working deflection divided by free-to-maximum-solid travel" />
           <Row label="Deflection reserve" value={fmtPct(c.deflectionReserve)} />
           <Row label={`${canonicalName("s")} ${canonicalSym("s")}`} value={fmtIn(c.s)} hint="s = B − Lc" />
+          <Row label="Critical release travel" value={fmtIn(scenario.latchTravel)} />
+          <Row label="Total coupled travel" value={fmtIn(scenario.totalLatchTravel)} />
           <Row label={`${canonicalName("Lf")} ${canonicalSym("Lf")}`} value={fmtIn(c.Lf)} hint="Output, not a target" />
         </Group>
 
@@ -192,12 +204,19 @@ export function V2PerformancePanel({
           <Row label={`${canonicalName("k")} ${canonicalSym("k")}`} value={fmtRate(c.k)} />
           <Row label={`${canonicalName("F0")} ${canonicalSym("F0")}`} value={fmtLbf(c.F0)} />
           <Row label={`${canonicalName("F2")} ${canonicalSym("F2")}`} value={fmtLbf(c.F2)} hint="Spring force at hammer contact — not impact force" />
-          <Row label={`${canonicalName("F3")} ${canonicalSym("F3")}`} value={fmtLbf(c.F3)} />
+          <Row label="Critical-point force F₃" value={fmtLbf(c.F3)} />
+          <Row label="End-of-travel force F₄" value={fmtLbf(c.F4)} hint={`Requirement ≥ ${fmtLbf(scenario.minimumEndForce)}`} />
+          <Row label="Net end force after preload" value={fmtLbf(c.netEndForce)} hint={`F₄ − ${fmtLbf(scenario.opposingPreload)} opposing preload`} />
         </Group>
 
         <Group title="Work">
           <Row label={`${canonicalName("Whammer")} ${canonicalSym("Whammer")}`} value={fmtWork(c.Whammer)} />
-          <Row label={`${canonicalName("Wlatch")} ${canonicalSym("Wlatch")}`} value={fmtWork(c.Wlatch)} />
+          <Row label="Critical-window spring work" value={fmtWork(c.Wlatch)} />
+          <Row label="Post-critical spring work" value={fmtWork(c.WpostCritical)} />
+          <Row label="Work against opposing preload" value={fmtWork(c.Wopposing)} />
+          <Row label="Net post-critical work" value={fmtWork(c.WpostCriticalNet)} />
+          <Row label="Full coupled-travel spring work" value={fmtWork(c.Wcoupled)} />
+          <Row label="Armed-through-end spring work" value={fmtWork(c.WthroughEnd)} />
           <Row label={`${canonicalName("WreleaseIdeal")} ${canonicalSym("WreleaseIdeal")}`} value={fmtWork(c.WreleaseIdeal)} hint="Ideal upper bound — not energy delivered to the latch" />
           <Row label="Nominal armed shear stress τ" value={`${(c.tau / 1000).toFixed(1)} ksi`} hint="Calculated from nominal geometry, armed force, and Wahl correction" />
           <Row
@@ -223,7 +242,7 @@ export function V2PerformancePanel({
           <div className="rounded border border-blue-200 bg-white px-2 py-1.5">
             <div className="text-[10px] leading-tight text-zinc-500">{canonicalName("FeqAvgIdeal")}</div>
             <div className="font-mono text-[17px] font-bold text-blue-700">{fmtLbf(c.FeqAvgIdeal)}</div>
-            <div className="text-[9px] italic text-zinc-400">= W_release,ideal / y · not actual average latch force</div>
+            <div className="text-[9px] italic text-zinc-400">= W_release,ideal / critical travel · not actual average latch force</div>
           </div>
           <div className="rounded border border-blue-200 bg-white px-2 py-1.5">
             <div className="text-[10px] leading-tight text-zinc-500">{canonicalName("FeqTriPeakIdeal")}</div>
@@ -276,7 +295,7 @@ export function V2PerformancePanel({
             <Row label="Coupled triangular equivalent*" value={lens.coupledTriangularPeakEquivalent === undefined ? "—" : fmtLbf(lens.coupledTriangularPeakEquivalent)} />
           </div>
           <p className="text-[9.5px] italic leading-tight text-zinc-400">
-            *Coupled drive counts total hammer+latch translational KE plus follow-through spring work and applies only while the hammer remains engaged. Latch KE transfer is the latch-only amount immediately after collision. Missing masses suppress collision outputs; contact stiffness, duration, deformation and rebound still govern real peak force.
+            *Coupled drive counts total hammer+latch translational KE plus efficiency-adjusted spring work over the full {scenario.totalLatchTravel.toFixed(3)} in post-contact travel, less work against the modeled preload. It applies only while the hammer remains engaged. No minimum velocity after the critical {scenario.latchTravel.toFixed(3)} in point is imposed; positive residual force provides the remaining drive. Missing masses suppress collision outputs; contact stiffness, duration, deformation and rebound still govern real peak force.
           </p>
         </div>
       </details>

@@ -53,8 +53,20 @@ export interface V2Scenario {
   forceCap: number;
   /** Total axial budget B = compressed spring length + hammer run-up [in]. */
   axialBudget: number;
-  /** HF latch follow-through y [in] — extra mechanism movement after contact. */
+  /** Critical release travel y_critical [in] after hammer contact. */
   latchTravel: number;
+  /** Total hammer/latch coupled travel y_total [in] after contact. */
+  totalLatchTravel: number;
+  /** Minimum nominal spring force required at B + y_total [lbf]. */
+  minimumEndForce: number;
+  /** Opposing preload force acting during post-critical travel [lbf]. */
+  opposingPreload: number;
+  /** Whether the optimizer-derived armed spring height must fall within a mechanism range. */
+  armedHeightConstraintEnabled: boolean;
+  /** Minimum permitted armed/compressed spring height [in]. */
+  armedHeightMin: number;
+  /** Maximum permitted armed/compressed spring height [in]. */
+  armedHeightMax: number;
 
   // ── Fixed for this study ──
   /** Housing inside diameter / absolute finished-spring OD ceiling [in]. */
@@ -115,9 +127,12 @@ export interface V2Scenario {
 /** Canonical exclusion reasons used for feasibility + the "why is it empty" summary. */
 export type V2ExclusionReason =
   | "invalid-geometry"
+  | "invalid-travel" // total coupled travel is shorter than the critical window
   | "no-run-up" // spring consumes entire axial budget
+  | "armed-height-out-of-range"
   | "slack-at-contact" // F2 ≤ 0
-  | "stops-driving" // F3 ≤ 0
+  | "stops-driving" // F4 ≤ 0 before full coupled travel completes
+  | "insufficient-end-force" // F4 is below the configured end-force floor
   | "stress-redesign"; // > 60% conservative/basis TS
 
 /** Explicit per-candidate feasibility record. Every check is surfaced, never fused. */
@@ -128,10 +143,20 @@ export interface V2Feasibility {
   positiveRunUp: boolean;
   /** Compressed length fits the axial budget: Lc < B. */
   fitsBudget: boolean;
+  /** Total coupled travel is at least as long as the critical release window. */
+  travelOrderValid: boolean;
+  /** Optimizer-derived armed height is inside the optional mechanism range. */
+  armedHeightInRange: boolean;
   /** Spring still loaded at contact: F2 > 0. */
   loadedAtContact: boolean;
-  /** Spring still driving after latch travel: F3 > 0. */
+  /** Spring still driving at the critical release point: F3 > 0. */
   drivingAfterLatch: boolean;
+  /** Spring remains loaded through the full coupled travel: F4 > 0. */
+  drivingAtEnd: boolean;
+  /** F4 meets the configured minimum nominal end-force requirement. */
+  endForceSufficient: boolean;
+  /** F4 remains above the modeled opposing preload. */
+  overcomesOpposingPreload: boolean;
   /** Lee stress band from the selected basis. */
   stressBand: V2StressBand;
   /** Spring index within the ~4–12 manufacturability advisory. */
@@ -180,13 +205,34 @@ export interface V2Candidate {
   x0: number;
   Lf: number;
   L2: number;
+  /** Critical release point B + y_critical. */
   L3: number;
+  /** Full coupled-travel endpoint B + y_total. */
+  L4: number;
   F2: number;
+  /** Spring force at the critical release point. */
   F3: number;
+  /** Spring force at the full coupled-travel endpoint. */
+  F4: number;
+  /** Nominal spring-force margin above the configured end-force floor. */
+  endForceMargin: number;
+  /** Nominal net end force after subtracting the opposing preload. */
+  netEndForce: number;
 
   // Work / release energy
   Whammer: number;
+  /** Spring work from contact through the critical release window. */
   Wlatch: number;
+  /** Spring work from the critical point through the full-travel endpoint. */
+  WpostCritical: number;
+  /** Work absorbed by the modeled constant opposing preload after critical release. */
+  Wopposing: number;
+  /** Post-critical spring work remaining after the modeled opposing preload. */
+  WpostCriticalNet: number;
+  /** Spring work over the complete post-contact coupled travel. */
+  Wcoupled: number;
+  /** Total spring work from armed through the full-travel endpoint. */
+  WthroughEnd: number;
   WreleaseIdeal: number;
 
   // Historical metric language (ideal, NOT actual contact force)
@@ -237,9 +283,9 @@ export interface V2SweepResult {
   feasible: V2Candidate[];
   /** Keys of the Pareto-frontier candidates. */
   paretoKeys: string[];
-  /** Three explainable near-maximum recommendations: hammer, total, follow-through. */
+  /** Three explainable near-maximum recommendations: hammer, total, end-force reserve. */
   recommendedKeys: string[];
-  recommendedRoles: Record<string, "hammer" | "total" | "follow-through">;
+  recommendedRoles: Record<string, "hammer" | "total" | "end-force">;
   /** How many candidates were excluded and why. */
   exclusionStats: V2ExclusionStats;
   totalCount: number;
@@ -254,6 +300,7 @@ export type V2LandscapeMetric =
   | "Whammer"
   | "Wlatch"
   | "F3"
+  | "F4"
   | "s"
   | "k"
   | "stress"

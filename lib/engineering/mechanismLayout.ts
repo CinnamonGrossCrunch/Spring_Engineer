@@ -11,3 +11,19 @@ export function mechanismLatchBottoms(
   const contactBottom = contactLength + hammerHeight;
   return [contactBottom, contactBottom, releasedLength + hammerHeight];
 }
+
+/** Four-state counterpart: armed, contact, critical release, coupled-travel end. */
+export function mechanismLatchBottoms4(
+  contactLength: number,
+  criticalLength: number,
+  endLength: number,
+  hammerHeight: number,
+): [number, number, number, number] {
+  const contactBottom = contactLength + hammerHeight;
+  return [
+    contactBottom,
+    contactBottom,
+    criticalLength + hammerHeight,
+    endLength + hammerHeight,
+  ];
+}

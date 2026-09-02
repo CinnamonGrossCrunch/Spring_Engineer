@@ -26,11 +26,18 @@ export function ManufacturingToleranceSummary({ candidate, scenario }: { candida
             ±{(scenario.springRateTolerance * 100).toFixed(1)}% rate and ±{scenario.freeLengthTolerance.toFixed(3)} in free length, stacked independently at fixed mechanism heights.
           </p>
         </div>
-        <span className={`rounded border px-2 py-1 text-[9.5px] font-semibold ${envelope.worstCaseForceCapPass ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-amber-300 bg-amber-100 text-amber-900"}`}>
-          {envelope.worstCaseForceCapPass
-            ? `Estimated armed maximum ≤ ${scenario.forceCap.toFixed(1)} lbf cap`
-            : `Estimated armed maximum is ${envelope.worstCaseForceCapExcess.toFixed(1)} lbf over cap`}
-        </span>
+        <div className="flex flex-wrap justify-end gap-1">
+          <span className={`rounded border px-2 py-1 text-[9.5px] font-semibold ${envelope.worstCaseForceCapPass ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-amber-300 bg-amber-100 text-amber-900"}`}>
+            {envelope.worstCaseForceCapPass
+              ? `Estimated armed maximum ≤ ${scenario.forceCap.toFixed(1)} lbf cap`
+              : `Estimated armed maximum is ${envelope.worstCaseForceCapExcess.toFixed(1)} lbf over cap`}
+          </span>
+          <span className={`rounded border px-2 py-1 text-[9.5px] font-semibold ${envelope.worstCaseEndForcePass ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-amber-300 bg-amber-100 text-amber-900"}`}>
+            {envelope.worstCaseEndForcePass
+              ? `Estimated end minimum ≥ ${scenario.minimumEndForce.toFixed(1)} lbf floor`
+              : `Estimated end minimum is ${envelope.worstCaseEndForceShortfall.toFixed(1)} lbf short`}
+          </span>
+        </div>
       </div>
       <div className="mt-2 grid gap-2 xl:grid-cols-2">
         <div className="overflow-hidden rounded border border-zinc-200 bg-white/80">
@@ -41,7 +48,8 @@ export function ManufacturingToleranceSummary({ candidate, scenario }: { candida
             <tbody>
               <RangeRow label="Armed" values={envelope.forces.armed} format={fmtLbf} />
               <RangeRow label="Hammer contact" values={envelope.forces.contact} format={fmtLbf} />
-              <RangeRow label="Follow-through" values={envelope.forces.released} format={fmtLbf} />
+              <RangeRow label="Critical release" values={envelope.forces.critical} format={fmtLbf} />
+              <RangeRow label="Coupled-travel end" values={envelope.forces.end} format={fmtLbf} />
             </tbody>
           </table>
         </div>
@@ -52,8 +60,9 @@ export function ManufacturingToleranceSummary({ candidate, scenario }: { candida
             </thead>
             <tbody>
               <RangeRow label="Hammer run-up" values={envelope.work.hammer} format={fmtWork} />
-              <RangeRow label="Latch travel" values={envelope.work.latch} format={fmtWork} />
-              <RangeRow label="Ideal total" values={envelope.work.total} format={fmtWork} />
+              <RangeRow label="Critical window" values={envelope.work.critical} format={fmtWork} />
+              <RangeRow label="Remaining travel" values={envelope.work.postCritical} format={fmtWork} />
+              <RangeRow label="Full coupled travel" values={envelope.work.coupled} format={fmtWork} />
             </tbody>
           </table>
         </div>

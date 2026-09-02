@@ -44,9 +44,12 @@ function round(x: number, decimals: number): number {
 function emptyStats(): V2ExclusionStats {
   return {
     "invalid-geometry": 0,
+    "invalid-travel": 0,
     "no-run-up": 0,
+    "armed-height-out-of-range": 0,
     "slack-at-contact": 0,
     "stops-driving": 0,
+    "insufficient-end-force": 0,
     "stress-redesign": 0,
   };
 }
@@ -84,9 +87,12 @@ export function sweepV2DesignSpace(scenario: V2Scenario): V2SweepResult {
   const exclusionStats = emptyStats();
   const REASON_PRIORITY: V2ExclusionReason[] = [
     "invalid-geometry",
+    "invalid-travel",
     "no-run-up",
+    "armed-height-out-of-range",
     "slack-at-contact",
     "stops-driving",
+    "insufficient-end-force",
     "stress-redesign",
   ];
   for (const c of candidates) {

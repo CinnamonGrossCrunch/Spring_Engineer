@@ -11,9 +11,18 @@ export interface ManufacturingToleranceCorner {
   freeLength: number;
   armedForce: number;
   contactForce: number;
+  criticalForce: number;
+  endForce: number;
+  /** @deprecated Alias for criticalForce retained for export compatibility. */
   releasedForce: number;
   hammerWork: number;
+  criticalWork: number;
+  postCriticalWork: number;
+  coupledWork: number;
+  throughEndWork: number;
+  /** @deprecated Alias for criticalWork. */
   latchWork: number;
+  /** @deprecated Armed-through-critical work. */
   totalWork: number;
 }
 
@@ -23,17 +32,29 @@ export interface ManufacturingToleranceEnvelope {
   forces: {
     armed: MinNominalMax;
     contact: MinNominalMax;
+    critical: MinNominalMax;
+    end: MinNominalMax;
+    /** @deprecated Alias for critical. */
     released: MinNominalMax;
   };
   work: {
     hammer: MinNominalMax;
+    critical: MinNominalMax;
+    postCritical: MinNominalMax;
+    coupled: MinNominalMax;
+    throughEnd: MinNominalMax;
+    /** @deprecated Alias for critical. */
     latch: MinNominalMax;
+    /** @deprecated Armed-through-critical work. */
     total: MinNominalMax;
   };
   corners: ManufacturingToleranceCorner[];
   nominalForceCapPass: boolean;
   worstCaseForceCapPass: boolean;
   worstCaseForceCapExcess: number;
+  nominalEndForcePass: boolean;
+  worstCaseEndForcePass: boolean;
+  worstCaseEndForceShortfall: number;
 }
 
 const EPSILON = 1e-9;
@@ -99,47 +120,76 @@ export function calculateManufacturingToleranceEnvelope(
     for (const freeLength of lengthValues) {
       const armedForce = forceAtHeight(springRate, freeLength, candidate.Lc);
       const contactForce = forceAtHeight(springRate, freeLength, candidate.L2);
-      const releasedForce = forceAtHeight(springRate, freeLength, candidate.L3);
+      const criticalForce = forceAtHeight(springRate, freeLength, candidate.L3);
+      const endForce = forceAtHeight(springRate, freeLength, candidate.L4);
       const hammerWork = workBetweenHeights(
         springRate,
         freeLength,
         candidate.Lc,
         candidate.L2,
       );
-      const latchWork = workBetweenHeights(
+      const criticalWork = workBetweenHeights(
         springRate,
         freeLength,
         candidate.L2,
         candidate.L3,
       );
+      const postCriticalWork = workBetweenHeights(
+        springRate,
+        freeLength,
+        candidate.L3,
+        candidate.L4,
+      );
+      const coupledWork = criticalWork + postCriticalWork;
       corners.push({
         springRate,
         freeLength,
         armedForce,
         contactForce,
-        releasedForce,
+        criticalForce,
+        endForce,
+        releasedForce: criticalForce,
         hammerWork,
-        latchWork,
-        totalWork: hammerWork + latchWork,
+        criticalWork,
+        postCriticalWork,
+        coupledWork,
+        throughEndWork: hammerWork + coupledWork,
+        latchWork: criticalWork,
+        totalWork: hammerWork + criticalWork,
       });
     }
   }
 
   const armed = range(candidate.F0, corners.map((corner) => corner.armedForce));
   const contact = range(candidate.F2, corners.map((corner) => corner.contactForce));
-  const released = range(candidate.F3, corners.map((corner) => corner.releasedForce));
+  const critical = range(candidate.F3, corners.map((corner) => corner.criticalForce));
+  const end = range(candidate.F4, corners.map((corner) => corner.endForce));
   const hammer = range(candidate.Whammer, corners.map((corner) => corner.hammerWork));
-  const latch = range(candidate.Wlatch, corners.map((corner) => corner.latchWork));
+  const criticalWork = range(candidate.Wlatch, corners.map((corner) => corner.criticalWork));
+  const postCritical = range(candidate.WpostCritical, corners.map((corner) => corner.postCriticalWork));
+  const coupled = range(candidate.Wcoupled, corners.map((corner) => corner.coupledWork));
+  const throughEnd = range(candidate.WthroughEnd, corners.map((corner) => corner.throughEndWork));
   const total = range(candidate.WreleaseIdeal, corners.map((corner) => corner.totalWork));
 
   return {
     springRate: range(candidate.k, rateValues),
     freeLength: range(candidate.Lf, lengthValues),
-    forces: { armed, contact, released },
-    work: { hammer, latch, total },
+    forces: { armed, contact, critical, end, released: critical },
+    work: {
+      hammer,
+      critical: criticalWork,
+      postCritical,
+      coupled,
+      throughEnd,
+      latch: criticalWork,
+      total,
+    },
     corners,
     nominalForceCapPass: armed.nominal <= scenario.forceCap + EPSILON,
     worstCaseForceCapPass: armed.max <= scenario.forceCap + EPSILON,
     worstCaseForceCapExcess: Math.max(0, armed.max - scenario.forceCap),
+    nominalEndForcePass: end.nominal + EPSILON >= scenario.minimumEndForce,
+    worstCaseEndForcePass: end.min + EPSILON >= scenario.minimumEndForce,
+    worstCaseEndForceShortfall: Math.max(0, scenario.minimumEndForce - end.min),
   };
 }

@@ -40,10 +40,15 @@ function isAlive(c: V2Candidate): boolean {
   const f = c.feasibility;
   return (
     f.geometryValid &&
+    f.travelOrderValid &&
     f.positiveRunUp &&
     f.fitsBudget &&
+    f.armedHeightInRange &&
     f.loadedAtContact &&
-    f.drivingAfterLatch
+    f.drivingAfterLatch &&
+    f.drivingAtEnd &&
+    f.endForceSufficient &&
+    f.overcomesOpposingPreload
   );
 }
 
@@ -384,7 +389,7 @@ export function V2DesignLandscape({
         <span className="inline-flex items-center gap-1">
           <span className="inline-block h-2.5 w-2.5 border-[1.4px] border-zinc-900 bg-white" /> Pareto
         </span>
-        <span className="inline-flex items-center gap-1" title="Hammer-, total-, and follow-through-work leaders within 1% of maximum total work; next total-work candidate fills any duplicate role">
+        <span className="inline-flex items-center gap-1" title="Hammer-work, total critical-release-work, and end-force leaders within 1% of maximum critical-release work; next total-work candidate fills any duplicate role">
           <span className="inline-block h-2.5 w-2.5 border border-emerald-700 bg-green-300" /> recommended three
         </span>
         <span className="inline-flex items-center gap-1">
@@ -426,9 +431,10 @@ function LandscapeTooltip({ candidate: c, x, y, maxX }: { candidate: V2Candidate
         <dt>Deflection used</dt><dd className="text-right font-mono">{fmtPct(c.deflectionUtilization)}</dd>
         <dt>{canonicalName("s")} {canonicalSym("s")}</dt><dd className="text-right font-mono">{fmtIn(c.s)}</dd>
         <dt>Hammer work</dt><dd className="text-right font-mono">{fmtWork(c.Whammer)}</dd>
-        <dt>Latch work</dt><dd className="text-right font-mono">{fmtWork(c.Wlatch)}</dd>
+        <dt>Critical-window work</dt><dd className="text-right font-mono">{fmtWork(c.Wlatch)}</dd>
         <dt>{canonicalName("FeqAvgIdeal")}</dt><dd className="text-right font-mono">{fmtLbf(c.FeqAvgIdeal)}</dd>
-        <dt>{canonicalName("F3")} {canonicalSym("F3")}</dt><dd className="text-right font-mono">{fmtLbf(c.F3)}</dd>
+        <dt>Critical force F₃</dt><dd className="text-right font-mono">{fmtLbf(c.F3)}</dd>
+        <dt>End force F₄</dt><dd className="text-right font-mono">{fmtLbf(c.F4)}</dd>
         <dt>Stress %TS basis</dt><dd className="text-right font-mono">{fmtPct(c.stressPctBasis)}</dd>
       </dl>
       <div className="mt-1 flex items-center justify-between border-t border-zinc-100 pt-1">
@@ -441,9 +447,12 @@ function LandscapeTooltip({ candidate: c, x, y, maxX }: { candidate: V2Candidate
 
 const REASON_LABEL: Record<string, string> = {
   "invalid-geometry": "Invalid geometry",
+  "invalid-travel": "Total travel < critical travel",
   "no-run-up": "No hammer stroke",
+  "armed-height-out-of-range": "Armed height outside range",
   "slack-at-contact": "Slack at contact",
-  "stops-driving": "Stops driving (F3≤0)",
+  "stops-driving": "Stops before full travel (F4≤0)",
+  "insufficient-end-force": "Below end-force floor",
   "stress-redesign": ">60% stress",
 };
 

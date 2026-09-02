@@ -77,7 +77,7 @@ export const EQUATIONS: Equation[] = [
   },
   {
     id: "loaded_length_release",
-    name: "Loaded length after latch travel",
+    name: "Loaded length at critical release",
     expression: "L3 = L2 + y_latch",
     variables: ["L3", "L2", "y_latch"],
     solvers: {
@@ -85,7 +85,30 @@ export const EQUATIONS: Equation[] = [
       L2: (v) => v.L3 - v.y_latch,
       y_latch: (v) => v.L3 - v.L2,
     },
-    note: "V1 assumes continuous spring drive through latch travel.",
+    note: "Critical point-of-no-return position after hammer contact.",
+  },
+  {
+    id: "loaded_length_end",
+    name: "Loaded length at coupled-travel end",
+    expression: "L4 = L2 + y_total",
+    variables: ["L4", "L2", "y_total"],
+    solvers: {
+      L4: (v) => v.L2 + v.y_total,
+      L2: (v) => v.L4 - v.y_total,
+      y_total: (v) => v.L4 - v.L2,
+    },
+    note: "Hammer and latch remain mechanically engaged through the full post-contact travel.",
+  },
+  {
+    id: "remaining_coupled_travel",
+    name: "Remaining travel after critical release",
+    expression: "y_post = y_total − y_latch",
+    variables: ["y_post", "y_total", "y_latch"],
+    solvers: {
+      y_post: (v) => v.y_total - v.y_latch,
+      y_total: (v) => v.y_post + v.y_latch,
+      y_latch: (v) => v.y_total - v.y_post,
+    },
   },
 
   // ── Force states through mechanism travel ───────────────────────────────
@@ -117,7 +140,7 @@ export const EQUATIONS: Equation[] = [
   },
   {
     id: "force_release",
-    name: "Spring force after latch travel",
+    name: "Spring force at critical release",
     expression: "F3 = F2 − k·y_latch",
     variables: ["F3", "F2", "k", "y_latch"],
     solvers: {
@@ -126,7 +149,7 @@ export const EQUATIONS: Equation[] = [
       k: (v) => (v.F2 - v.F3) / v.y_latch,
       y_latch: (v) => (v.F2 - v.F3) / v.k,
     },
-    note: "Assumes continuous spring drive through latch travel (V1).",
+    note: "Quasi-static residual spring force at the point-of-no-return position.",
   },
   {
     id: "force_release_composite",
@@ -137,6 +160,41 @@ export const EQUATIONS: Equation[] = [
       F3: (v) => v.k * (v.x1 - v.s_h - v.y_latch),
       k: (v) => v.F3 / (v.x1 - v.s_h - v.y_latch),
       x1: (v) => v.s_h + v.y_latch + v.F3 / v.k,
+    },
+  },
+  {
+    id: "force_end",
+    name: "Spring force at coupled-travel end",
+    expression: "F4 = F2 − k·y_total",
+    variables: ["F4", "F2", "k", "y_total"],
+    solvers: {
+      F4: (v) => v.F2 - v.k * v.y_total,
+      F2: (v) => v.F4 + v.k * v.y_total,
+      k: (v) => (v.F2 - v.F4) / v.y_total,
+      y_total: (v) => (v.F2 - v.F4) / v.k,
+    },
+    note: "Quasi-static spring force after the full coupled hammer/latch travel.",
+  },
+  {
+    id: "force_end_composite",
+    name: "End force (composite form)",
+    expression: "F4 = k·(x1 − s_h − y_total)",
+    variables: ["F4", "k", "x1", "s_h", "y_total"],
+    solvers: {
+      F4: (v) => v.k * (v.x1 - v.s_h - v.y_total),
+      k: (v) => v.F4 / (v.x1 - v.s_h - v.y_total),
+      x1: (v) => v.s_h + v.y_total + v.F4 / v.k,
+    },
+  },
+  {
+    id: "net_end_force",
+    name: "Net end driving force",
+    expression: "F4_net = F4 − F_opposing",
+    variables: ["F4_net", "F4", "F_opposing"],
+    solvers: {
+      F4_net: (v) => v.F4 - v.F_opposing,
+      F4: (v) => v.F4_net + v.F_opposing,
+      F_opposing: (v) => v.F4 - v.F4_net,
     },
   },
 
@@ -307,6 +365,57 @@ export const EQUATIONS: Equation[] = [
     variables: ["W_run", "F1", "k", "s_h"],
     solvers: {
       W_run: (v) => runUpWork(v.F1, v.k, v.s_h),
+    },
+  },
+  {
+    id: "critical_window_work",
+    name: "Critical-window spring work",
+    expression: "W_critical = F2·y_latch − ½·k·y_latch²",
+    variables: ["W_critical", "F2", "k", "y_latch"],
+    solvers: {
+      W_critical: (v) => runUpWork(v.F2, v.k, v.y_latch),
+    },
+  },
+  {
+    id: "full_coupled_work",
+    name: "Full coupled-travel spring work",
+    expression: "W_coupled = F2·y_total − ½·k·y_total²",
+    variables: ["W_coupled", "F2", "k", "y_total"],
+    solvers: {
+      W_coupled: (v) => runUpWork(v.F2, v.k, v.y_total),
+    },
+  },
+  {
+    id: "post_critical_work",
+    name: "Post-critical spring work",
+    expression: "W_post = W_coupled − W_critical",
+    variables: ["W_post", "W_coupled", "W_critical"],
+    solvers: {
+      W_post: (v) => v.W_coupled - v.W_critical,
+      W_coupled: (v) => v.W_post + v.W_critical,
+      W_critical: (v) => v.W_coupled - v.W_post,
+    },
+  },
+  {
+    id: "opposing_preload_work",
+    name: "Work against opposing preload",
+    expression: "W_opposing = F_opposing·y_post",
+    variables: ["W_opposing", "F_opposing", "y_post"],
+    solvers: {
+      W_opposing: (v) => v.F_opposing * v.y_post,
+      F_opposing: (v) => v.W_opposing / v.y_post,
+      y_post: (v) => v.W_opposing / v.F_opposing,
+    },
+  },
+  {
+    id: "net_post_critical_work",
+    name: "Net post-critical work",
+    expression: "W_post_net = W_post − W_opposing",
+    variables: ["W_post_net", "W_post", "W_opposing"],
+    solvers: {
+      W_post_net: (v) => v.W_post - v.W_opposing,
+      W_post: (v) => v.W_post_net + v.W_opposing,
+      W_opposing: (v) => v.W_post - v.W_post_net,
     },
   },
   {

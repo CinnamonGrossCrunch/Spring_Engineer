@@ -10,7 +10,7 @@
  * accused of recomputing the optimisation physics.
  */
 
-/** The four mechanism states a candidate can be rendered in. */
+/** The four existing CAD configurations; `release` intentionally remains the critical L3 state. */
 export type SpringConfiguration = "free" | "armed" | "contact" | "release";
 
 /**
@@ -52,7 +52,7 @@ export interface SpringStates {
   armedLengthIn: number;
   /** Hammer contact length L2 [in] */
   contactLengthIn: number;
-  /** Latch follow-through length L3 [in] */
+  /** Critical release-point length L3 [in]. Kept on the legacy wire name for API compatibility. */
   releaseLengthIn: number;
 }
 
@@ -142,9 +142,9 @@ export const CONFIGURATION_LABELS: Record<
   },
   contact: { label: "Hammer Contact", symbol: "L2", description: "After hammer run-up" },
   release: {
-    label: "Latch Follow-Through",
+    label: "Critical Release Point",
     symbol: "L3",
-    description: "After release travel",
+    description: "At point of no return; full-travel L4 is not yet a CAD export state",
   },
 };
 

@@ -37,15 +37,18 @@ export const OVERVIEW_LABELS: Record<string, OverviewLabel> = {
   F1: { name: canonicalName("F1"), sym: canonicalSym("F1") },
   F2: { name: canonicalName("F2"), sym: canonicalSym("F2") },
   F3: { name: canonicalName("F3"), sym: canonicalSym("F3") },
+  F4: { name: canonicalName("F4"), sym: canonicalSym("F4") },
 
   // Loaded lengths (per state)
   L_min: { name: canonicalName("L_min"), sym: canonicalSym("L_min") },
   L2: { name: canonicalName("L2"), sym: canonicalSym("L2") },
   L3: { name: canonicalName("L3"), sym: canonicalSym("L3") },
+  L4: { name: canonicalName("L4"), sym: canonicalSym("L4") },
 
   // Travel between states
   s_h: { name: canonicalName("s_h"), sym: canonicalSym("s_h") },
   y_latch: { name: canonicalName("y_latch"), sym: canonicalSym("y_latch") },
+  y_total: { name: canonicalName("y_total"), sym: canonicalSym("y_total") },
 
   // Hammer / latch
   m: { name: canonicalName("m"), sym: canonicalSym("m") },

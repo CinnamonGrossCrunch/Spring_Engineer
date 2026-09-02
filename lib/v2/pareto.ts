@@ -5,7 +5,7 @@ import type { V2Candidate } from "./types";
  * performance dimensions:
  *
  *   W_hammer  — energy released before hammer contact
- *   W_latch   — energy / force retained through latch follow-through
+ *   W_latch   — energy delivered through the critical release window
  *
  * Candidate A DOMINATES B when A is at least as good in both dimensions and
  * strictly better in at least one. A candidate is on the frontier when no other
@@ -47,13 +47,13 @@ export function dominates(a: V2Candidate, b: V2Candidate): boolean {
 
 export interface V2Recommendations {
   keys: string[];
-  roles: Record<string, "hammer" | "total" | "follow-through">;
+  roles: Record<string, "hammer" | "total" | "end-force">;
 }
 
 /**
  * Explainable three-candidate shortlist. First retain candidates within 1% of
  * the maximum total ideal work, then identify the hammer-work, total-work and
- * follow-through-work leaders. This deliberately avoids a fabricated weighted
+ * end-force-reserve leaders. This deliberately avoids a fabricated weighted
  * score and reproduces the earlier adjacent-knee comparison logic.
  */
 export function recommendTopCandidates(feasible: V2Candidate[]): V2Recommendations {
@@ -61,10 +61,10 @@ export function recommendTopCandidates(feasible: V2Candidate[]): V2Recommendatio
   if (finite.length === 0) return { keys: [], roles: {} };
   const maxTotal = Math.max(...finite.map((c) => c.WreleaseIdeal));
   const nearMax = finite.filter((c) => c.WreleaseIdeal >= maxTotal * 0.99);
-  const picks: Array<["hammer" | "total" | "follow-through", V2Candidate | undefined]> = [
+  const picks: Array<["hammer" | "total" | "end-force", V2Candidate | undefined]> = [
     ["hammer", [...nearMax].sort((a, b) => b.Whammer - a.Whammer || b.WreleaseIdeal - a.WreleaseIdeal)[0]],
     ["total", [...nearMax].sort((a, b) => b.WreleaseIdeal - a.WreleaseIdeal || b.Whammer - a.Whammer)[0]],
-    ["follow-through", [...nearMax].sort((a, b) => b.Wlatch - a.Wlatch || b.F3 - a.F3)[0]],
+    ["end-force", [...nearMax].sort((a, b) => b.F4 - a.F4 || b.Wcoupled - a.Wcoupled)[0]],
   ];
   const keys: string[] = [];
   const roles: V2Recommendations["roles"] = {};

@@ -35,6 +35,7 @@ import { candidateToV1Model, defaultV2CandidateToV1Model } from "@/lib/v2/inspec
 import { DEFAULT_V2_SCENARIO } from "@/lib/v2/defaults";
 import { MaterialImpactInputs } from "./v2/MaterialImpactInputs";
 import { parseStoredV2Scenario, V2_SCENARIO_STORAGE_KEY } from "@/lib/v2/scenarioStorage";
+import { MechanismConstraintContext } from "./v2/MechanismConstraintContext";
 
 const MODES: DesignMode[] = ["forward", "reverse", "explore"];
 const ACTIVE_PRESET: PresetId = "currentCandidate";
@@ -430,6 +431,13 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
       {/* ── Main workspace ── */}
       <div className="flex-1 p-3">
         <div className="mb-3">
+          <MechanismConstraintContext
+            scenario={v2Scenario}
+            candidate={selectedV2Candidate}
+            onChange={handleV2ScenarioChange}
+          />
+        </div>
+        <div className="mb-3">
           <MaterialImpactInputs scenario={v2Scenario} onChange={handleV2ScenarioChange} candidate={selectedV2Candidate} />
         </div>
         <div className="mb-3 rounded-lg border border-violet-200 bg-white p-3 shadow-sm">
@@ -459,8 +467,12 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
                   F1={solve.values.F1}
                   F2={solve.values.F2}
                   F3={solve.values.F3}
+                  F4={solve.values.F4}
                   s_h={display("s_h")}
                   y_latch={display("y_latch")}
+                  y_total={display("y_total")}
+                  F_end_min={display("F_end_min")}
+                  F_opposing={display("F_opposing")}
                   F_latch_avg={display("F_latch_avg")}
                   onSelect={handleSelect}
                 />

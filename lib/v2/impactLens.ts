@@ -32,9 +32,9 @@ export interface V2ImpactLens {
   hammerPostImpactKE: number | undefined;
   /** Total translational KE of hammer + latch immediately after collision [ft·lbf]. */
   combinedPostImpactKE: number | undefined;
-  /** Total post-impact translational KE plus follow-through spring work [in·lbf]. */
+  /** Post-impact translational KE plus efficiency-adjusted spring work, less modeled opposing-preload work [in·lbf]. */
   coupledDriveWork: number | undefined;
-  /** Coupled-drive energy divided by the known latch travel [lbf]. */
+  /** Coupled-drive energy divided by the full post-contact coupled travel [lbf]. */
   coupledAverageEquivalent: number | undefined;
   /** 2× coupled average, only for a triangular force-over-travel assumption [lbf]. */
   coupledTriangularPeakEquivalent: number | undefined;
@@ -98,10 +98,10 @@ export function applyImpactLens(
     : latchPostImpactKE + hammerPostImpactKE;
   const coupledDriveWork = combinedPostImpactKE === undefined
     ? undefined
-    : combinedPostImpactKE * 12 + eta * candidate.Wlatch;
+    : combinedPostImpactKE * 12 + eta * candidate.Wcoupled - candidate.Wopposing;
   const coupledAverageEquivalent =
-    coupledDriveWork !== undefined && candidate.L3 > candidate.L2
-      ? coupledDriveWork / (candidate.L3 - candidate.L2)
+    coupledDriveWork !== undefined && candidate.L4 > candidate.L2
+      ? coupledDriveWork / (candidate.L4 - candidate.L2)
       : undefined;
 
   return {

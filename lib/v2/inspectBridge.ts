@@ -57,7 +57,18 @@ export function candidateToV1Model(candidate: V2Candidate, scenario: V2Scenario)
   next.x1 = { value: candidate.x0, status: "variable" };
   next.L_free = { value: candidate.Lf, status: "variable" };
   next.s_h = { value: candidate.s, status: "variable" };
-  next.y_latch = { value: scenario.latchTravel, status: "variable" };
+  next.y_latch = { value: scenario.latchTravel, status: "fixed" };
+  next.y_total = { value: scenario.totalLatchTravel, status: "fixed" };
+  next.F_end_min = { value: scenario.minimumEndForce, status: "fixed" };
+  next.F_opposing = { value: scenario.opposingPreload, status: "fixed" };
+  next.L_armed_min = {
+    value: scenario.armedHeightConstraintEnabled ? scenario.armedHeightMin : undefined,
+    status: "fixed",
+  };
+  next.L_armed_max = {
+    value: scenario.armedHeightConstraintEnabled ? scenario.armedHeightMax : undefined,
+    status: "fixed",
+  };
   next.deflection_utilization_max = { value: scenario.maxDeflectionUtilization, status: "variable" };
 
   return next;

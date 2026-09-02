@@ -4,10 +4,13 @@ import type { V2ExclusionReason, V2SweepResult } from "@/lib/v2/types";
 
 const REASON_LABEL: Record<V2ExclusionReason, string> = {
   "invalid-geometry": "Invalid geometry",
+  "invalid-travel": "Total coupled travel is shorter than the critical release window",
   "no-run-up": "Spring consumes the axial budget (no hammer stroke)",
+  "armed-height-out-of-range": "Armed spring height is outside the enabled mechanism range",
   "slack-at-contact": "Spring slack at contact (F₂ ≤ 0)",
-  "stops-driving": "Spring stops driving before latch release (F₃ ≤ 0)",
-  "stress-redesign": "Above 60% stress guidance (Lee redesign region)",
+  "stops-driving": "Spring reaches free length before full coupled travel ends (F₄ ≤ 0)",
+  "insufficient-end-force": "End-of-travel spring force is below the configured floor",
+  "stress-redesign": "Above 60% stress guidance (redesign region)",
 };
 
 const MODELED = [
@@ -21,7 +24,9 @@ const MODELED = [
   "Lee stress-to-tensile guidance bands (40 / 60%)",
   "Axial packaging trade (Lc + s = B)",
   "Spring force through the stroke",
-  "Ideal spring work (hammer + latch)",
+  "Four force states through critical release and full coupled travel",
+  "Nominal end-force floor and opposing-preload margin",
+  "Ideal spring work split into hammer, critical, and remaining-travel phases",
 ];
 
 const NOT_MODELED = [

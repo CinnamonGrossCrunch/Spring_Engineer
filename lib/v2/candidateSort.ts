@@ -12,6 +12,7 @@ export type V2CandidateSortKey =
   | "Lf"
   | "F2"
   | "F3"
+  | "F4"
   | "Whammer"
   | "Wlatch"
   | "FeqAvgIdeal"
@@ -34,6 +35,7 @@ const DISPLAY_RESOLUTION: Record<V2CandidateSortKey, number> = {
   Lf: 0.001,
   F2: 0.01,
   F3: 0.01,
+  F4: 0.01,
   Whammer: 0.01,
   Wlatch: 0.01,
   FeqAvgIdeal: 0.01,

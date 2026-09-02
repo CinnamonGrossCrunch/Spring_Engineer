@@ -53,7 +53,8 @@ const COLS: Col[] = [
   { key: "s", plainLabel: canonicalName("s"), label: canonicalSym("s"), fmt: (c) => c.s.toFixed(3) },
   { key: "Lf", plainLabel: canonicalName("Lf"), label: canonicalSym("Lf"), fmt: (c) => c.Lf.toFixed(3) },
   { key: "F2", plainLabel: canonicalName("F2"), label: canonicalSym("F2"), fmt: (c) => formatValue(c.F2) },
-  { key: "F3", plainLabel: canonicalName("F3"), label: canonicalSym("F3"), fmt: (c) => formatValue(c.F3) },
+  { key: "F3", plainLabel: "Critical-point force", label: "F3", fmt: (c) => formatValue(c.F3) },
+  { key: "F4", plainLabel: "End-of-travel force", label: "F4", fmt: (c) => formatValue(c.F4) },
   { key: "Whammer", plainLabel: canonicalName("Whammer"), label: canonicalSym("Whammer"), fmt: (c) => formatValue(c.Whammer) },
   { key: "Wlatch", plainLabel: canonicalName("Wlatch"), label: canonicalSym("Wlatch"), fmt: (c) => formatValue(c.Wlatch) },
   { key: "FeqAvgIdeal", plainLabel: canonicalName("FeqAvgIdeal"), label: canonicalSym("FeqAvgIdeal"), fmt: (c) => formatValue(c.FeqAvgIdeal) },
@@ -262,7 +263,7 @@ export function V2CandidateTable({ sweep, scenario, selectedKey, onSelect, short
         </div>
       )}
       <div className="flex items-center justify-between border-t border-zinc-100 px-3 py-1.5 text-[10px] text-zinc-400">
-        <span>d, Lc, c_req, s, Lf in inches · u_max and %TS in percent · k in lbf/in · forces in lbf · work in in·lbf</span>
+        <span>d, Lc, c_req, s, Lf in inches · F₃ is critical-point force · F₄ is full-travel end force · u_max and %TS in percent · k in lbf/in · work in in·lbf</span>
         <span>{rows.length} shown</span>
       </div>
     </div>

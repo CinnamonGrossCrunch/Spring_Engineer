@@ -100,40 +100,109 @@ export function evaluateConstraints(
     }
   }
 
-  // ── Latch follow-through boundary ────────────────────────────────────────
+  // ── Critical / total travel ordering ────────────────────────────────────
   {
-    const y = v("y_latch");
-    if (y !== undefined) {
-      const target = 0.07;
-      const diff = Math.abs(y - target);
-      const ok = diff <= 1e-6;
+    const yCritical = v("y_latch");
+    const yTotal = v("y_total");
+    if (yCritical !== undefined && yTotal !== undefined) {
+      const ok = yCritical > 0 && yTotal + 1e-9 >= yCritical;
       results.push({
-        id: "latch_travel_boundary",
-        name: "Latch follow-through boundary",
+        id: "travel_order",
+        name: "Critical and total travel",
         ok,
-        severity: ok ? "info" : "warning",
+        severity: ok ? "info" : "error",
         message: ok
-          ? `y_latch = ${y.toFixed(3)} in matches the current boundary value (0.070 in).`
-          : `y_latch = ${y.toFixed(3)} in differs from the current boundary value (0.070 in).`,
-        parameterIds: ["y_latch"],
+          ? `Critical release occurs at ${yCritical.toFixed(3)} in after contact; full coupled travel ends at ${yTotal.toFixed(3)} in.`
+          : `Travel definition is invalid: critical travel must be positive and cannot exceed total coupled travel (${yCritical.toFixed(3)} in critical vs ${yTotal.toFixed(3)} in total).`,
+        parameterIds: ["y_latch", "y_total", "y_post"],
       });
     }
   }
 
-  // ── Continuous drive through latch travel ───────────────────────────────
+  // ── Spring force at critical release ────────────────────────────────────
   {
     const F3 = v("F3");
     if (F3 !== undefined) {
       const ok = F3 > 0;
       results.push({
-        id: "continuous_drive",
-        name: "Spring drive through latch travel",
+        id: "critical_release_force",
+        name: "Spring drive at critical release",
         ok,
         severity: ok ? "info" : "error",
         message: ok
-          ? `Residual spring force after latch travel is F3 = ${F3.toFixed(2)} lbf — the spring keeps driving through release.`
-          : `F3 = ${F3.toFixed(2)} lbf ≤ 0: the spring reaches free length before latch travel completes, violating the V1 continuous-drive assumption.`,
+          ? `Spring force at the point of no return is F3 = ${F3.toFixed(2)} lbf.`
+          : `F3 = ${F3.toFixed(2)} lbf ≤ 0: the spring reaches free length before the critical release point.`,
         parameterIds: ["F3", "k", "y_latch", "x1", "s_h"],
+      });
+    }
+  }
+
+  // ── Minimum force at the end of full coupled travel ─────────────────────
+  {
+    const F4 = v("F4");
+    const minimum = v("F_end_min");
+    if (F4 !== undefined && minimum !== undefined) {
+      const ok = F4 + 1e-9 >= minimum;
+      results.push({
+        id: "end_force_floor",
+        name: "End-of-travel spring-force floor",
+        ok,
+        severity: ok ? "info" : "error",
+        message: ok
+          ? `F4 = ${F4.toFixed(2)} lbf satisfies the nominal end-force floor of ${minimum.toFixed(2)} lbf.`
+          : `F4 = ${F4.toFixed(2)} lbf is below the nominal end-force floor of ${minimum.toFixed(2)} lbf.`,
+        parameterIds: ["F4", "F_end_min", "k", "y_total"],
+      });
+    }
+  }
+
+  // ── Positive finishing drive against the modeled opposing preload ───────
+  {
+    const F4 = v("F4");
+    const opposing = v("F_opposing");
+    const yCritical = v("y_latch");
+    const yTotal = v("y_total");
+    if (
+      F4 !== undefined &&
+      opposing !== undefined &&
+      yCritical !== undefined &&
+      yTotal !== undefined &&
+      yTotal > yCritical + 1e-9
+    ) {
+      const net = F4 - opposing;
+      const ok = net > 0;
+      results.push({
+        id: "opposing_preload",
+        name: "Net drive after critical release",
+        ok,
+        severity: ok ? "info" : "error",
+        message: ok
+          ? `Final net drive is ${net.toFixed(2)} lbf (${F4.toFixed(2)} lbf spring force − ${opposing.toFixed(2)} lbf opposing preload). No minimum post-critical velocity is imposed.`
+          : `Final net drive is ${net.toFixed(2)} lbf: the spring cannot overcome the modeled ${opposing.toFixed(2)} lbf opposing preload through the remaining travel.`,
+        parameterIds: ["F4", "F4_net", "F_opposing", "y_post"],
+      });
+    }
+  }
+
+  // ── Optional armed/compressed spring-height range ───────────────────────
+  {
+    const Lmin = v("L_min");
+    const armedMin = v("L_armed_min");
+    const armedMax = v("L_armed_max");
+    if (Lmin !== undefined && armedMin !== undefined && armedMax !== undefined) {
+      const rangeValid = armedMin <= armedMax;
+      const ok = rangeValid && Lmin + 1e-9 >= armedMin && Lmin <= armedMax + 1e-9;
+      results.push({
+        id: "armed_height_range",
+        name: "Optional armed spring-height range",
+        ok,
+        severity: ok ? "info" : "error",
+        message: !rangeValid
+          ? `Armed-height range is invalid: minimum ${armedMin.toFixed(3)} in exceeds maximum ${armedMax.toFixed(3)} in.`
+          : ok
+            ? `Armed spring height ${Lmin.toFixed(3)} in is within ${armedMin.toFixed(3)}–${armedMax.toFixed(3)} in.`
+            : `Armed spring height ${Lmin.toFixed(3)} in is outside ${armedMin.toFixed(3)}–${armedMax.toFixed(3)} in.`,
+        parameterIds: ["L_min", "L_armed_min", "L_armed_max"],
       });
     }
   }

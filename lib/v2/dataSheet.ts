@@ -52,12 +52,14 @@ function operatingStateTable(
     return `State\tSpring length\tCalculated spring force
 Armed / compressed\t${inch(candidate.Lc)}\t${lbf(candidate.F0)} nominal at mechanism cap
 Hammer contact\t${inch(candidate.L2)}\t${lbf(candidate.F2)} nominal
-Released / follow-through\t${inch(candidate.L3)}\t${lbf(candidate.F3)} nominal`;
+Critical release point\t${inch(candidate.L3)}\t${lbf(candidate.F3)} nominal
+Full coupled-travel end\t${inch(candidate.L4)}\t${lbf(candidate.F4)} nominal`;
   }
   return `State\tSpring length\tMinimum estimate*\tNominal\tMaximum estimate*
 Armed / compressed\t${inch(candidate.Lc)}\t${tableForce(tolerance.forces.armed.min)}\t${tableForce(tolerance.forces.armed.nominal)}\t${tableForce(tolerance.forces.armed.max)}
 Hammer contact\t${inch(candidate.L2)}\t${tableForce(tolerance.forces.contact.min)}\t${tableForce(tolerance.forces.contact.nominal)}\t${tableForce(tolerance.forces.contact.max)}
-Released / follow-through\t${inch(candidate.L3)}\t${tableForce(tolerance.forces.released.min)}\t${tableForce(tolerance.forces.released.nominal)}\t${tableForce(tolerance.forces.released.max)}`;
+Critical release point\t${inch(candidate.L3)}\t${tableForce(tolerance.forces.critical.min)}\t${tableForce(tolerance.forces.critical.nominal)}\t${tableForce(tolerance.forces.critical.max)}
+Full coupled-travel end\t${inch(candidate.L4)}\t${tableForce(tolerance.forces.end.min)}\t${tableForce(tolerance.forces.end.nominal)}\t${tableForce(tolerance.forces.end.max)}`;
 }
 
 function tolerancePerformanceTable(
@@ -68,14 +70,19 @@ function tolerancePerformanceTable(
   const capStatus = tolerance.worstCaseForceCapPass
     ? `Estimated armed maximum remains within the ${shortLbf(scenario.forceCap)} mechanism cap.`
     : `Estimated armed maximum is ${shortLbf(tolerance.worstCaseForceCapExcess)} above the ${shortLbf(scenario.forceCap)} mechanism cap.`;
+  const endStatus = tolerance.worstCaseEndForcePass
+    ? `Estimated end-force minimum remains at or above the ${shortLbf(scenario.minimumEndForce)} floor.`
+    : `Estimated end-force minimum is ${shortLbf(tolerance.worstCaseEndForceShortfall)} below the ${shortLbf(scenario.minimumEndForce)} floor.`;
   return `
 Manufacturing Tolerance Estimate
 Work metric\tMinimum estimate*\tNominal\tMaximum estimate*
 Hammer run-up work\t${shortWork(tolerance.work.hammer.min)}\t${shortWork(tolerance.work.hammer.nominal)}\t${shortWork(tolerance.work.hammer.max)}
-Latch follow-through work\t${shortWork(tolerance.work.latch.min)}\t${shortWork(tolerance.work.latch.nominal)}\t${shortWork(tolerance.work.latch.max)}
-Ideal total release work\t${shortWork(tolerance.work.total.min)}\t${shortWork(tolerance.work.total.nominal)}\t${shortWork(tolerance.work.total.max)}
+Critical-window spring work\t${shortWork(tolerance.work.critical.min)}\t${shortWork(tolerance.work.critical.nominal)}\t${shortWork(tolerance.work.critical.max)}
+Post-critical spring work\t${shortWork(tolerance.work.postCritical.min)}\t${shortWork(tolerance.work.postCritical.nominal)}\t${shortWork(tolerance.work.postCritical.max)}
+Full coupled-travel spring work\t${shortWork(tolerance.work.coupled.min)}\t${shortWork(tolerance.work.coupled.nominal)}\t${shortWork(tolerance.work.coupled.max)}
 
 • Force-cap check: ${capStatus}
+• End-force check: ${endStatus}
 • *Advisory independent corner stack using only ±${pct(scenario.springRateTolerance)} spring rate and ±${dualLength(scenario.freeLengthTolerance)} free length at fixed mechanism heights. This is not a statistical confidence interval or a supplier-guaranteed load range. Operating-height tolerance, temperature, friction, nonlinearity, solid-height variation beyond the separate modeled H_s,max allowance, and correlated production data are not included.
 • Stress, deflection/utilization, impact-equivalent values, Pareto ranking, and feasibility remain nominal; the tolerance envelope is not propagated into those outputs.`;
 }
@@ -259,7 +266,11 @@ For internal mechanism review. This summarizes what the mechanism requires and w
 
 - Maximum armed spring force: ${lbf(s.forceCap)}
 - Total axial package, B: ${inch(s.axialBudget)} (armed spring + hammer run-up)
-- Latch follow-through after contact: ${inch(s.latchTravel)}
+- Critical release travel after contact: ${inch(s.latchTravel)}
+- Total hammer/latch coupled travel after contact: ${inch(s.totalLatchTravel)}
+- Minimum nominal spring force at full-travel end: ${lbf(s.minimumEndForce)}
+- Opposing latch preload: ${lbf(s.opposingPreload)}
+- Armed spring height: ${s.armedHeightConstraintEnabled ? `${inch(s.armedHeightMin)} to ${inch(s.armedHeightMax)} allowed` : "optimizer-derived; no additional mechanism range enabled"}
 - Housing ID / absolute finished-spring OD: ${inch(s.housingInnerDiameter)}
 - Nominal study OD: ${inch(nominalOuterDiameter)} (housing limit minus ${inch(s.outerDiameterTolerance)} positive OD tolerance allowance; held constant in this sweep)
 - Worst-case finished OD: ${inch(maximumFinishedOuterDiameter)}
@@ -285,11 +296,16 @@ ${operatingStateTable(c, tolerance)}
 
 - Spring rate: ${rate(c.k)}
 - Hammer run-up work: ${work(c.Whammer)}
-- Latch follow-through work: ${work(c.Wlatch)}
+- Critical-window spring work: ${work(c.Wlatch)}
+- Post-critical spring work: ${work(c.WpostCritical)}
+- Work against modeled opposing preload: ${work(c.Wopposing)}
+- Net post-critical work after opposing preload: ${work(c.WpostCriticalNet)}
+- Full coupled-travel spring work: ${work(c.Wcoupled)}
+- End-of-travel force: ${lbf(c.F4)}; ${lbf(c.endForceMargin)} above the configured floor; ${lbf(c.netEndForce)} after opposing preload
 - Ideal total release work: ${work(c.WreleaseIdeal)} (not measured delivered energy)
 - Impact assumptions: η = ${(s.impactEfficiency * 100).toFixed(0)}%; restitution e = ${s.impactRestitution.toFixed(2)}; hammer mass ${s.hammerMassLbm === null ? "TBD" : `${s.hammerMassLbm.toFixed(4)} lbm`}; latch mass ${s.latchMassLbm === null ? "TBD" : `${s.latchMassLbm.toFixed(4)} lbm`}
-- Collision lens: latch-only KE ${impact.latchPostImpactKE === undefined ? "not calculated — both masses are required" : work(impact.latchPostImpactKE * 12)}; coupled-drive work* ${impact.coupledDriveWork === undefined ? "not calculated — both masses are required" : work(impact.coupledDriveWork)}; coupled average* ${impact.coupledAverageEquivalent === undefined ? "not calculated — both masses are required" : `${lbf(impact.coupledAverageEquivalent)} over the specified latch travel`}
-- *Coupled drive counts total hammer+latch translational KE after collision plus follow-through spring work and is available to drive the latch only while the hammer remains engaged. It is not peak contact force.
+- Collision lens: latch-only KE ${impact.latchPostImpactKE === undefined ? "not calculated — both masses are required" : work(impact.latchPostImpactKE * 12)}; coupled-drive work* ${impact.coupledDriveWork === undefined ? "not calculated — both masses are required" : work(impact.coupledDriveWork)}; coupled average* ${impact.coupledAverageEquivalent === undefined ? "not calculated — both masses are required" : `${lbf(impact.coupledAverageEquivalent)} over the full coupled travel`}
+- *Coupled drive counts total hammer+latch translational KE after collision plus efficiency-adjusted spring work over the full post-contact travel, less work against the modeled opposing preload. It is available only while the hammer remains engaged. No minimum velocity is imposed after the critical release point; positive residual spring force supplies the remaining drive. It is not peak contact force.
 - Nominal stress guidance: ${stressSummary(c)}
 ${tolerancePerformanceTable(tolerance, s)}
 
@@ -297,10 +313,10 @@ ${tolerancePerformanceTable(tolerance, s)}
 
 - Model uses ${materialName(material)}, ${material.condition}, as a benchmark material with G = ${(s.shearModulusPsi / 1e6).toFixed(2)} Mpsi and a ${ksi(s.stressBasisPsi)} tensile-strength classification basis. Source: ${material.sourceUrl}
 - Nominal end form is squared and ground; CAD defaults to right-hand winding.
-- Confirm that the armed, contact, and released lengths match the actual mechanism stops.
-- Confirm the ${s.forceCap.toFixed(0)} lbf force cap, ${dualLength(s.housingInnerDiameter)} housing/OD ceiling, ${dualLength(s.outerDiameterTolerance)} positive OD tolerance allowance, and ${s.latchTravel.toFixed(3)} in latch travel.
+- Confirm that the armed, contact, critical-release, and full-travel-end lengths match the actual mechanism stops.
+- Confirm the ${s.forceCap.toFixed(0)} lbf force cap, ${dualLength(s.housingInnerDiameter)} housing/OD ceiling, ${dualLength(s.outerDiameterTolerance)} positive OD tolerance allowance, ${s.latchTravel.toFixed(3)} in critical travel, ${s.totalLatchTravel.toFixed(3)} in total coupled travel, and ${s.minimumEndForce.toFixed(1)} lbf nominal end-force floor.
 - Confirm the ${(s.maxDeflectionUtilization * 100).toFixed(1)}% maximum-deflection-utilization scenario; equivalent clearance for this candidate is ${inch(c.solidClearance)} above modeled H_s,max.
-${tolerance ? `- Confirm the entered/assumed ±${pct(s.springRateTolerance)} rate and ±${dualLength(s.freeLengthTolerance)} free-length values, or replace this estimate with supplier-guaranteed loads at the three specified heights.` : ""}
+${tolerance ? `- Confirm the entered/assumed ±${pct(s.springRateTolerance)} rate and ±${dualLength(s.freeLengthTolerance)} free-length values, or replace this estimate with supplier-guaranteed loads at the four specified heights.` : ""}
 - If those inputs are correct, decide whether to send this candidate for vendor review and prototype quotation.
 
 Source: Spring Mechanism Explorer V2 · Candidate ${c.key} · Exported ${generatedAt}
@@ -326,13 +342,17 @@ We are seeking design-for-manufacture review and a prototype quotation. The spri
 
 ## 1. Our Mechanism and Constraints
 
-- Intended use: accelerate a hammer from the armed position to contact, then continue driving through the latch follow-through travel.
-- Interpretation: contact and released values are quasi-static spring forces, not dynamic impact-force claims.
+- Intended use: accelerate a hammer from the armed position to contact, cross the critical release point, then continue driving the coupled hammer/latch assembly to its final stop.
+- Interpretation: contact, critical-point, and end values are quasi-static spring forces, not dynamic impact-force claims.
 
 Constraint	Target / boundary	Status
 Armed spring force	≤ ${lbf(s.forceCap)}	Mechanism limit
 Total axial package, B	${inch(s.axialBudget)}	Armed spring length + hammer run-up
-Latch follow-through	${inch(s.latchTravel)}	Additional travel after hammer contact
+Critical release travel	${inch(s.latchTravel)}	Point-of-no-return window after hammer contact
+Total coupled travel	${inch(s.totalLatchTravel)}	Hammer and latch remain engaged to the final stop
+Minimum spring force at end	${lbf(s.minimumEndForce)}	Nominal quasi-static floor at B + total coupled travel
+Opposing preload	${lbf(s.opposingPreload)}	Modeled counter-force during remaining travel
+Armed spring height	${s.armedHeightConstraintEnabled ? `${inch(s.armedHeightMin)} to ${inch(s.armedHeightMax)}` : "No additional range enabled"}	${s.armedHeightConstraintEnabled ? "Hard mechanism packaging range" : "Optimizer-derived from force and deflection constraints"}
 Housing ID / absolute finished-spring OD	${inch(s.housingInnerDiameter)}	Hard mechanism envelope
 Nominal spring outside diameter	${inch(nominalOuterDiameter)}	Derived by subtracting the positive OD tolerance allowance
 Positive OD tolerance allowance	${inch(s.outerDiameterTolerance)}	Worst-case finished OD is ${inch(maximumFinishedOuterDiameter)}; confirm tolerance and required fit clearance
@@ -360,7 +380,10 @@ Nominal armed-load shear stress	${ksi(c.tau)} (Wahl-corrected, K_w = ${c.Kw.toFi
 Nominal stress screening	${pct(c.stressPctBasis)} at the selected ${ksi(s.stressBasisPsi)} tensile-strength basis; ${stressSummary(c)}
 Hammer / latch mass	${s.hammerMassLbm === null ? "TBD" : `${s.hammerMassLbm.toFixed(4)} lbm`} / ${s.latchMassLbm === null ? "TBD" : `${s.latchMassLbm.toFixed(4)} lbm`}
 Impact efficiency / restitution	${pct(s.impactEfficiency)} / e = ${s.impactRestitution.toFixed(2)}
-Collision lens	Latch-only KE: ${impact.latchPostImpactKE === undefined ? "Not calculated — both masses required" : work(impact.latchPostImpactKE * 12)}; coupled-drive work*: ${impact.coupledDriveWork === undefined ? "Not calculated — both masses required" : work(impact.coupledDriveWork)}; coupled average*: ${impact.coupledAverageEquivalent === undefined ? "Not calculated — both masses required" : lbf(impact.coupledAverageEquivalent)} over latch travel. *Counts total post-impact hammer+latch KE plus follow-through spring work and applies only while the hammer remains engaged; not peak contact force
+Critical / full-travel work	${work(c.Wlatch)} / ${work(c.Wcoupled)}	Spring work after contact through the critical point / final stop
+Post-critical gross / net work	${work(c.WpostCritical)} / ${work(c.WpostCriticalNet)}	Net subtracts ${work(c.Wopposing)} against the modeled opposing preload
+End-force reserve	${lbf(c.F4)} at end; ${lbf(c.endForceMargin)} above floor; ${lbf(c.netEndForce)} net after preload	Please assess friction and mechanism-geometry allowance
+Collision lens	Latch-only KE: ${impact.latchPostImpactKE === undefined ? "Not calculated — both masses required" : work(impact.latchPostImpactKE * 12)}; coupled-drive work*: ${impact.coupledDriveWork === undefined ? "Not calculated — both masses required" : work(impact.coupledDriveWork)}; coupled average*: ${impact.coupledAverageEquivalent === undefined ? "Not calculated — both masses required" : lbf(impact.coupledAverageEquivalent)} over full coupled travel. *Counts total post-impact hammer+latch KE plus efficiency-adjusted spring work through the final stop, less modeled opposing-preload work; applies only while the hammer remains engaged; not peak contact force
 ${tolerancePerformanceTable(tolerance, s)}
 
 ## 3. Our Assumptions for Vendor Review
@@ -375,6 +398,9 @@ OD tolerance / fit allowance	${dualLength(s.outerDiameterTolerance)}	Confirm ach
 Maximum-solid-height allowance	${pct(s.solidHeightTolerance)} above nominal	Confirm an achievable production tolerance and resulting maximum solid height
 Maximum deflection utilization	${pct(s.maxDeflectionUtilization)}	Advise whether this can be safely increased for more performance or must be reduced for durability/tolerances
 Equivalent armed height above maximum solid	${dualLength(c.solidClearance)}	Confirm the required production clearance after solid-height and load tolerances
+Critical / total post-contact travel	${dualLength(s.latchTravel)} / ${dualLength(s.totalLatchTravel)}	Confirm the specified load heights and that the spring can remain engaged through full travel
+Minimum nominal end force / opposing preload	${lbf(s.minimumEndForce)} / ${lbf(s.opposingPreload)}	Confirm achievable load at the final height; mechanism friction and geometry remain our responsibility
+Armed spring-height range	${s.armedHeightConstraintEnabled ? `${dualLength(s.armedHeightMin)} to ${dualLength(s.armedHeightMax)}` : "Not currently constrained beyond force/solid-height/package limits"}	Advise whether an explicit load-height requirement is preferable
 End condition	Squared and ground	Confirm feasibility and recommend any change
 Winding hand	Right-hand nominal	Confirm whether winding hand is functionally relevant
 Fatigue duty / cycle target	TBD	Tell us what duty information is needed and what cycle capability is realistic

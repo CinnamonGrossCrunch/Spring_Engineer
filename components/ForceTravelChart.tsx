@@ -18,16 +18,20 @@ import { overviewName, overviewSym } from "./overview/overviewLabels";
 /**
  * "Spring Force Through Mechanism Travel"
  * X: mechanism travel measured from maximum spring deflection.
- * Y: spring force. Shows F1 (start), F2 (hammer contact) and F3 (after latch
- * travel). F2 is deliberately labeled "spring force at hammer contact" —
- * NOT impact force.
+ * Y: spring force. Shows F1 (start), F2 (hammer contact), F3 (critical
+ * release) and F4 (full coupled-travel end). F2 is deliberately labeled
+ * "spring force at hammer contact" — NOT impact force.
  */
 export function ForceTravelChart({
   F1,
   F2,
   F3,
+  F4,
   s_h,
   y_latch,
+  y_total,
+  F_end_min,
+  F_opposing,
   F_latch_avg,
   onSelect,
   simplified = false,
@@ -35,8 +39,12 @@ export function ForceTravelChart({
   F1: number | undefined;
   F2: number | undefined;
   F3: number | undefined;
+  F4: number | undefined;
   s_h: number | undefined;
   y_latch: number | undefined;
+  y_total: number | undefined;
+  F_end_min: number | undefined;
+  F_opposing: number | undefined;
   F_latch_avg: number | undefined;
   onSelect: (id: string) => void;
   /** Overview mode: plain-language vocabulary, phase labels, no assumed-latch overlay. */
@@ -46,13 +54,18 @@ export function ForceTravelChart({
     F1 !== undefined &&
     F2 !== undefined &&
     F3 !== undefined &&
+    F4 !== undefined &&
     s_h !== undefined &&
     y_latch !== undefined &&
-    [F1, F2, F3, s_h, y_latch].every((n) => Number.isFinite(n));
+    y_total !== undefined &&
+    [F1, F2, F3, F4, s_h, y_latch, y_total].every((n) => Number.isFinite(n)) &&
+    y_latch > 0 &&
+    y_total >= y_latch;
 
-  const total = ready ? s_h + y_latch : 1;
+  const critical = ready ? s_h + y_latch : 0.5;
+  const total = ready ? s_h + y_total : 1;
   const xTicks = ready
-    ? [0, s_h, total].filter((tick, idx, arr) => {
+    ? [0, s_h, critical, total].filter((tick, idx, arr) => {
         // Recharts can emit duplicate tick-label keys when two ticks overlap.
         // Keep only the first tick within a tiny tolerance.
         const EPS = 1e-9;
@@ -63,11 +76,12 @@ export function ForceTravelChart({
     ? [
         { travel: 0, force: F1 },
         { travel: s_h, force: F2 },
-        { travel: total, force: F3 },
+        { travel: critical, force: F3 },
+        { travel: total, force: F4 },
       ]
     : [];
   const yMax = ready ? Math.max(F1, 1) * 1.15 : 1;
-  const yMin = ready ? Math.min(F3, 0) : 0;
+  const yMin = ready ? Math.min(F4, 0) : 0;
   const hasLatch = F_latch_avg !== undefined && Number.isFinite(F_latch_avg) && F_latch_avg > 0;
   // The assumed latch-resistance overlay is engineering-only — it must never
   // share the spring-force axis in the simplified Overview.
@@ -75,9 +89,8 @@ export function ForceTravelChart({
   const xAxisLabel = simplified
     ? "Mechanism travel (in / mm)"
     : "Mechanism travel from max spring deflection (in / mm)";
-  const latchAreaLabel = "Latch follow-through travel";
   const contactLineLabel = simplified ? "Hammer contact" : "2 · hammer contact";
-  const dotLabel = (id: "F1" | "F2" | "F3", force: number, engLabel: string) =>
+  const dotLabel = (id: "F1" | "F2" | "F3" | "F4", force: number, engLabel: string) =>
     simplified ? `${overviewSym(id)} = ${formatValue(force)} lbf` : engLabel;
 
   return (
@@ -148,16 +161,28 @@ export function ForceTravelChart({
                     }}
                   />
                 )}
-                {/* Latch-travel region */}
+                {/* Critical release window */}
                 <ReferenceArea
                   x1={s_h}
-                  x2={total}
+                  x2={critical}
                   fill="#f59e0b"
                   fillOpacity={0.08}
                   label={{
-                    value: latchAreaLabel,
+                    value: "Critical release window",
                     position: "insideTop",
                     style: { fontSize: 10, fill: "#b45309" },
+                  }}
+                />
+                {/* Remaining coupled travel */}
+                <ReferenceArea
+                  x1={critical}
+                  x2={total}
+                  fill="#f97316"
+                  fillOpacity={0.06}
+                  label={{
+                    value: "Residual spring drive",
+                    position: "insideTop",
+                    style: { fontSize: 10, fill: "#c2410c" },
                   }}
                 />
                 <ReferenceLine
@@ -170,7 +195,23 @@ export function ForceTravelChart({
                     style: { fontSize: 10, fill: "#52525b" },
                   }}
                 />
-                {F3 < 0 && <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="2 2" />}
+                {F4 < 0 && <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="2 2" />}
+                {F_end_min !== undefined && Number.isFinite(F_end_min) && (
+                  <ReferenceLine
+                    y={F_end_min}
+                    stroke="#16a34a"
+                    strokeDasharray="5 3"
+                    label={{ value: `end-force floor ${formatValue(F_end_min)} lbf`, position: "insideBottomRight", style: { fontSize: 9, fill: "#15803d" } }}
+                  />
+                )}
+                {F_opposing !== undefined && Number.isFinite(F_opposing) && F_opposing > 0 && (
+                  <ReferenceLine
+                    y={F_opposing}
+                    stroke="#f97316"
+                    strokeDasharray="2 3"
+                    label={{ value: `opposing preload ${formatValue(F_opposing)} lbf`, position: "insideBottomLeft", style: { fontSize: 9, fill: "#c2410c" } }}
+                  />
+                )}
                 {showLatch && (
                   <ReferenceLine
                     y={F_latch_avg}
@@ -216,13 +257,25 @@ export function ForceTravelChart({
                   }}
                 />
                 <ReferenceDot
-                  x={total}
+                  x={critical}
                   y={F3}
+                  r={4}
+                  fill="#d97706"
+                  stroke="#fff"
+                  label={{
+                    value: dotLabel("F3", F3, `F3 = ${formatValue(F3)} lbf (3 · critical release)`),
+                    position: "top",
+                    style: { fontSize: 10, fill: "#92400e" },
+                  }}
+                />
+                <ReferenceDot
+                  x={total}
+                  y={F4}
                   r={4}
                   fill="#b45309"
                   stroke="#fff"
                   label={{
-                    value: dotLabel("F3", F3, `F3 = ${formatValue(F3)} lbf (3 · latch follow-through)`),
+                    value: dotLabel("F4", F4, `F4 = ${formatValue(F4)} lbf (4 · coupled-travel end)`),
                     position: "left",
                     style: { fontSize: 10, fill: "#92400e" },
                   }}
@@ -238,7 +291,10 @@ export function ForceTravelChart({
               ● {simplified ? `${overviewName("F2")} (${overviewSym("F2")})` : "F2 · 2 spring force at hammer contact"}
             </button>
             <button className="hover:text-zinc-800" onClick={() => onSelect("F3")} type="button">
-              ● {simplified ? `${overviewName("F3")} (${overviewSym("F3")})` : "F3 · 3 latch follow-through"}
+              ● {simplified ? `${overviewName("F3")} (${overviewSym("F3")})` : "F3 · 3 critical release"}
+            </button>
+            <button className="hover:text-zinc-800" onClick={() => onSelect("F4")} type="button">
+              ● {simplified ? `${overviewName("F4")} (${overviewSym("F4")})` : "F4 · 4 coupled-travel end"}
             </button>
             {showLatch && (
               <button
@@ -250,7 +306,7 @@ export function ForceTravelChart({
               </button>
             )}
             <span className="ml-auto italic">
-              Slope = −k. Assumes 1:1 spring-to-hammer displacement, continuous drive.
+              Slope = −k. No minimum velocity is imposed after critical release; F₄ is the residual-drive check.
             </span>
           </div>
         </>

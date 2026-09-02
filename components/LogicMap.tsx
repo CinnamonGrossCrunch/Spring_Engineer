@@ -96,8 +96,9 @@ const GROUPS: GroupSpec[] = [
     section: "spring-behavior",
     title: "Spring Drives Hammer",
     order: 4,
-    subtitle: "1:1 displacement assumed (V1)",
-    paramIds: ["s_h", "L2", "L3", "F2", "F3", "W_run"],
+    subtitle: "Run-up → contact → critical release → coupled-travel end",
+    note: "No minimum velocity is imposed after the critical point. The end check is residual spring force against the configured floor and opposing preload.",
+    paramIds: ["s_h", "L2", "F2", "W_run", "L3", "F3", "W_critical", "L4", "F4", "F4_net", "W_post_net"],
     kind: "block",
   },
   {
@@ -122,10 +123,10 @@ const GROUPS: GroupSpec[] = [
   {
     id: "latch",
     section: "hammer-dynamics",
-    title: "Latch Requirement",
+    title: "Latch / Travel Requirements",
     order: 7,
-    subtitle: "Boundary travel y_latch with optional historical force references",
-    paramIds: ["F_latch_peak", "F_latch_avg", "y_latch"],
+    subtitle: "Critical window plus full coupled travel",
+    paramIds: ["y_latch", "y_total", "y_post", "F_end_min", "F_opposing", "F_latch_peak", "F_latch_avg"],
     kind: "block",
   },
 ];

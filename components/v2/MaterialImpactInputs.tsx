@@ -145,7 +145,7 @@ export function ImpactEquivalentInputs({ scenario, onChange, candidate, embedded
             <span>Coupled avg equivalent*</span><b className="text-right font-mono">{lens.coupledAverageEquivalent === undefined ? "—" : `${lens.coupledAverageEquivalent.toFixed(0)} lbf`}</b>
           </div>
         )}
-        <p className="mt-2 text-[9px] leading-snug text-zinc-400">*Coupled drive uses total hammer+latch translational KE after impact plus follow-through spring work. It is available to drive the latch only while the hammer remains engaged; latch KE transfer is the latch-only amount immediately after collision. Neither value is peak contact force.</p>
+        <p className="mt-2 text-[9px] leading-snug text-zinc-400">*Coupled drive uses total hammer+latch translational KE after impact plus efficiency-adjusted spring work across the full post-contact travel, less work against the modeled opposing preload. It is available only while the hammer remains engaged; no minimum speed after the critical release point is assumed. Latch KE transfer is the latch-only amount immediately after collision. Neither value is peak contact force.</p>
         <p className="mt-1 text-[9px] leading-snug text-zinc-400">Density estimates mass from CAD volume. Restitution is an empirical 1-D collision input; verify it by test because hardness, geometry, finish and speed dominate the real contact event.</p>
     </PanelShell>
   );

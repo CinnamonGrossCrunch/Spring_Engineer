@@ -13,7 +13,9 @@ export function parseStoredV2Scenario(raw: string | null): V2Scenario | null {
     const material = getV2Material(merged.materialId);
     merged.materialId = material.id;
     const numeric: Array<keyof V2Scenario> = [
-      "forceCap", "axialBudget", "latchTravel", "housingInnerDiameter",
+      "forceCap", "axialBudget", "latchTravel", "totalLatchTravel",
+      "minimumEndForce", "opposingPreload", "armedHeightMin", "armedHeightMax",
+      "housingInnerDiameter",
       "outerDiameterTolerance", "shearModulusPsi", "solidHeightTolerance",
       "springRateTolerance", "freeLengthTolerance",
       "maxDeflectionUtilization", "wireMin", "wireMax", "wireStep",
@@ -23,6 +25,13 @@ export function parseStoredV2Scenario(raw: string | null): V2Scenario | null {
     if (numeric.some((key) => !Number.isFinite(merged[key] as number))) return null;
     merged.impactEfficiency = Math.max(0, Math.min(1, merged.impactEfficiency));
     merged.impactRestitution = Math.max(0, Math.min(1, merged.impactRestitution));
+    merged.latchTravel = Math.max(0.001, merged.latchTravel);
+    merged.totalLatchTravel = Math.max(merged.latchTravel, merged.totalLatchTravel);
+    merged.minimumEndForce = Math.max(0, merged.minimumEndForce);
+    merged.opposingPreload = Math.max(0, merged.opposingPreload);
+    merged.armedHeightConstraintEnabled = merged.armedHeightConstraintEnabled === true;
+    merged.armedHeightMin = Math.max(0, merged.armedHeightMin);
+    merged.armedHeightMax = Math.max(merged.armedHeightMin, merged.armedHeightMax);
     merged.manufacturingToleranceEnabled = merged.manufacturingToleranceEnabled === true;
     merged.springRateTolerance = Math.max(0, Math.min(0.99, merged.springRateTolerance));
     merged.freeLengthTolerance = Math.max(0, merged.freeLengthTolerance);
