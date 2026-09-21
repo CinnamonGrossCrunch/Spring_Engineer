@@ -76,6 +76,10 @@ import {
   evaluateSpringConstraints,
 } from "../evaluator/evaluateSpring";
 import { SpringEvaluator } from "../../components/evaluator/SpringEvaluator";
+import {
+  DEFAULT_PACKAGE_DISCOVERY_SETTINGS,
+  discoverPackageFrontier,
+} from "../v2/packageDiscovery";
 
 let failures = 0;
 
@@ -1241,6 +1245,53 @@ console.log("\n── V2 (i) Candidate priority sorting ────────
   );
   assert("priority sort supports full-travel end force", byEndForce.map((candidate) => candidate.key).join("") === "bac");
   assert("priority sort does not mutate its input", [a, b, c].map((candidate) => candidate.key).join("") === "abc");
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// V2 (j) — Spring-first package discovery and Pareto recommendations.
+// ───────────────────────────────────────────────────────────────────────
+console.log("\n── V2 (j) Package–punch discovery ───────────────");
+{
+  const discovery = discoverPackageFrontier(
+    {
+      ...DEFAULT_V2_SCENARIO,
+      wireMin: 0.128,
+      wireMax: 0.14,
+      wireStep: 0.002,
+      activeCoilsMin: 2.2,
+      activeCoilsMax: 3.2,
+      activeCoilsStep: 0.2,
+    },
+    {
+      ...DEFAULT_PACKAGE_DISCOVERY_SETTINGS,
+      packageMin: 0.9,
+      packageMax: 1.3,
+      packageStep: 0.05,
+    },
+  );
+  assert("package discovery searches geometry and axial budget together", discovery.searchedCount > 0);
+  assert("package discovery finds tolerance-robust candidates", discovery.acceptedCount > 0);
+  assert("package discovery produces a non-dominated frontier", discovery.frontier.length > 1);
+  assert(
+    "package frontier is strictly increasing in work as package grows",
+    discovery.frontier.every((point, index) => index === 0 || (
+      point.axialBudget > discovery.frontier[index - 1].axialBudget &&
+      point.candidate.Whammer > discovery.frontier[index - 1].candidate.Whammer
+    )),
+  );
+  assert("package discovery identifies a balanced knee", Boolean(discovery.recommendations.knee));
+  assert("package discovery identifies maximum punch", Boolean(discovery.recommendations.punch));
+  assert(
+    "maximum-punch recommendation is the frontier work maximum",
+    discovery.recommendations.punch?.candidate.Whammer === Math.max(...discovery.frontier.map((point) => point.candidate.Whammer)),
+  );
+  assert(
+    "discovery keeps critical and final travel tied to the selected package",
+    discovery.frontier.every((point) =>
+      Math.abs(point.candidate.L3 - (point.axialBudget + DEFAULT_PACKAGE_DISCOVERY_SETTINGS.criticalTravel)) < 1e-9 &&
+      Math.abs(point.candidate.L4 - (point.axialBudget + DEFAULT_PACKAGE_DISCOVERY_SETTINGS.totalCoupledTravel)) < 1e-9
+    ),
+  );
 }
 
 if (failures > 0) {

@@ -26,6 +26,7 @@ import { fmtLbf } from "./v2format";
 import { formatValue } from "../StatusBadge";
 import { canonicalName, canonicalSym } from "@/lib/engineering/nomenclature";
 import type { DeflectionConstraintState } from "@/lib/engineering/deflectionConstraint";
+import { V2PackageDiscovery } from "./V2PackageDiscovery";
 
 const MAX_SHORTLIST = 3;
 
@@ -53,6 +54,7 @@ export function V2Workbench({
   onScenarioChange: (patch: Partial<V2Scenario>) => void;
   onResetScenario: () => void;
 }) {
+  const [optimizationMode, setOptimizationMode] = useState<"discover" | "fixed">("discover");
   const [metric, setMetric] = useState<V2LandscapeMetric>("FeqAvgIdeal");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [shortlist, setShortlist] = useState<V2ShortlistEntry[]>([]);
@@ -139,8 +141,22 @@ export function V2Workbench({
     shortlist.some((entry) => isV2ShortlistEntryActive(entry, selected.key, scenario));
   const activeShortlistId = selected ? v2ShortlistEntryId(selected.key, scenario) : null;
 
+  if (optimizationMode === "discover") {
+    return (
+      <div className="flex flex-col gap-3 p-3">
+        <OptimizationModeSelector mode={optimizationMode} onChange={setOptimizationMode} />
+        <V2PackageDiscovery
+          scenario={scenario}
+          onScenarioChange={patchScenario}
+          onSelectedCandidateChange={onSelectedCandidateChange}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-3 p-3">
+      <OptimizationModeSelector mode={optimizationMode} onChange={setOptimizationMode} />
       {/* Hero relationships strip — the 15-second read */}
       <div className="sticky top-0 z-40 rounded-lg border border-zinc-200 bg-white/95 px-4 py-2.5 shadow-sm backdrop-blur-sm">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px]">
@@ -307,6 +323,43 @@ export function V2Workbench({
 
       {/* Model completeness + feasibility */}
       <V2AssumptionsPanel sweep={sweep} />
+    </div>
+  );
+}
+
+function OptimizationModeSelector({
+  mode,
+  onChange,
+}: {
+  mode: "discover" | "fixed";
+  onChange: (mode: "discover" | "fixed") => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 shadow-sm">
+      <div>
+        <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">Optimization objective</div>
+        <p className="text-[10px] text-zinc-400">
+          Discover searches package length; Fixed Package preserves the original geometry matrix.
+        </p>
+      </div>
+      <div className="flex overflow-hidden rounded-md border border-zinc-300 text-[11px]">
+        <button
+          type="button"
+          onClick={() => onChange("discover")}
+          aria-pressed={mode === "discover"}
+          className={`px-3 py-1.5 font-semibold ${mode === "discover" ? "bg-violet-700 text-white" : "bg-white text-zinc-600 hover:bg-zinc-50"}`}
+        >
+          Discover Package
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange("fixed")}
+          aria-pressed={mode === "fixed"}
+          className={`border-l border-zinc-300 px-3 py-1.5 font-semibold ${mode === "fixed" ? "bg-zinc-800 text-white" : "bg-white text-zinc-600 hover:bg-zinc-50"}`}
+        >
+          Fixed Package
+        </button>
+      </div>
     </div>
   );
 }
