@@ -2,16 +2,23 @@
 
 import { useState, type InputHTMLAttributes } from "react";
 
-type CommitNumberInputProps = Omit<
+type BaseNumberInputProps = Omit<
   InputHTMLAttributes<HTMLInputElement>,
   "type" | "value" | "defaultValue" | "onChange"
-> & {
+>;
+
+type CommitNumberInputProps = BaseNumberInputProps & {
   value: number;
   onCommit: (value: number) => void;
 };
 
-function numberText(value: number): string {
-  return Number.isFinite(value) ? String(value) : "";
+type OptionalCommitNumberInputProps = BaseNumberInputProps & {
+  value: number | null;
+  onCommit: (value: number | null) => void;
+};
+
+function numberText(value: number | null): string {
+  return value !== null && Number.isFinite(value) ? String(value) : "";
 }
 
 /**
@@ -19,21 +26,31 @@ function numberText(value: number): string {
  * application model. A valid number is committed on Enter or focus-out;
  * empty and invalid drafts revert to the last committed value.
  */
-export function CommitNumberInput({
+function BufferedNumberInput({
   value,
   onCommit,
+  allowEmpty,
   onFocus,
   onBlur,
   onKeyDown,
   ...inputProps
-}: CommitNumberInputProps) {
+}: BaseNumberInputProps & {
+  value: number | null;
+  onCommit: (value: number | null) => void;
+  allowEmpty: boolean;
+}) {
   const committedText = numberText(value);
   const [draft, setDraft] = useState(committedText);
   const [isEditing, setIsEditing] = useState(false);
 
   const finishEditing = () => {
+    if (draft.trim() === "") {
+      if (allowEmpty) onCommit(null);
+      setIsEditing(false);
+      return;
+    }
     const next = Number(draft);
-    if (draft.trim() !== "" && Number.isFinite(next)) onCommit(next);
+    if (Number.isFinite(next)) onCommit(next);
     setIsEditing(false);
   };
 
@@ -61,4 +78,20 @@ export function CommitNumberInput({
       }}
     />
   );
+}
+
+export function CommitNumberInput({ onCommit, ...props }: CommitNumberInputProps) {
+  return (
+    <BufferedNumberInput
+      {...props}
+      allowEmpty={false}
+      onCommit={(next) => {
+        if (next !== null) onCommit(next);
+      }}
+    />
+  );
+}
+
+export function OptionalCommitNumberInput(props: OptionalCommitNumberInputProps) {
+  return <BufferedNumberInput {...props} allowEmpty />;
 }

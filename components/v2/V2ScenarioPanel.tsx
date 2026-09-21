@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { CommitNumberInput } from "@/components/CommitNumberInput";
 import type { V2Material, V2Scenario } from "@/lib/v2/types";
 import { DEFLECTION_UTILIZATION_SCENARIOS } from "@/lib/v2/defaults";
 import { SOURCE_TAG, fmtInMm, fmtPct } from "./v2format";
@@ -156,22 +157,18 @@ export function NumberField({
         {symbol && <span className="ml-1 font-mono text-[10px] text-zinc-400">{symbol}</span>}
       </label>
       <div className="flex items-center gap-1">
-        <input
+        <CommitNumberInput
           id={id}
-          type="number"
-          value={Number.isFinite(value) ? value : ""}
+          value={value}
           step={step}
           min={min}
           max={max}
-          onChange={(e) => {
-            const v = Number.parseFloat(e.target.value);
-            if (Number.isFinite(v)) {
-              const bounded = Math.min(
-                max ?? Number.POSITIVE_INFINITY,
-                Math.max(min ?? Number.NEGATIVE_INFINITY, v),
-              );
-              onChange(bounded);
-            }
+          onCommit={(next) => {
+            const bounded = Math.min(
+              max ?? Number.POSITIVE_INFINITY,
+              Math.max(min ?? Number.NEGATIVE_INFINITY, next),
+            );
+            onChange(bounded);
           }}
           className="w-[74px] rounded border border-zinc-300 bg-white px-1.5 py-1 text-right font-mono text-[12px] text-zinc-800 focus:border-blue-500 focus:outline-none"
         />

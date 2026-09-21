@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CommitNumberInput } from "@/components/CommitNumberInput";
 import type { ModelState, ParameterDefinition, ParameterState } from "@/lib/engineering/types";
 
 /**
@@ -25,26 +26,7 @@ export function ParameterValueEditor({
   onValueChange: (id: string, value: number) => void;
   onSetDiameterMode: (id: "D" | "OD" | "ID") => void;
 }) {
-  // Local text state so partially-typed numbers don't fight the model.
-  // While the input is focused the user's text wins; otherwise the draft is
-  // resynced during render when selection/value changes.
-  const [draft, setDraft] = useState<string>("");
-  const [draftKey, setDraftKey] = useState<string>("");
-  const [editing, setEditing] = useState(false);
   const [lengthUnit, setLengthUnit] = useState<"in" | "mm">("in");
-
-  const key = `${def.id}:${value}`;
-  if (!editing && key !== draftKey) {
-    setDraftKey(key);
-    const raw = value !== undefined && Number.isFinite(value) ? value : undefined;
-    setDraft(
-      raw === undefined
-        ? ""
-        : lengthUnit === "in"
-          ? String(roundForEdit(raw))
-          : String(roundForEdit(raw * 25.4)),
-    );
-  }
 
   const editable = state.status !== "derived";
 
@@ -58,6 +40,9 @@ export function ParameterValueEditor({
 
   const isLengthField = def.unit === "in";
   const isDiameterField = ["D", "OD", "ID"].includes(def.id);
+  const displayedValue = value === undefined || !Number.isFinite(value)
+    ? Number.NaN
+    : roundForEdit(isLengthField && lengthUnit === "mm" ? value * 25.4 : value);
   const sliderMin = def.min ?? 0;
   const sliderMax = def.max ?? 1;
   const sliderValue = isLengthField
@@ -103,12 +88,7 @@ export function ParameterValueEditor({
             <button
               key={unit}
               type="button"
-              onClick={() => {
-                setLengthUnit(unit);
-                if (typeof value === "number" && Number.isFinite(value)) {
-                  setDraft(String(roundForEdit(unit === "in" ? value : value * 25.4)));
-                }
-              }}
+              onClick={() => setLengthUnit(unit)}
               className={`rounded px-2 py-0.5 text-[11px] font-medium ${
                 lengthUnit === unit ? "bg-zinc-800 text-white" : "text-zinc-600 hover:bg-zinc-200"
               }`}
@@ -118,19 +98,10 @@ export function ParameterValueEditor({
           ))}
         </div>
       )}
-      <input
-        type="number"
-        value={draft}
+      <CommitNumberInput
+        value={displayedValue}
         step={isLengthField && lengthUnit === "mm" ? (def.step ? def.step * 25.4 : "any") : (def.step ?? "any")}
-        onFocus={() => setEditing(true)}
-        onBlur={() => {
-          setEditing(false);
-          setDraftKey(""); // force resync with the committed value
-        }}
-        onChange={(e) => {
-          setDraft(e.target.value);
-          commit(e.target.value);
-        }}
+        onCommit={(next) => commit(String(next))}
         className="w-full rounded border border-zinc-300 px-2 py-1 font-mono text-sm focus:border-zinc-600 focus:outline-none"
       />
       {def.min !== undefined && def.max !== undefined && (

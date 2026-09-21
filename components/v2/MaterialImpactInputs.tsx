@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  CommitNumberInput,
+  OptionalCommitNumberInput,
+} from "@/components/CommitNumberInput";
 import type { V2Candidate, V2Scenario } from "@/lib/v2/types";
 import { getV2Material, listV2Materials } from "@/lib/v2/materials";
 import {
@@ -32,17 +36,12 @@ function OptionalNumber({
   placeholder: string;
 }) {
   return (
-    <input
-      type="number"
-      value={value ?? ""}
+    <OptionalCommitNumberInput
+      value={value}
       min={0}
       step={step}
       placeholder={placeholder}
-      onChange={(event) => {
-        if (event.target.value === "") return onChange(null);
-        const next = Number.parseFloat(event.target.value);
-        if (Number.isFinite(next)) onChange(next);
-      }}
+      onCommit={onChange}
       className="w-full rounded border border-zinc-300 bg-white px-2 py-1 text-right font-mono text-[11px] text-zinc-800 focus:border-blue-500 focus:outline-none"
     />
   );
@@ -133,8 +132,8 @@ export function ImpactEquivalentInputs({ scenario, onChange, candidate, embedded
           <BodyInput label="HF latch" materialId={scenario.latchBodyMaterialId} volume={scenario.latchVolumeIn3} mass={scenario.latchMassLbm} onMaterial={(latchBodyMaterialId) => onChange({ latchBodyMaterialId })} onVolume={(latchVolumeIn3) => onChange({ latchVolumeIn3 })} onMass={(latchMassLbm) => onChange({ latchMassLbm })} />
         </div>
         <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] text-zinc-600">
-          <label>Transfer efficiency η<input type="number" min={0} max={1} step={0.05} value={scenario.impactEfficiency} onChange={(e) => onChange({ impactEfficiency: Math.max(0, Math.min(1, Number(e.target.value))) })} className="mt-0.5 w-full rounded border border-zinc-300 px-2 py-1 text-right font-mono" /></label>
-          <label>Restitution e<input type="number" min={0} max={1} step={0.05} value={scenario.impactRestitution} onChange={(e) => onChange({ impactRestitution: Math.max(0, Math.min(1, Number(e.target.value))) })} className="mt-0.5 w-full rounded border border-zinc-300 px-2 py-1 text-right font-mono" /></label>
+          <label>Transfer efficiency η<CommitNumberInput min={0} max={1} step={0.05} value={scenario.impactEfficiency} onCommit={(next) => onChange({ impactEfficiency: Math.max(0, Math.min(1, next)) })} className="mt-0.5 w-full rounded border border-zinc-300 px-2 py-1 text-right font-mono" /></label>
+          <label>Restitution e<CommitNumberInput min={0} max={1} step={0.05} value={scenario.impactRestitution} onCommit={(next) => onChange({ impactRestitution: Math.max(0, Math.min(1, next)) })} className="mt-0.5 w-full rounded border border-zinc-300 px-2 py-1 text-right font-mono" /></label>
         </div>
         {lens && (
           <div className="mt-2 grid grid-cols-2 gap-1 rounded bg-blue-50 p-2 text-[9.5px] text-blue-900">

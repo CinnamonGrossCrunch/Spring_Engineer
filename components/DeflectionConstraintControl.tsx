@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { CommitNumberInput } from "@/components/CommitNumberInput";
 import type {
   DeflectionConstraintDisplayMode,
   DeflectionConstraintState,
@@ -56,18 +57,14 @@ export function DeflectionConstraintControl({ value, workingDeflection, onChange
         <div className="flex items-center justify-between gap-2">
           <label htmlFor={id} className="text-[11.5px] text-zinc-700">Maximum working deflection</label>
           <div className="flex items-center gap-1">
-            <input
+            <CommitNumberInput
               id={id}
               data-testid="max-deflection-utilization-input"
-              type="number"
               min={5}
               max={99}
               step={1}
-              value={(value.maxUtilization * 100).toFixed(0)}
-              onChange={(e) => {
-                const next = Number.parseFloat(e.target.value);
-                if (Number.isFinite(next)) onChange({ ...value, maxUtilization: next / 100 });
-              }}
+              value={Math.round(value.maxUtilization * 100)}
+              onCommit={(next) => onChange({ ...value, maxUtilization: next / 100 })}
               className="w-[72px] rounded border border-zinc-300 bg-white px-1.5 py-1 text-right font-mono text-[12px]"
             />
             <span className="w-5 text-[10px] text-zinc-500">%</span>
@@ -78,17 +75,15 @@ export function DeflectionConstraintControl({ value, workingDeflection, onChange
           <div className="flex items-center justify-between gap-2">
             <label htmlFor={id} className="text-[11.5px] text-zinc-700">Equivalent minimum clearance</label>
             <div className="flex items-center gap-1">
-              <input
+              <CommitNumberInput
                 id={id}
                 data-testid="clearance-above-solid-input"
-                type="number"
                 min={0}
                 step={lengthUnit === "in" ? 0.005 : 0.1}
                 disabled={!hasReference}
-                value={Number.isFinite(displayedClearance) ? displayedClearance.toFixed(lengthUnit === "in" ? 4 : 2) : ""}
-                onChange={(e) => {
-                  const entered = Number.parseFloat(e.target.value);
-                  if (!Number.isFinite(entered) || !hasReference) return;
+                value={Number.isFinite(displayedClearance) ? Number(displayedClearance.toFixed(lengthUnit === "in" ? 4 : 2)) : Number.NaN}
+                onCommit={(entered) => {
+                  if (!hasReference) return;
                   const inches = lengthUnit === "mm" ? entered / MM_PER_INCH : entered;
                   const next = utilizationFromClearance(workingDeflection!, inches);
                   if (Number.isFinite(next)) onChange({ ...value, maxUtilization: next });
