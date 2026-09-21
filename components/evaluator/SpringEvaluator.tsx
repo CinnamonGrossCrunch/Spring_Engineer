@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { CommitNumberInput } from "@/components/CommitNumberInput";
 import { V2CandidateMechanism } from "@/components/v2/V2CandidateMechanism";
 import { fmtInMm, fmtRate, fmtWork } from "@/components/v2/v2format";
 import { formatValue, inchesToMm } from "@/components/StatusBadge";
@@ -52,18 +53,14 @@ function NumberInput({
     >
       <span className="block text-[10.5px] font-semibold text-zinc-700">{label}</span>
       <span className="mt-1 flex items-center gap-1.5">
-        <input
+        <CommitNumberInput
           id={id}
-          type="number"
-          value={Number.isFinite(value) ? value : ""}
+          value={value}
+          onCommit={onChange}
           min={min}
           max={max}
           step={step}
           disabled={disabled}
-          onChange={(event) => {
-            const next = Number(event.target.value);
-            if (Number.isFinite(next)) onChange(next);
-          }}
           className={`min-w-0 flex-1 rounded border px-2 py-1.5 font-mono text-sm outline-none transition ${
             prominent
               ? "border-blue-300 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
