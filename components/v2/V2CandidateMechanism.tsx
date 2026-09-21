@@ -33,6 +33,8 @@ const COLORS = {
 
 interface Props {
   candidate: V2Candidate;
+  title?: string;
+  subtitle?: string;
 }
 
 function arrowHead(x: number, y: number, dir: "up" | "down" | "left" | "right", color: string, s = 4.5) {
@@ -57,7 +59,11 @@ function arrowHead(x: number, y: number, dir: "up" | "down" | "left" | "right", 
  *   STATE 3 CRITICAL RELEASE     spring = L3 = B + y_critical, F3, Wlatch
  *   STATE 4 COUPLED TRAVEL END   spring = L4 = B + y_total, F4, WpostCritical
  */
-export function V2CandidateMechanism({ candidate: c }: Props) {
+export function V2CandidateMechanism({
+  candidate: c,
+  title = "Selected Candidate — Four-State Mechanism",
+  subtitle = "Spring force at contact ≠ dynamic impact force.",
+}: Props) {
   const { d, D, OD, ID, Nt, Na, Lc, s, L2, L3, L4, F0, F2, F3, F4, Whammer, Wlatch, WpostCritical } = c;
   const B = c.L2; // axial budget (= Lc + s)
   const yCritical = c.L3 - c.L2;
@@ -84,8 +90,8 @@ export function V2CandidateMechanism({ candidate: c }: Props) {
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold text-zinc-800">Selected Candidate — Four-State Mechanism</h2>
-        <p className="text-[11px] text-zinc-400">Spring force at contact ≠ dynamic impact force.</p>
+        <h2 className="text-sm font-semibold text-zinc-800">{title}</h2>
+        <p className="text-[11px] text-zinc-400">{subtitle}</p>
       </div>
 
       {!ready ? (

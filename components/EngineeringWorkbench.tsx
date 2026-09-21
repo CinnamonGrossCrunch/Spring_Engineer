@@ -36,6 +36,7 @@ import { DEFAULT_V2_SCENARIO } from "@/lib/v2/defaults";
 import { MaterialImpactInputs } from "./v2/MaterialImpactInputs";
 import { parseStoredV2Scenario, V2_SCENARIO_STORAGE_KEY } from "@/lib/v2/scenarioStorage";
 import { MechanismConstraintContext } from "./v2/MechanismConstraintContext";
+import { SpringEvaluator } from "./evaluator/SpringEvaluator";
 
 const MODES: DesignMode[] = ["forward", "reverse", "explore"];
 const ACTIVE_PRESET: PresetId = "currentCandidate";
@@ -418,13 +419,23 @@ export function EngineeringWorkbench({ initialWorkspace = "v1" }: EngineeringWor
         </div>
         {workspace === "v1" ? (
           <p className="mt-1.5 text-[11px] text-zinc-500">{MODE_INFO[mode].blurb}</p>
-        ) : (
+        ) : workspace === "v2" ? (
           <p className="mt-1.5 text-[11px] text-zinc-500">
             The selected Optimize candidate is the shared source of truth. Engineering updates
             automatically as the scenario or selected landscape cell changes.
           </p>
+        ) : (
+          <p className="mt-1.5 text-[11px] text-zinc-500">
+            Solve one nominal spring directly from the mechanism load-at-height requirements and
+            radial envelope. Secondary assumptions remain editable but stay out of the primary flow.
+          </p>
         )}
       </header>
+
+      {/* ── Direct evaluator (independent persisted inputs) ── */}
+      <div className={workspace === "evaluator" ? "contents" : "hidden"}>
+        <SpringEvaluator />
+      </div>
 
       {/* ── V1 workspace body (kept mounted so V1 state persists on switch) ── */}
       <div className={workspace === "v1" ? "contents" : "hidden"}>

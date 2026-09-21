@@ -16,6 +16,15 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+The app has three independent, mounted workspaces:
+
+- `/evaluate` directly solves one nominal spring from load-at-height and radial-envelope inputs.
+- `/optimize` sweeps the design landscape and ranks candidate geometries.
+- `/engineer` exposes the full equation graph and engineering checks.
+
+Evaluator inputs persist separately in browser storage, so switching tabs does not replace the
+Optimize scenario or the Engineering model.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

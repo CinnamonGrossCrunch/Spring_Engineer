@@ -5,12 +5,14 @@ export const WORKSPACE_ROUTES: ReadonlyArray<{
   label: string;
   href: string;
 }> = [
+  { id: "evaluator", label: "Evaluator", href: "/evaluate" },
   { id: "v1", label: "Engineer", href: "/engineer" },
   { id: "v2", label: "Optimize", href: "/optimize" },
 ];
 
 export function workspaceFromPathname(pathname: string): WorkspaceVersion | null {
   const normalized = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  if (normalized === "/evaluate") return "evaluator";
   if (normalized === "/engineer" || normalized === "/enginner") return "v1";
   if (normalized === "/optimize") return "v2";
   return null;

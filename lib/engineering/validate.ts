@@ -67,6 +67,15 @@ import {
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ScenarioAccordion, V2ScenarioPanel } from "../../components/v2/V2ScenarioPanel";
+import {
+  DEFAULT_EVALUATOR_INPUTS,
+  parseStoredEvaluatorInputs,
+} from "../evaluator/defaults";
+import {
+  buildEvaluatorSummary,
+  evaluateSpringConstraints,
+} from "../evaluator/evaluateSpring";
+import { SpringEvaluator } from "../../components/evaluator/SpringEvaluator";
 
 let failures = 0;
 
@@ -111,6 +120,7 @@ const span = (r: SpringPathResult) => r.rightX - r.leftX;
 console.log("── Pure helpers ──────────────────────────────");
 assert("workspace route: /engineer → V1", workspaceFromPathname("/engineer") === "v1");
 assert("workspace route: /optimize/ → V2", workspaceFromPathname("/optimize/") === "v2");
+assert("workspace route: /evaluate → Evaluator", workspaceFromPathname("/evaluate") === "evaluator");
 assert("workspace route: unrelated path ignored", workspaceFromPathname("/api/cad") === null);
 assert(
   "workspace navigation: plain primary click stays in the mounted workbench",
@@ -122,6 +132,62 @@ assert(
     shiftKey: false,
   }),
 );
+
+console.log("\n── Direct constraint-to-spring evaluator ────────────────");
+{
+  const result = evaluateSpringConstraints(DEFAULT_EVALUATOR_INPUTS);
+  const candidate = result.candidate;
+  assert("default evaluator produces a spring", candidate !== null);
+  assert("default evaluator has no blocking errors", result.errors.length === 0);
+  check("evaluator nominal rate", candidate?.k, 200, 0.001);
+  check("evaluator free length", candidate?.Lf, 1.6, 0.001);
+  check("evaluator armed length", candidate?.Lc, 0.9, 0.001);
+  check("evaluator hammer run-up", candidate?.s, 0.4, 0.001);
+  check("evaluator contact force", candidate?.F2, 60, 0.001);
+  check("evaluator critical force", candidate?.F3, 46, 0.001);
+  check("evaluator full-travel force", candidate?.F4, 20, 0.001);
+  check("evaluator centered OD", candidate?.OD, 1.0992, 0.001);
+  check("evaluator spring ID", candidate?.ID, 0.8232, 0.001);
+  check("evaluator balanced inner clearance", result.innerRadialClearance, 0.0016, 0.001);
+  check("evaluator balanced outer clearance", result.outerRadialClearance, 0.0016, 0.001);
+  assert(
+    "evaluator total coils include editable inactive ends",
+    candidate !== null &&
+      Math.abs(candidate.Nt - candidate.Na - DEFAULT_EVALUATOR_INPUTS.inactiveEndCoils) < 1e-9,
+  );
+  assert(
+    "evaluator advisory tolerance corner is computed",
+    result.forceRanges !== null && result.forceRanges.end.min < result.forceRanges.end.nominal,
+  );
+  assert(
+    "evaluator summary distinguishes preset and operating height",
+    buildEvaluatorSummary(DEFAULT_EVALUATOR_INPUTS, result).includes(
+      "manufacturing process, not armed length",
+    ),
+  );
+
+  const stored = parseStoredEvaluatorInputs(JSON.stringify({
+    ...DEFAULT_EVALUATOR_INPUTS,
+    armedLength: 0.91,
+  }));
+  check("evaluator stored armed length restores", stored?.armedLength, 0.91, 0.001);
+  check(
+    "evaluator legacy storage receives preset-height default",
+    parseStoredEvaluatorInputs(JSON.stringify({ armedLength: 0.91 }))?.presetHeight,
+    DEFAULT_EVALUATOR_INPUTS.presetHeight,
+    0.001,
+  );
+
+  const impossibleWire = evaluateSpringConstraints({
+    ...DEFAULT_EVALUATOR_INPUTS,
+    wireDiameter: 0.142,
+  });
+  assert("evaluator rejects wire that cannot fit the radial annulus", impossibleWire.candidate === null);
+
+  const evaluatorMarkup = renderToStaticMarkup(createElement(SpringEvaluator));
+  assert("Evaluator UI exposes the direct-solve objective", evaluatorMarkup.includes("Constraint-to-Spring Evaluator"));
+  assert("Evaluator UI keeps manufacturing assumptions secondary", evaluatorMarkup.includes("Editable defaults"));
+}
 
 console.log("\n── Canonical candidate + frozen comparison state ───────────");
 {
