@@ -52,6 +52,7 @@ function forceRangeAtLength(
 
 function candidateFeasibility(args: {
   geometryValid: boolean;
+  fitsInnerDiameter: boolean;
   runUp: number;
   criticalTravel: number;
   totalTravel: number;
@@ -76,6 +77,7 @@ function candidateFeasibility(args: {
   const reasons: V2ExclusionReason[] = [];
 
   if (!args.geometryValid) reasons.push("invalid-geometry");
+  if (args.geometryValid && !args.fitsInnerDiameter) reasons.push("inside-diameter-too-small");
   if (!travelOrderValid) reasons.push("invalid-travel");
   if (!positiveRunUp) reasons.push("no-run-up");
   if (!loadedAtContact) reasons.push("slack-at-contact");
@@ -87,6 +89,7 @@ function candidateFeasibility(args: {
 
   return {
     geometryValid: args.geometryValid,
+    fitsInnerDiameter: args.fitsInnerDiameter,
     positiveRunUp,
     fitsBudget: positiveRunUp,
     travelOrderValid,
@@ -100,6 +103,7 @@ function candidateFeasibility(args: {
     springIndexAdvisoryOk,
     feasible:
       args.geometryValid &&
+      args.fitsInnerDiameter &&
       positiveRunUp &&
       travelOrderValid &&
       loadedAtContact &&
@@ -123,8 +127,10 @@ export function evaluateSpringConstraints(
   const warnings: string[] = [];
   const d = inputs.wireDiameter;
   const minimumOdForId = inputs.minimumSpringId + 2 * d;
-  const centeredOd = (minimumOdForId + inputs.maximumSpringOd) / 2;
-  const OD = inputs.centerSpringInEnvelope ? centeredOd : inputs.nominalSpringOd;
+  const radialOdBias = Math.max(0, Math.min(1, inputs.radialOdBias));
+  const automaticOd =
+    minimumOdForId + (inputs.maximumSpringOd - minimumOdForId) * radialOdBias;
+  const OD = inputs.centerSpringInEnvelope ? automaticOd : inputs.nominalSpringOd;
   const ID = OD - 2 * d;
   const D = OD - d;
   const innerRadialClearance = (ID - inputs.minimumSpringId) / 2;
@@ -221,6 +227,7 @@ export function evaluateSpringConstraints(
     d > 0 && D > d && ID > 0 && Na > 0 && Nt > inputs.inactiveEndCoils && C > 1;
   const feasibility = candidateFeasibility({
     geometryValid,
+    fitsInnerDiameter: innerRadialClearance >= -EPSILON,
     runUp: s,
     criticalTravel: inputs.criticalTravel,
     totalTravel: inputs.totalCoupledTravel,
@@ -380,6 +387,7 @@ Spring
 • Material assumption: ${material.name}${material.specification ? ` · ${material.specification}` : ""}
 • Wire diameter: ${c.d.toFixed(4)} in
 • Outside / inside diameter: ${c.OD.toFixed(4)} / ${c.ID.toFixed(4)} in
+• Radial placement: ${inputs.centerSpringInEnvelope ? `automatic at ${(inputs.radialOdBias * 100).toFixed(0)}% toward the OD limit` : "manual nominal OD"}
 • Active / total coils: ${c.Na.toFixed(2)} / ${c.Nt.toFixed(2)}
 • Free length: ${c.Lf.toFixed(4)} in
 • Spring rate: ${c.k.toFixed(1)} lbf/in

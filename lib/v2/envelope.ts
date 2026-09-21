@@ -3,6 +3,7 @@ import type { V2Scenario } from "./types";
 export const MILLIMETERS_PER_INCH = 25.4;
 export const DEFAULT_HOUSING_INNER_DIAMETER_MM = 28;
 export const DEFAULT_OD_TOLERANCE_IN = 0.02;
+export const DEFAULT_MINIMUM_SPRING_INNER_DIAMETER_IN = 0.82;
 
 export function inchesToMillimeters(inches: number): number {
   return inches * MILLIMETERS_PER_INCH;

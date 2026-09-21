@@ -4,6 +4,7 @@ import type { V2Candidate, V2LandscapeMetricInfo, V2Scenario } from "./types";
 import { DEFAULT_MAX_DEFLECTION_UTILIZATION } from "@/lib/engineering/deflectionConstraint";
 import {
   DEFAULT_HOUSING_INNER_DIAMETER_MM,
+  DEFAULT_MINIMUM_SPRING_INNER_DIAMETER_IN,
   DEFAULT_OD_TOLERANCE_IN,
   millimetersToInches,
 } from "./envelope";
@@ -28,6 +29,7 @@ export const DEFAULT_V2_SCENARIO: V2Scenario = {
   totalLatchTravel: 0.20, // y_total = full hammer/latch coupled travel after contact [in]
   minimumEndForce: 10, // minimum nominal spring force at B + y_total [lbf]
   opposingPreload: 0.6, // modeled opposing latch preload [lbf]
+  minimumSpringInnerDiameter: DEFAULT_MINIMUM_SPRING_INNER_DIAMETER_IN,
   armedHeightConstraintEnabled: false,
   armedHeightMin: 0.70,
   armedHeightMax: 1.00,

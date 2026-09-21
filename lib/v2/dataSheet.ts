@@ -272,6 +272,7 @@ For internal mechanism review. This summarizes what the mechanism requires and w
 - Minimum nominal spring force at full-travel end: ${lbf(s.minimumEndForce)}
 - Opposing latch preload: ${lbf(s.opposingPreload)}
 - Armed spring height: ${s.armedHeightConstraintEnabled ? `${inch(s.armedHeightMin)} to ${inch(s.armedHeightMax)} allowed` : "optimizer-derived; no additional mechanism range enabled"}
+- Annulus inner boundary / minimum nominal spring ID: ${inch(s.minimumSpringInnerDiameter)}
 - Housing ID / absolute finished-spring OD: ${inch(s.housingInnerDiameter)}
 - Nominal study OD: ${inch(nominalOuterDiameter)} (housing limit minus ${inch(s.outerDiameterTolerance)} positive OD tolerance allowance; held constant in this sweep)
 - Worst-case finished OD: ${inch(maximumFinishedOuterDiameter)}
@@ -281,7 +282,7 @@ For internal mechanism review. This summarizes what the mechanism requires and w
 ## Selected Spring Geometry
 
 - Wire diameter: ${inch(c.d)}
-- Mean / inside diameter: ${inch(c.D)} / ${inch(c.ID)} (outside diameter is the study value above)
+- Mean / inside diameter: ${inch(c.D)} / ${inch(c.ID)} (minimum required ID ${inch(s.minimumSpringInnerDiameter)}; ${c.feasibility.fitsInnerDiameter ? "passes" : "does not pass"})
 - Active / total coils: ${c.Na.toFixed(2)} / ${c.Nt.toFixed(2)}
 
 ## Package and Operating States
@@ -315,7 +316,7 @@ ${tolerancePerformanceTable(tolerance, s)}
 - Model uses ${materialName(material)}, ${material.condition}, as a benchmark material with G = ${(s.shearModulusPsi / 1e6).toFixed(2)} Mpsi and a ${ksi(s.stressBasisPsi)} tensile-strength classification basis. Source: ${material.sourceUrl}
 - Nominal end form is squared and ground; CAD defaults to right-hand winding.
 - Confirm that the armed, contact, critical-release, and full-travel-end lengths match the actual mechanism stops.
-- Confirm the ${s.forceTarget.toFixed(0)} lbf nominal starting-force target, ${s.forceCap.toFixed(0)} lbf absolute force cap, ${dualLength(s.housingInnerDiameter)} housing/OD ceiling, ${dualLength(s.outerDiameterTolerance)} positive OD tolerance allowance, ${s.latchTravel.toFixed(3)} in critical travel, ${s.totalLatchTravel.toFixed(3)} in total coupled travel, and ${s.minimumEndForce.toFixed(1)} lbf nominal end-force floor.
+- Confirm the ${s.forceTarget.toFixed(0)} lbf nominal starting-force target, ${s.forceCap.toFixed(0)} lbf absolute force cap, ${dualLength(s.minimumSpringInnerDiameter)} minimum nominal spring ID, ${dualLength(s.housingInnerDiameter)} housing/OD ceiling, ${dualLength(s.outerDiameterTolerance)} positive OD tolerance allowance, ${s.latchTravel.toFixed(3)} in critical travel, ${s.totalLatchTravel.toFixed(3)} in total coupled travel, and ${s.minimumEndForce.toFixed(1)} lbf nominal end-force floor.
 - Confirm the ${(s.maxDeflectionUtilization * 100).toFixed(1)}% maximum-deflection-utilization scenario; equivalent clearance for this candidate is ${inch(c.solidClearance)} above modeled H_s,max.
 ${tolerance ? `- Confirm the entered/assumed ±${pct(s.springRateTolerance)} rate and ±${dualLength(s.freeLengthTolerance)} free-length values, or replace this estimate with supplier-guaranteed loads at the four specified heights.` : ""}
 - If those inputs are correct, decide whether to send this candidate for vendor review and prototype quotation.
@@ -355,6 +356,7 @@ Total coupled travel	${inch(s.totalLatchTravel)}	Hammer and latch remain engaged
 Minimum spring force at end	${lbf(s.minimumEndForce)}	Nominal quasi-static floor at B + total coupled travel
 Opposing preload	${lbf(s.opposingPreload)}	Modeled counter-force during remaining travel
 Armed spring height	${s.armedHeightConstraintEnabled ? `${inch(s.armedHeightMin)} to ${inch(s.armedHeightMax)}` : "No additional range enabled"}	${s.armedHeightConstraintEnabled ? "Hard mechanism packaging range" : "Optimizer-derived from force and deflection constraints"}
+Annulus inner boundary / minimum nominal spring ID	${inch(s.minimumSpringInnerDiameter)}	Hard nominal geometry constraint; include required clearance/tolerance allowance in this value
 Housing ID / absolute finished-spring OD	${inch(s.housingInnerDiameter)}	Hard mechanism envelope
 Nominal spring outside diameter	${inch(nominalOuterDiameter)}	Derived by subtracting the positive OD tolerance allowance
 Positive OD tolerance allowance	${inch(s.outerDiameterTolerance)}	Worst-case finished OD is ${inch(maximumFinishedOuterDiameter)}; confirm tolerance and required fit clearance
@@ -397,6 +399,7 @@ Shear modulus, G	${(s.shearModulusPsi / 1e6).toFixed(1)} Mpsi	Confirm the value 
 Tensile-strength screening range	${ksi(material.tensileMinPsi)}–${ksi(material.tensileMaxPsi)}	Replace with applicable values for the actual wire size and temper; these are not allowable shear stresses
 Stress-classification basis	${ksi(s.stressBasisPsi)} (user-selected tensile basis)	Apply the appropriate set, allowable-shear, fatigue, and relaxation criteria
 OD tolerance / fit allowance	${dualLength(s.outerDiameterTolerance)}	Confirm achievable OD tolerance and advise any additional diametral installation clearance
+Minimum spring ID / inner fit allowance	${dualLength(s.minimumSpringInnerDiameter)}	Confirm achievable finished ID and advise allowance for guide clearance, bow, and dimensional tolerance
 Maximum-solid-height allowance	${pct(s.solidHeightTolerance)} above nominal	Confirm an achievable production tolerance and resulting maximum solid height
 Maximum deflection utilization	${pct(s.maxDeflectionUtilization)}	Advise whether this can be safely increased for more performance or must be reduced for durability/tolerances
 Equivalent armed height above maximum solid	${dualLength(c.solidClearance)}	Confirm the required production clearance after solid-height and load tolerances

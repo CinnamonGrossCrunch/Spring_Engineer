@@ -79,12 +79,23 @@ export function defaultV2CandidateToV1Model(
   scenario: V2Scenario = DEFAULT_V2_SCENARIO,
 ): ModelState {
   const sweep = sweepV2DesignSpace(scenario);
-  const candidate = sweep.defaultKey
+  const feasibleCandidate = sweep.defaultKey
     ? sweep.candidates.find((item) => item.key === sweep.defaultKey)
     : undefined;
+  // A fully constrained default may legitimately have no feasible point. The
+  // Engineer page still needs a finite equation-audit seed before persisted
+  // scenario state hydrates, so prefer a candidate that passes every hard
+  // mechanism boundary and is excluded only by the stress-guidance band.
+  const stressOnlyReference = sweep.candidates
+    .filter((item) =>
+      item.feasibility.reasons.length > 0 &&
+      item.feasibility.reasons.every((reason) => reason === "stress-redesign"),
+    )
+    .sort((a, b) => b.FeqAvgIdeal - a.FeqAvgIdeal)[0];
+  const candidate = feasibleCandidate ?? stressOnlyReference;
 
   if (!candidate) {
-    throw new Error("The default V2 scenario did not produce a selectable candidate.");
+    throw new Error("The default V2 scenario did not produce a hard-geometry reference candidate.");
   }
 
   return candidateToV1Model(candidate, scenario);

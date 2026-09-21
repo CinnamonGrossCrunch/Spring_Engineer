@@ -63,6 +63,8 @@ export interface V2Scenario {
   minimumEndForce: number;
   /** Opposing preload force acting during post-critical travel [lbf]. */
   opposingPreload: number;
+  /** Minimum acceptable nominal spring inside diameter around the central annulus [in]. */
+  minimumSpringInnerDiameter: number;
   /** Whether the optimizer-derived armed spring height must fall within a mechanism range. */
   armedHeightConstraintEnabled: boolean;
   /** Minimum permitted armed/compressed spring height [in]. */
@@ -129,6 +131,7 @@ export interface V2Scenario {
 /** Canonical exclusion reasons used for feasibility + the "why is it empty" summary. */
 export type V2ExclusionReason =
   | "invalid-geometry"
+  | "inside-diameter-too-small" // calculated nominal spring ID is below the annulus boundary
   | "invalid-travel" // total coupled travel is shorter than the critical window
   | "no-run-up" // spring consumes entire axial budget
   | "armed-height-out-of-range"
@@ -141,6 +144,8 @@ export type V2ExclusionReason =
 export interface V2Feasibility {
   /** d>0, D>d, ID>0, Na>0, Nt>2. */
   geometryValid: boolean;
+  /** Nominal calculated spring ID clears the configured inner annulus boundary. */
+  fitsInnerDiameter: boolean;
   /** Hammer run-up s = B − Lc > 0. */
   positiveRunUp: boolean;
   /** Compressed length fits the axial budget: Lc < B. */
@@ -164,9 +169,9 @@ export interface V2Feasibility {
   /** Spring index within the ~4–12 manufacturability advisory. */
   springIndexAdvisoryOk: boolean;
   /**
-   * Mathematically feasible in V2 for the recommended set: geometry + budget +
-   * continuous drive AND stress band is not `redesign` (>60%). This is NOT a
-   * claim of vendor validation.
+   * Mathematically feasible in V2 for the recommended set: valid geometry,
+   * configured annulus-ID fit, budget, continuous drive, and a stress band
+   * other than `redesign` (>60%). This is NOT a claim of vendor validation.
    */
   feasible: boolean;
   /** Machine-readable reasons a candidate is excluded from the feasible set. */

@@ -67,8 +67,12 @@ export function V2Workbench({
   const { selected, byKey } = useMemo(() => {
     const map = new Map<string, V2Candidate>();
     for (const c of sweep.candidates) map.set(c.key, c);
+    const requested = selectedKey ? map.get(selectedKey) : undefined;
+    const requestedPassesHardConstraints = requested
+      ? requested.feasibility.reasons.every((reason) => reason === "stress-redesign")
+      : false;
     const chosen =
-      (selectedKey && map.get(selectedKey)) ||
+      (requestedPassesHardConstraints ? requested : undefined) ||
       (sweep.defaultKey ? map.get(sweep.defaultKey) : undefined) ||
       null;
     return { selected: chosen, byKey: map };
@@ -256,7 +260,7 @@ export function V2Workbench({
                         <div className="mb-1 rounded bg-white/70 px-1.5 py-1 font-mono text-[9.5px] leading-4 text-zinc-500">
                           F₀={savedScenario.forceTarget.toFixed(0)} nominal / {savedScenario.forceCap.toFixed(0)} max · B={savedScenario.axialBudget.toFixed(3)} in
                           <br />
-                          u≤{(savedScenario.maxDeflectionUtilization * 100).toFixed(0)}% · OD≤{savedScenario.housingInnerDiameter.toFixed(3)} in · TS={(savedScenario.stressBasisPsi / 1000).toFixed(0)} ksi
+                          u≤{(savedScenario.maxDeflectionUtilization * 100).toFixed(0)}% · ID≥{savedScenario.minimumSpringInnerDiameter.toFixed(3)} · OD≤{savedScenario.housingInnerDiameter.toFixed(3)} in · TS={(savedScenario.stressBasisPsi / 1000).toFixed(0)} ksi
                         </div>
                         <dl className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-zinc-500">
                           <dt>{canonicalName("FeqAvgIdeal")}</dt><dd className="text-right font-mono text-zinc-700">{fmtLbf(c.FeqAvgIdeal)}</dd>

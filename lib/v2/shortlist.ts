@@ -13,6 +13,7 @@ export function v2ScenarioSignature(scenario: V2Scenario): string {
     scenario.armedHeightConstraintEnabled,
     scenario.armedHeightMin,
     scenario.armedHeightMax,
+    scenario.minimumSpringInnerDiameter,
     scenario.housingInnerDiameter,
     scenario.outerDiameterTolerance,
     scenario.lockOuterDiameter,

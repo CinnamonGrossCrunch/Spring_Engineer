@@ -142,6 +142,7 @@ export function evaluateV2Candidate(scenario: V2Scenario, d: number, Na: number)
     F2,
     F3,
     F4,
+    minimumSpringInnerDiameter: scenario.minimumSpringInnerDiameter,
     minimumEndForce: scenario.minimumEndForce,
     opposingPreload: scenario.opposingPreload,
     armedHeightConstraintEnabled: scenario.armedHeightConstraintEnabled,
@@ -215,6 +216,7 @@ interface FeasibilityInputs {
   F2: number;
   F3: number;
   F4: number;
+  minimumSpringInnerDiameter: number;
   minimumEndForce: number;
   opposingPreload: number;
   armedHeightConstraintEnabled: boolean;
@@ -232,6 +234,11 @@ function evaluateFeasibility(i: FeasibilityInputs): V2Feasibility {
     i.Nt > 2 &&
     Number.isFinite(i.C) &&
     i.C > 0;
+  const fitsInnerDiameter =
+    geometryValid &&
+    Number.isFinite(i.minimumSpringInnerDiameter) &&
+    i.minimumSpringInnerDiameter >= 0 &&
+    i.ID + 1e-9 >= i.minimumSpringInnerDiameter;
 
   const positiveRunUp = geometryValid && i.s > 0;
   const fitsBudget = geometryValid && i.Lc < i.B;
@@ -262,6 +269,7 @@ function evaluateFeasibility(i: FeasibilityInputs): V2Feasibility {
   const reasons: V2ExclusionReason[] = [];
   if (!geometryValid) reasons.push("invalid-geometry");
   else {
+    if (!fitsInnerDiameter) reasons.push("inside-diameter-too-small");
     if (!travelOrderValid) reasons.push("invalid-travel");
     if (!positiveRunUp || !fitsBudget) reasons.push("no-run-up");
     if (!armedHeightInRange) reasons.push("armed-height-out-of-range");
@@ -276,6 +284,7 @@ function evaluateFeasibility(i: FeasibilityInputs): V2Feasibility {
   // is only ADVISORY and never removes a candidate from the feasible set.
   const feasible =
     geometryValid &&
+    fitsInnerDiameter &&
     positiveRunUp &&
     fitsBudget &&
     travelOrderValid &&
@@ -289,6 +298,7 @@ function evaluateFeasibility(i: FeasibilityInputs): V2Feasibility {
 
   return {
     geometryValid,
+    fitsInnerDiameter,
     positiveRunUp,
     fitsBudget,
     travelOrderValid,

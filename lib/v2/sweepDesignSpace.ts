@@ -44,6 +44,7 @@ function round(x: number, decimals: number): number {
 function emptyStats(): V2ExclusionStats {
   return {
     "invalid-geometry": 0,
+    "inside-diameter-too-small": 0,
     "invalid-travel": 0,
     "no-run-up": 0,
     "armed-height-out-of-range": 0,
@@ -87,6 +88,7 @@ export function sweepV2DesignSpace(scenario: V2Scenario): V2SweepResult {
   const exclusionStats = emptyStats();
   const REASON_PRIORITY: V2ExclusionReason[] = [
     "invalid-geometry",
+    "inside-diameter-too-small",
     "invalid-travel",
     "no-run-up",
     "armed-height-out-of-range",

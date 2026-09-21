@@ -40,6 +40,7 @@ function isAlive(c: V2Candidate): boolean {
   const f = c.feasibility;
   return (
     f.geometryValid &&
+    f.fitsInnerDiameter &&
     f.travelOrderValid &&
     f.positiveRunUp &&
     f.fitsBudget &&
@@ -190,6 +191,10 @@ export function V2DesignLandscape({
               <rect width="5" height="5" fill="#fee2e2" />
               <line x1="0" y1="0" x2="0" y2="5" stroke="#dc2626" strokeWidth="1.1" />
             </pattern>
+            <pattern id="v2-inner-envelope-hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <rect width="5" height="5" fill="#f5f3ff" />
+              <line x1="0" y1="0" x2="0" y2="5" stroke="#7c3aed" strokeWidth="1.1" />
+            </pattern>
           </defs>
 
           {/* Cells */}
@@ -202,9 +207,13 @@ export function V2DesignLandscape({
             const val = metricInfo.get(c);
             const t = (val - range.lo) / (range.hi - range.lo);
             const redesign = c.feasibility.stressBand === "redesign";
+            const insideDiameterViolation =
+              c.feasibility.geometryValid && !c.feasibility.fitsInnerDiameter;
             const recommended = recommendedSet.has(c.key);
-            const fill = !alive
-              ? "#f4f4f5"
+            const fill = insideDiameterViolation
+              ? "url(#v2-inner-envelope-hatch)"
+              : !alive
+                ? "#f4f4f5"
               : redesign
                 ? "url(#v2-redhatch)"
                 : Number.isFinite(t)
@@ -219,8 +228,8 @@ export function V2DesignLandscape({
                 width={cellW + 0.5}
                 height={cellH + 0.5}
                 fill={fill}
-                onPointerMove={alive ? handlePoint : undefined}
-                onPointerEnter={alive ? handlePoint : () => setHover(null)}
+                onPointerMove={handlePoint}
+                onPointerEnter={handlePoint}
                 onPointerLeave={() => setHover(null)}
                 onClick={alive ? () => onSelect(c.key) : undefined}
                 onContextMenu={(e) => {
@@ -228,7 +237,7 @@ export function V2DesignLandscape({
                   if (!alive) return;
                   onToggleShortlist(c.key);
                 }}
-                style={{ cursor: alive ? "pointer" : "default" }}
+                style={{ cursor: alive ? "pointer" : "not-allowed" }}
               />
             );
           })}
@@ -381,6 +390,9 @@ export function V2DesignLandscape({
           </span>
         </div>
         <span className="inline-flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 border border-violet-500 bg-violet-50" /> ID below minimum
+        </span>
+        <span className="inline-flex items-center gap-1">
           <span className="inline-block h-0 w-0" style={{ borderLeft: "6px solid transparent", borderTop: "6px solid #d97706" }} /> {STRESS_BAND_META.set.label} set
         </span>
         <span className="inline-flex items-center gap-1">
@@ -425,6 +437,7 @@ function LandscapeTooltip({ candidate: c, x, y, maxX }: { candidate: V2Candidate
       </div>
       <dl className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-zinc-600">
         <dt>Total coils</dt><dd className="text-right font-mono">{fmtCoils(c.Nt)}</dd>
+        <dt>Inside diameter</dt><dd className="text-right font-mono">{fmtIn(c.ID)}</dd>
         <dt>Rate k</dt><dd className="text-right font-mono">{fmtRate(c.k)}</dd>
         <dt>Compressed Lc</dt><dd className="text-right font-mono">{fmtIn(c.Lc)}</dd>
         <dt>Solid clearance</dt><dd className="text-right font-mono">{fmtIn(c.solidClearance)}</dd>
@@ -447,6 +460,7 @@ function LandscapeTooltip({ candidate: c, x, y, maxX }: { candidate: V2Candidate
 
 const REASON_LABEL: Record<string, string> = {
   "invalid-geometry": "Invalid geometry",
+  "inside-diameter-too-small": "Spring ID below minimum",
   "invalid-travel": "Total travel < critical travel",
   "no-run-up": "No hammer stroke",
   "armed-height-out-of-range": "Armed height outside range",

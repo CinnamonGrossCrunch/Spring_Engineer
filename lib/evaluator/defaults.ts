@@ -16,6 +16,7 @@ export const DEFAULT_EVALUATOR_INPUTS: SpringEvaluatorInputs = {
   minimumSpringId: 0.82,
   maximumSpringOd: 1.1024,
   centerSpringInEnvelope: true,
+  radialOdBias: 0.5,
   nominalSpringOd: 1.0992,
 
   materialId: "stainless177Ph",
@@ -41,6 +42,7 @@ const NUMERIC_KEYS: ReadonlyArray<keyof SpringEvaluatorInputs> = [
   "wireDiameter",
   "minimumSpringId",
   "maximumSpringOd",
+  "radialOdBias",
   "nominalSpringOd",
   "shearModulusPsi",
   "stressBasisPsi",
@@ -74,6 +76,7 @@ export function parseStoredEvaluatorInputs(raw: string | null): SpringEvaluatorI
       minimumSpringId: Math.max(0, merged.minimumSpringId),
       maximumSpringOd: Math.max(0, merged.maximumSpringOd),
       centerSpringInEnvelope: merged.centerSpringInEnvelope !== false,
+      radialOdBias: Math.max(0, Math.min(1, merged.radialOdBias)),
       nominalSpringOd: Math.max(0, merged.nominalSpringOd),
       shearModulusPsi: Math.max(0, merged.shearModulusPsi),
       stressBasisPsi: Math.max(0, merged.stressBasisPsi),

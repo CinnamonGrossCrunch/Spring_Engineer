@@ -200,6 +200,8 @@ export function V2ScenarioPanel({
 }: Props) {
   const nominalOuterDiameter = nominalSpringOuterDiameter(scenario);
   const maximumFinishedOuterDiameter = maximumFinishedSpringOuterDiameter(scenario);
+  const maximumWireDiameterFromAnnulus =
+    (nominalOuterDiameter - scenario.minimumSpringInnerDiameter) / 2;
 
   return (
     <div className="flex flex-col rounded-lg border border-zinc-200 bg-white">
@@ -290,6 +292,15 @@ export function V2ScenarioPanel({
           onChange={(v) => onChange({ opposingPreload: v })}
         />
         <NumberField
+          label="Annulus inner boundary / minimum spring ID"
+          symbol="IDₘᵢₙ"
+          value={scenario.minimumSpringInnerDiameter}
+          step={0.001}
+          min={0}
+          unit="in"
+          onChange={(v) => onChange({ minimumSpringInnerDiameter: Math.max(0, v) })}
+        />
+        <NumberField
           label="Housing ID / absolute spring OD"
           symbol="ODₘₐₓ"
           value={inchesToMillimeters(scenario.housingInnerDiameter)}
@@ -298,6 +309,9 @@ export function V2ScenarioPanel({
           unit="mm"
           onChange={(v) => onChange({ housingInnerDiameter: millimetersToInches(v) })}
         />
+        <div className={`rounded border px-2 py-1.5 text-[10px] leading-snug ${maximumWireDiameterFromAnnulus >= 0 ? "border-violet-100 bg-violet-50/60 text-violet-800" : "border-red-200 bg-red-50 text-red-700"}`}>
+          Radial fit requires <span className="font-mono">spring ID ≥ {scenario.minimumSpringInnerDiameter.toFixed(3)} in</span> and finished spring OD ≤ {fmtInMm(scenario.housingInnerDiameter)}. At the current nominal OD, that limits wire to <span className="font-mono">d ≤ {Math.max(0, maximumWireDiameterFromAnnulus).toFixed(3)} in</span> before any additional inner clearance or ID tolerance allowance.
+        </div>
         <div className="rounded border border-blue-100 bg-blue-50/60 px-2 py-1.5 text-[10px] leading-snug text-blue-800">
           End position: <span className="font-mono">B + ytotal = {fmtInMm(scenario.axialBudget + scenario.totalLatchTravel)}</span>. The end-force floor is a nominal quasi-static requirement; enabled manufacturing tolerances are reported separately.
         </div>

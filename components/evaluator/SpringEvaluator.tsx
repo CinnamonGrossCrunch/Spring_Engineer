@@ -157,7 +157,7 @@ export function SpringEvaluator() {
     [patch],
   );
 
-  const toggleCenteredOd = useCallback(
+  const toggleAutomaticOd = useCallback(
     (checked: boolean) => {
       patch({
         centerSpringInEnvelope: checked,
@@ -334,11 +334,23 @@ export function SpringEvaluator() {
                     <input
                       type="checkbox"
                       checked={inputs.centerSpringInEnvelope}
-                      onChange={(event) => toggleCenteredOd(event.target.checked)}
+                      onChange={(event) => toggleAutomaticOd(event.target.checked)}
                       className="h-3.5 w-3.5 accent-violet-600"
                     />
-                    Center the wire in the radial envelope
+                    Automatically place the spring in the radial envelope
                   </label>
+                  <NumberInput
+                    id="evaluator-radial-od-bias"
+                    label="OD placement bias"
+                    value={inputs.radialOdBias * 100}
+                    onChange={(value) => patch({ radialOdBias: Math.max(0, Math.min(1, value / 100)) })}
+                    unit="%"
+                    step={5}
+                    min={0}
+                    max={100}
+                    disabled={!inputs.centerSpringInEnvelope}
+                    helper="0% clears the inner boundary, 50% balances radial clearance, 100% reaches the outer limit."
+                  />
                   <NumberInput
                     id="evaluator-nominal-od"
                     label="Nominal spring OD"
@@ -348,8 +360,11 @@ export function SpringEvaluator() {
                     step={0.0005}
                     min={0}
                     disabled={inputs.centerSpringInEnvelope}
-                    helper={inputs.centerSpringInEnvelope ? "Derived to balance nominal inner and outer radial clearance." : "Manual OD target; envelope checks remain active."}
+                    helper={inputs.centerSpringInEnvelope ? `Derived at ${Math.round(inputs.radialOdBias * 100)}% of the usable radial span.` : "Manual OD target; envelope checks remain active."}
                   />
+                  <p className="rounded border border-blue-100 bg-blue-50 px-2 py-1.5 text-[9.5px] leading-relaxed text-blue-700 sm:col-span-2 xl:col-span-1">
+                    A larger mean coil diameter lowers rate when wire and coil count stay fixed. In this evaluator the two force targets already set the rate, so OD placement changes the required coil count, solid height, stress, and clearance—not the requested force curve.
+                  </p>
                 </div>
               </div>
 

@@ -13,7 +13,10 @@ export interface SpringEvaluatorInputs {
   wireDiameter: number;
   minimumSpringId: number;
   maximumSpringOd: number;
+  /** Automatic annulus placement toggle. The legacy key name is retained for stored studies. */
   centerSpringInEnvelope: boolean;
+  /** Automatic OD position within the usable annulus: 0 = inner edge, 0.5 = centered, 1 = outer edge. */
+  radialOdBias: number;
   nominalSpringOd: number;
 
   materialId: string;

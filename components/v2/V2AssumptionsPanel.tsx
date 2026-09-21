@@ -4,6 +4,7 @@ import type { V2ExclusionReason, V2SweepResult } from "@/lib/v2/types";
 
 const REASON_LABEL: Record<V2ExclusionReason, string> = {
   "invalid-geometry": "Invalid geometry",
+  "inside-diameter-too-small": "Calculated spring ID is below the configured annulus boundary",
   "invalid-travel": "Total coupled travel is shorter than the critical release window",
   "no-run-up": "Spring consumes the axial budget (no hammer stroke)",
   "armed-height-out-of-range": "Armed spring height is outside the enabled mechanism range",
@@ -16,6 +17,7 @@ const REASON_LABEL: Record<V2ExclusionReason, string> = {
 const MODELED = [
   "Linear helical spring rate",
   "Geometry (nominal OD derived from housing ceiling / tolerance allowance; D/ID/index derived)",
+  "Nominal spring ID checked against the configurable inner annulus boundary",
   "Closed-and-ground coil relation (Nt = Na + 2)",
   "Nominal solid height (Nt · d)",
   "Lee +5% solid-height tolerance",
@@ -32,7 +34,7 @@ const MODELED = [
 const NOT_MODELED = [
   "Exact material condition / wire tensile certification",
   "Fatigue life · relaxation · preset process",
-  "Compressed OD growth under load (radial housing fit)",
+  "Compressed OD growth, spring bow, and production ID tolerance (add needed allowance to the entered boundary)",
   "Detailed pitch / coiling manufacturability",
   "Dynamic contact force · impact duration · contact stiffness",
   "Rebound / contact compliance",

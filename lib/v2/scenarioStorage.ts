@@ -22,7 +22,7 @@ export function parseStoredV2Scenario(raw: string | null): V2Scenario | null {
     const numeric: Array<keyof V2Scenario> = [
       "forceTarget", "forceCap", "axialBudget", "latchTravel", "totalLatchTravel",
       "minimumEndForce", "opposingPreload", "armedHeightMin", "armedHeightMax",
-      "housingInnerDiameter",
+      "housingInnerDiameter", "minimumSpringInnerDiameter",
       "outerDiameterTolerance", "shearModulusPsi", "solidHeightTolerance",
       "springRateTolerance", "freeLengthTolerance",
       "maxDeflectionUtilization", "wireMin", "wireMax", "wireStep",
@@ -38,6 +38,7 @@ export function parseStoredV2Scenario(raw: string | null): V2Scenario | null {
     merged.totalLatchTravel = Math.max(merged.latchTravel, merged.totalLatchTravel);
     merged.minimumEndForce = Math.max(0, merged.minimumEndForce);
     merged.opposingPreload = Math.max(0, merged.opposingPreload);
+    merged.minimumSpringInnerDiameter = Math.max(0, merged.minimumSpringInnerDiameter);
     merged.armedHeightConstraintEnabled = merged.armedHeightConstraintEnabled === true;
     merged.armedHeightMin = Math.max(0, merged.armedHeightMin);
     merged.armedHeightMax = Math.max(merged.armedHeightMin, merged.armedHeightMax);

@@ -29,6 +29,9 @@ export function MechanismConstraintContext({
             <span className="rounded border border-blue-300 bg-white px-2 py-1 font-mono text-[10.5px] font-semibold text-blue-700">
               F₀ {fmtLbf(scenario.forceTarget)} nominal · {fmtLbf(scenario.forceCap)} max
             </span>
+            <span className="rounded border border-violet-300 bg-white px-2 py-1 font-mono text-[10.5px] font-semibold text-violet-700">
+              ID ≥ {scenario.minimumSpringInnerDiameter.toFixed(3)} in · OD ≤ {scenario.housingInnerDiameter.toFixed(3)} in
+            </span>
             {candidate && (
               <span className={`rounded border px-2 py-1 font-mono text-[10.5px] font-semibold ${endPass ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-red-300 bg-red-50 text-red-700"}`}>
                 F₄ {fmtLbf(candidate.F4)} · floor {fmtLbf(scenario.minimumEndForce)}
@@ -56,6 +59,7 @@ export function MechanismConstraintContext({
           <NumberField label="Total coupled travel" symbol="ytotal" value={scenario.totalLatchTravel} step={0.005} min={scenario.latchTravel} unit="in" onChange={(value) => onChange({ totalLatchTravel: Math.max(scenario.latchTravel, value) })} />
           <NumberField label="Minimum spring force at end" symbol="Fend,min" value={scenario.minimumEndForce} step={0.5} min={0} unit="lbf" onChange={(value) => onChange({ minimumEndForce: value })} />
           <NumberField label="Opposing latch preload" symbol="Fopp" value={scenario.opposingPreload} step={0.1} min={0} unit="lbf" onChange={(value) => onChange({ opposingPreload: value })} />
+          <NumberField label="Annulus inner boundary / minimum spring ID" symbol="IDₘᵢₙ" value={scenario.minimumSpringInnerDiameter} step={0.001} min={0} unit="in" onChange={(value) => onChange({ minimumSpringInnerDiameter: Math.max(0, value) })} />
           <label className="flex cursor-pointer items-center gap-2 rounded border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-[10.5px] text-zinc-600">
             <input type="checkbox" checked={scenario.armedHeightConstraintEnabled} onChange={(event) => onChange({ armedHeightConstraintEnabled: event.target.checked })} className="h-3.5 w-3.5 accent-blue-600" />
             Constrain optimizer-derived armed height

@@ -79,6 +79,12 @@ import { SpringEvaluator } from "../../components/evaluator/SpringEvaluator";
 
 let failures = 0;
 
+/** A deliberately relaxed radial fixture for tests that require a feasible V2 selection. */
+const FEASIBLE_V2_TEST_SCENARIO: V2Scenario = {
+  ...DEFAULT_V2_SCENARIO,
+  minimumSpringInnerDiameter: 0.78,
+};
+
 function check(label: string, actual: number | undefined, expected: number, tolPct = 0.5) {
   const ok =
     actual !== undefined &&
@@ -150,6 +156,13 @@ console.log("\n── Direct constraint-to-spring evaluator ──────�
   check("evaluator spring ID", candidate?.ID, 0.8232, 0.001);
   check("evaluator balanced inner clearance", result.innerRadialClearance, 0.0016, 0.001);
   check("evaluator balanced outer clearance", result.outerRadialClearance, 0.0016, 0.001);
+  const outerBiased = evaluateSpringConstraints({
+    ...DEFAULT_EVALUATOR_INPUTS,
+    radialOdBias: 0.75,
+  });
+  assert("evaluator OD placement bias is editable", (outerBiased.candidate?.OD ?? 0) > (candidate?.OD ?? Infinity));
+  check("evaluator OD bias preserves the force-derived rate", outerBiased.candidate?.k, candidate?.k ?? 0, 0.001);
+  assert("evaluator OD bias changes required coil geometry", Math.abs((outerBiased.candidate?.Na ?? 0) - (candidate?.Na ?? 0)) > 1e-6);
   assert(
     "evaluator total coils include editable inactive ends",
     candidate !== null &&
@@ -187,21 +200,24 @@ console.log("\n── Direct constraint-to-spring evaluator ──────�
   const evaluatorMarkup = renderToStaticMarkup(createElement(SpringEvaluator));
   assert("Evaluator UI exposes the direct-solve objective", evaluatorMarkup.includes("Constraint-to-Spring Evaluator"));
   assert("Evaluator UI keeps manufacturing assumptions secondary", evaluatorMarkup.includes("Editable defaults"));
+  assert("Evaluator UI exposes editable OD placement bias", evaluatorMarkup.includes("OD placement bias") && evaluatorMarkup.includes("larger mean coil diameter lowers rate"));
 }
 
 console.log("\n── Canonical candidate + frozen comparison state ───────────");
 {
-  const defaultSweep = sweepV2DesignSpace(DEFAULT_V2_SCENARIO);
+  const defaultSweep = sweepV2DesignSpace(FEASIBLE_V2_TEST_SCENARIO);
   const defaultCandidate = defaultSweep.candidates.find(
     (candidate) => candidate.key === defaultSweep.defaultKey,
   );
-  const engineerModel = defaultV2CandidateToV1Model(DEFAULT_V2_SCENARIO);
+  const engineerModel = defaultV2CandidateToV1Model(FEASIBLE_V2_TEST_SCENARIO);
+  const constrainedEngineerModel = defaultV2CandidateToV1Model(DEFAULT_V2_SCENARIO);
   assert("Engineering initializes from the actual Optimize default", defaultCandidate !== undefined);
   check("canonical Engineer wire diameter", engineerModel.d?.value, defaultCandidate?.d ?? 0, 0.001);
   check("canonical Engineer total coils", engineerModel.Nt?.value, defaultCandidate?.Nt ?? 0, 0.001);
+  assert("Engineering can initialize when the fully constrained default has no feasible recommendation", typeof constrainedEngineerModel.d?.value === "number" && Number.isFinite(constrainedEngineerModel.d.value));
 
-  const scenarioA: V2Scenario = { ...DEFAULT_V2_SCENARIO };
-  const scenarioB: V2Scenario = { ...DEFAULT_V2_SCENARIO, forceTarget: 120, axialBudget: 1.3 };
+  const scenarioA: V2Scenario = { ...FEASIBLE_V2_TEST_SCENARIO };
+  const scenarioB: V2Scenario = { ...FEASIBLE_V2_TEST_SCENARIO, forceTarget: 120, axialBudget: 1.3 };
   const candidateA = evaluateV2Candidate(scenarioA, 0.14, 2.2);
   const candidateB = evaluateV2Candidate(scenarioB, 0.14, 2.2);
   const entryA = createV2ShortlistEntry(candidateA, scenarioA);
@@ -620,7 +636,7 @@ console.log("\n── Determinism ───────────────�
 // ─────────────────────────────────────────────────────────────────────────
 console.log("\n── V2 (a) Candidate evaluator relationships ──────────────────");
 {
-  const sc = DEFAULT_V2_SCENARIO;
+  const sc = FEASIBLE_V2_TEST_SCENARIO;
   const d = 0.14;
   const Na = 2.2;
   const c = evaluateV2Candidate(sc, d, Na);
@@ -672,6 +688,24 @@ console.log("\n── V2 (a) Candidate evaluator relationships ─────�
   check("V2 armed-through-end work", c.WthroughEnd, c.Whammer + c.Wcoupled, 0.001);
   check("V2 W_release_ideal = W_hammer + W_latch", c.WreleaseIdeal, c.Whammer + c.Wlatch, 0.001);
   assert("V2 representative four-state candidate is feasible", c.feasibility.feasible);
+
+  const annulusCandidate = evaluateV2Candidate(DEFAULT_V2_SCENARIO, 0.134, 3.0);
+  check("V2 screenshot candidate has 0.814 in nominal ID", annulusCandidate.ID, 0.8143622047, 0.001);
+  assert(
+    "V2 rejects screenshot candidate below the 0.820 in annulus boundary",
+    !annulusCandidate.feasibility.fitsInnerDiameter &&
+      annulusCandidate.feasibility.reasons.includes("inside-diameter-too-small"),
+  );
+  const relaxedAnnulusCandidate = evaluateV2Candidate(
+    { ...DEFAULT_V2_SCENARIO, minimumSpringInnerDiameter: 0.81 },
+    0.134,
+    3.0,
+  );
+  assert(
+    "V2 minimum-ID constraint is editable and immediately re-evaluated",
+    relaxedAnnulusCandidate.feasibility.fitsInnerDiameter &&
+      !relaxedAnnulusCandidate.feasibility.reasons.includes("inside-diameter-too-small"),
+  );
 
   // Force-equivalent proxies (ideal, NOT contact force)
   check("V2 F_eq_avg_ideal = W_release/y", c.FeqAvgIdeal, c.WreleaseIdeal / y, 0.001);
@@ -731,7 +765,7 @@ console.log("\n── V2 (c) Stress band classification ────────
   assert("V2 stress 70% → redesign", classifyStressBand(0.7) === "redesign");
 
   // The default sweep spans enough of the space to produce every band.
-  const sweep = sweepV2DesignSpace(DEFAULT_V2_SCENARIO);
+  const sweep = sweepV2DesignSpace(FEASIBLE_V2_TEST_SCENARIO);
   const bands = new Set(sweep.candidates.map((c) => c.feasibility.stressBand));
   assert("V2 sweep produces a low-stress region", bands.has("low"));
   assert("V2 sweep produces a set (40–60%) region", bands.has("set"));
@@ -783,8 +817,8 @@ console.log("\n── V2 (e) Sweep grid + determinism ────────�
   check("V2 buildRange first = 0.120", r[0], 0.12, 0.001);
   check("V2 buildRange last = 0.180", r[r.length - 1], 0.18, 0.001);
 
-  const a = sweepV2DesignSpace(DEFAULT_V2_SCENARIO);
-  const b = sweepV2DesignSpace(DEFAULT_V2_SCENARIO);
+  const a = sweepV2DesignSpace(FEASIBLE_V2_TEST_SCENARIO);
+  const b = sweepV2DesignSpace(FEASIBLE_V2_TEST_SCENARIO);
   assert("V2 sweep count = wire × coils", a.totalCount === a.wireValues.length * a.coilValues.length);
   assert("V2 sweep is deterministic (identical results + order)", JSON.stringify(a) === JSON.stringify(b));
   assert("V2 sweep finds feasible candidates", a.feasibleCount > 0);
@@ -794,11 +828,12 @@ console.log("\n── V2 (e) Sweep grid + determinism ────────�
   assert(
     "V2 feasible set enforces ordered travel and the final force requirements",
     a.feasible.every((candidate) =>
-      DEFAULT_V2_SCENARIO.latchTravel > 0 &&
-      DEFAULT_V2_SCENARIO.totalLatchTravel >= DEFAULT_V2_SCENARIO.latchTravel &&
-      candidate.L4 === DEFAULT_V2_SCENARIO.axialBudget + DEFAULT_V2_SCENARIO.totalLatchTravel &&
-      candidate.F4 + 1e-9 >= DEFAULT_V2_SCENARIO.minimumEndForce &&
-      candidate.F4 > DEFAULT_V2_SCENARIO.opposingPreload
+      FEASIBLE_V2_TEST_SCENARIO.latchTravel > 0 &&
+      FEASIBLE_V2_TEST_SCENARIO.totalLatchTravel >= FEASIBLE_V2_TEST_SCENARIO.latchTravel &&
+      candidate.L4 === FEASIBLE_V2_TEST_SCENARIO.axialBudget + FEASIBLE_V2_TEST_SCENARIO.totalLatchTravel &&
+      candidate.F4 + 1e-9 >= FEASIBLE_V2_TEST_SCENARIO.minimumEndForce &&
+      candidate.F4 > FEASIBLE_V2_TEST_SCENARIO.opposingPreload &&
+      candidate.ID + 1e-9 >= FEASIBLE_V2_TEST_SCENARIO.minimumSpringInnerDiameter
     ),
   );
 
@@ -821,15 +856,15 @@ console.log("\n── V2 (f) V1 independence ───────────�
   // Changing OD alone (a study assumption) shifts the feasible set — proving V2
   // derives everything from its own scenario, not V1 pins.
   const wide: V2Scenario = {
-    ...DEFAULT_V2_SCENARIO,
-    housingInnerDiameter: 1.3 + DEFAULT_V2_SCENARIO.outerDiameterTolerance,
+    ...FEASIBLE_V2_TEST_SCENARIO,
+    housingInnerDiameter: 1.3 + FEASIBLE_V2_TEST_SCENARIO.outerDiameterTolerance,
   };
-  const base = sweepV2DesignSpace(DEFAULT_V2_SCENARIO);
+  const base = sweepV2DesignSpace(FEASIBLE_V2_TEST_SCENARIO);
   const alt = sweepV2DesignSpace(wide);
   assert("V2 responds to its own scenario (OD change alters feasible count)", base.feasibleCount !== alt.feasibleCount);
 
   // Lower permitted utilization reserves more travel and eats axial budget.
-  const tight: V2Scenario = { ...DEFAULT_V2_SCENARIO, maxDeflectionUtilization: 0.5 };
+  const tight: V2Scenario = { ...FEASIBLE_V2_TEST_SCENARIO, maxDeflectionUtilization: 0.5 };
   const tightSweep = sweepV2DesignSpace(tight);
   assert(
     "V2 lower utilization reduces the run-up budget (feasible count drops)",
@@ -863,7 +898,7 @@ console.log("\n── V2 (g) Spring vendor data sheet ────────�
   check("17-7 PH uses Lee's CH900 tensile maximum", stainless177.tensileMaxPsi, 343_000);
   assert("17-7 PH records AMS 5678, CH900 and Lee provenance", stainless177.specification === "AMS 5678" && stainless177.condition.includes("CH900") && stainless177.sourceUrl.includes("leespring.com"));
 
-  const scenario = DEFAULT_V2_SCENARIO;
+  const scenario = FEASIBLE_V2_TEST_SCENARIO;
   const candidate = evaluateV2Candidate(scenario, 0.14, 2.2);
   assert("data-sheet fixture is a feasible four-state candidate", candidate.feasibility.feasible);
   const material = getV2Material(scenario.materialId);
@@ -891,6 +926,7 @@ console.log("\n── V2 (g) Spring vendor data sheet ────────�
   assert("exports include final force floor, gross force, and net force", mechanism.includes(`${scenario.minimumEndForce.toFixed(2)} lbf`) && mechanism.includes(candidate.F4.toFixed(2)) && mechanism.includes(candidate.netEndForce.toFixed(2)));
   assert("exports include gross, opposing, and net post-critical work", mechanism.includes(candidate.WpostCritical.toFixed(2)) && mechanism.includes(candidate.Wopposing.toFixed(2)) && mechanism.includes(candidate.WpostCriticalNet.toFixed(2)));
   assert("exports include the 28 mm housing OD ceiling", mechanism.includes("Housing ID / absolute finished-spring OD") && mechanism.includes("28.00 mm") && vendor.includes("Hard mechanism envelope"));
+  assert("exports include the minimum spring-ID boundary", mechanism.includes("minimum nominal spring ID") && vendor.includes("Annulus inner boundary / minimum nominal spring ID"));
   assert("exports include the derived OD tolerance allowance", mechanism.includes(scenario.outerDiameterTolerance.toFixed(4)) && vendor.includes("OD tolerance / fit allowance"));
   assert("exports include editable shear modulus and numeric stress basis", vendor.includes(`${(scenario.shearModulusPsi / 1e6).toFixed(1)} Mpsi`) && vendor.includes(`${(scenario.stressBasisPsi / 1000).toFixed(1)} ksi`));
   assert("vendor RFQ places utilization and clearance together in assumptions", vendor.includes("Maximum deflection utilization\t") && vendor.includes("Equivalent armed height above maximum solid\t"));
@@ -967,7 +1003,7 @@ console.log("\n── V2 (g1) Manufacturing tolerance envelope ─────�
     WreleaseIdeal: Whammer + Wlatch,
   };
   const enabled: V2Scenario = {
-    ...DEFAULT_V2_SCENARIO,
+    ...FEASIBLE_V2_TEST_SCENARIO,
     forceTarget: 139.68252,
     forceCap: 140,
     manufacturingToleranceEnabled: true,
@@ -1049,7 +1085,7 @@ console.log("\n── V2 (g1) Manufacturing tolerance envelope ─────�
   const oldStored = parseStoredV2Scenario(JSON.stringify({ forceCap: 125 }));
   assert("old stored scenarios receive disabled backward-compatible tolerance defaults", oldStored?.manufacturingToleranceEnabled === false && oldStored.springRateTolerance === DEFAULT_V2_SCENARIO.springRateTolerance && oldStored.freeLengthTolerance === DEFAULT_V2_SCENARIO.freeLengthTolerance);
   assert("legacy force-cap scenarios migrate their old value to the nominal target with independent headroom", oldStored?.forceTarget === 125 && oldStored.forceCap === 140);
-  assert("old stored scenarios receive four-state mechanism defaults", oldStored?.latchTravel === 0.07 && oldStored.totalLatchTravel === 0.20 && oldStored.minimumEndForce === 10 && oldStored.opposingPreload === 0.6 && oldStored.armedHeightConstraintEnabled === false);
+  assert("old stored scenarios receive four-state and radial-envelope defaults", oldStored?.latchTravel === 0.07 && oldStored.totalLatchTravel === 0.20 && oldStored.minimumEndForce === 10 && oldStored.opposingPreload === 0.6 && oldStored.minimumSpringInnerDiameter === 0.82 && oldStored.armedHeightConstraintEnabled === false);
   const restored = parseStoredV2Scenario(JSON.stringify(enabled));
   assert("tolerance scenario round-trips through shared storage", restored?.manufacturingToleranceEnabled === true && restored.forceTarget === enabled.forceTarget && restored.forceCap === enabled.forceCap && restored.springRateTolerance === 0.10 && restored.freeLengthTolerance === 0.030);
   assert("shortlist identity includes tolerance assumptions", v2ScenarioSignature(enabled) !== v2ScenarioSignature({ ...enabled, springRateTolerance: 0.05 }));
@@ -1059,6 +1095,7 @@ console.log("\n── V2 (g1) Manufacturing tolerance envelope ─────�
     { totalLatchTravel: 0.21 },
     { minimumEndForce: 11 },
     { opposingPreload: 0.7 },
+    { minimumSpringInnerDiameter: 0.81 },
     { armedHeightConstraintEnabled: true },
     { armedHeightMin: 0.71 },
     { armedHeightMax: 0.99 },
@@ -1084,12 +1121,12 @@ console.log("\n── V2 (g1) Manufacturing tolerance envelope ─────�
   }));
   assert("scenario guidance header is renamed in the full panel", scenarioPanelHtml.includes("Derived Model Guidance") && !scenarioPanelHtml.includes("Lee-Derived Model Guidance"));
   assert("scenario panel exposes distinct nominal and absolute starting-force controls", scenarioPanelHtml.includes("Nominal starting force") && scenarioPanelHtml.includes("Absolute maximum starting force"));
-  assert("scenario panel exposes critical, total, end-force, preload, and optional armed-height controls", scenarioPanelHtml.includes("Critical release travel") && scenarioPanelHtml.includes("Total hammer / latch travel") && scenarioPanelHtml.includes("Minimum spring force at end") && scenarioPanelHtml.includes("Opposing latch preload") && scenarioPanelHtml.includes("Constrain armed spring height"));
+  assert("scenario panel exposes critical, total, end-force, preload, radial-envelope, and optional armed-height controls", scenarioPanelHtml.includes("Critical release travel") && scenarioPanelHtml.includes("Total hammer / latch travel") && scenarioPanelHtml.includes("Minimum spring force at end") && scenarioPanelHtml.includes("Opposing latch preload") && scenarioPanelHtml.includes("Annulus inner boundary / minimum spring ID") && scenarioPanelHtml.includes("Constrain armed spring height"));
 }
 
 console.log("\n── V2 (g2) Shared impact assumptions and persistence ─────────");
 {
-  const sweep = sweepV2DesignSpace(DEFAULT_V2_SCENARIO);
+  const sweep = sweepV2DesignSpace(FEASIBLE_V2_TEST_SCENARIO);
   const candidate = sweep.feasible.find((item) => item.key === sweep.defaultKey) ?? sweep.feasible[0];
   assert("impact test has a feasible candidate", candidate !== undefined);
   const scenario: V2Scenario = {
@@ -1127,12 +1164,13 @@ console.log("\n── V2 (g2) Shared impact assumptions and persistence ──�
 // ──────────────────────────────────────────────────────────────────────
 console.log("\n── V2 (h) Candidate CSV export ─────────────────────");
 {
-  const sweep = sweepV2DesignSpace(DEFAULT_V2_SCENARIO);
+  const sweep = sweepV2DesignSpace(FEASIBLE_V2_TEST_SCENARIO);
   const candidates = sweep.candidates.filter((candidate) => candidate.pareto).slice(0, 2);
   const csv = generateCandidateCsv(candidates, candidates[0] ? [candidates[0].key] : []);
   const lines = csv.trim().split("\r\n");
 
   assert("candidate CSV includes explicit-unit headers", lines[0].includes("wire_diameter_in") && lines[0].includes("spring_rate_lbf_per_in"));
+  assert("candidate CSV includes the minimum-ID requirement and pass state", lines[0].includes("minimum_inside_diameter_requirement_in") && lines[0].includes("inside_diameter_requirement_pass"));
   assert("candidate CSV includes solid-height fields", lines[0].includes("nominal_solid_height_in") && lines[0].includes("maximum_solid_height_in"));
   assert("candidate CSV includes deflection constraint fields", lines[0].includes("required_clearance_above_maximum_solid_in") && lines[0].includes("deflection_utilization_pct"));
   assert("candidate CSV includes selected stress-basis fields", lines[0].includes("stress_basis_psi") && lines[0].includes("stress_pct_selected_basis"));
