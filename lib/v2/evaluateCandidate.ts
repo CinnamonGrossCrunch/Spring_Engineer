@@ -62,7 +62,7 @@ export function evaluateV2Candidate(scenario: V2Scenario, d: number, Na: number)
   const B = scenario.axialBudget;
   const yCritical = scenario.latchTravel;
   const yTotal = scenario.totalLatchTravel;
-  const F0 = scenario.forceCap;
+  const F0 = scenario.forceTarget;
 
   // ── Geometry (OD locked) ──
   const D = OD - d;

@@ -25,11 +25,16 @@ export function MechanismConstraintContext({
             <h2 className="text-[12px] font-bold uppercase tracking-wide text-blue-800">Shared mechanism constraints</h2>
             <p className="mt-0.5 text-[10.5px] text-blue-700/80">These same values govern the Engineer equations and every Optimize candidate.</p>
           </div>
-          {candidate && (
-            <span className={`rounded border px-2 py-1 font-mono text-[10.5px] font-semibold ${endPass ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-red-300 bg-red-50 text-red-700"}`}>
-              F₄ {fmtLbf(candidate.F4)} · floor {fmtLbf(scenario.minimumEndForce)}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded border border-blue-300 bg-white px-2 py-1 font-mono text-[10.5px] font-semibold text-blue-700">
+              F₀ {fmtLbf(scenario.forceTarget)} nominal · {fmtLbf(scenario.forceCap)} max
             </span>
-          )}
+            {candidate && (
+              <span className={`rounded border px-2 py-1 font-mono text-[10.5px] font-semibold ${endPass ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-red-300 bg-red-50 text-red-700"}`}>
+                F₄ {fmtLbf(candidate.F4)} · floor {fmtLbf(scenario.minimumEndForce)}
+              </span>
+            )}
+          </div>
         </div>
         <div className="mt-2 grid gap-1 text-[10.5px] text-zinc-600 sm:grid-cols-3">
           <div className="rounded border border-zinc-200 bg-white px-2 py-1.5"><strong className="block text-zinc-800">1 · Hammer contact</strong><span className="font-mono">L₂ = B = {fmtInMm(scenario.axialBudget)}</span></div>
@@ -44,6 +49,8 @@ export function MechanismConstraintContext({
       <details>
         <summary className="cursor-pointer px-3 py-2 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-50">Edit shared travel and end-force constraints</summary>
         <div className="grid gap-x-6 gap-y-2 border-t border-zinc-100 p-3 md:grid-cols-2">
+          <NumberField label="Nominal starting force" symbol="F₀" value={scenario.forceTarget} step={5} min={0} max={scenario.forceCap} unit="lbf" onChange={(value) => onChange({ forceTarget: Math.min(value, scenario.forceCap) })} />
+          <NumberField label="Absolute maximum starting force" symbol="F₀,max" value={scenario.forceCap} step={5} min={scenario.forceTarget} unit="lbf" onChange={(value) => onChange({ forceCap: Math.max(value, scenario.forceTarget) })} />
           <NumberField label="Axial budget" symbol="B" value={scenario.axialBudget} step={0.01} min={0} unit="in" onChange={(value) => onChange({ axialBudget: value })} />
           <NumberField label="Critical release travel" symbol="ycritical" value={scenario.latchTravel} step={0.005} min={0.005} unit="in" onChange={(value) => onChange({ latchTravel: value, totalLatchTravel: Math.max(value, scenario.totalLatchTravel) })} />
           <NumberField label="Total coupled travel" symbol="ytotal" value={scenario.totalLatchTravel} step={0.005} min={scenario.latchTravel} unit="in" onChange={(value) => onChange({ totalLatchTravel: Math.max(scenario.latchTravel, value) })} />

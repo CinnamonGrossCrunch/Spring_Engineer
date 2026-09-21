@@ -50,7 +50,7 @@ function operatingStateTable(
 ): string {
   if (!tolerance) {
     return `State\tSpring length\tCalculated spring force
-Armed / compressed\t${inch(candidate.Lc)}\t${lbf(candidate.F0)} nominal at mechanism cap
+Armed / compressed\t${inch(candidate.Lc)}\t${lbf(candidate.F0)} nominal target
 Hammer contact\t${inch(candidate.L2)}\t${lbf(candidate.F2)} nominal
 Critical release point\t${inch(candidate.L3)}\t${lbf(candidate.F3)} nominal
 Full coupled-travel end\t${inch(candidate.L4)}\t${lbf(candidate.F4)} nominal`;
@@ -264,7 +264,8 @@ For internal mechanism review. This summarizes what the mechanism requires and w
 
 ## Mechanism Requirements
 
-- Maximum armed spring force: ${lbf(s.forceCap)}
+- Nominal armed spring force target: ${lbf(s.forceTarget)}
+- Absolute maximum armed spring force: ${lbf(s.forceCap)} (including tolerance)
 - Total axial package, B: ${inch(s.axialBudget)} (armed spring + hammer run-up)
 - Critical release travel after contact: ${inch(s.latchTravel)}
 - Total hammer/latch coupled travel after contact: ${inch(s.totalLatchTravel)}
@@ -314,7 +315,7 @@ ${tolerancePerformanceTable(tolerance, s)}
 - Model uses ${materialName(material)}, ${material.condition}, as a benchmark material with G = ${(s.shearModulusPsi / 1e6).toFixed(2)} Mpsi and a ${ksi(s.stressBasisPsi)} tensile-strength classification basis. Source: ${material.sourceUrl}
 - Nominal end form is squared and ground; CAD defaults to right-hand winding.
 - Confirm that the armed, contact, critical-release, and full-travel-end lengths match the actual mechanism stops.
-- Confirm the ${s.forceCap.toFixed(0)} lbf force cap, ${dualLength(s.housingInnerDiameter)} housing/OD ceiling, ${dualLength(s.outerDiameterTolerance)} positive OD tolerance allowance, ${s.latchTravel.toFixed(3)} in critical travel, ${s.totalLatchTravel.toFixed(3)} in total coupled travel, and ${s.minimumEndForce.toFixed(1)} lbf nominal end-force floor.
+- Confirm the ${s.forceTarget.toFixed(0)} lbf nominal starting-force target, ${s.forceCap.toFixed(0)} lbf absolute force cap, ${dualLength(s.housingInnerDiameter)} housing/OD ceiling, ${dualLength(s.outerDiameterTolerance)} positive OD tolerance allowance, ${s.latchTravel.toFixed(3)} in critical travel, ${s.totalLatchTravel.toFixed(3)} in total coupled travel, and ${s.minimumEndForce.toFixed(1)} lbf nominal end-force floor.
 - Confirm the ${(s.maxDeflectionUtilization * 100).toFixed(1)}% maximum-deflection-utilization scenario; equivalent clearance for this candidate is ${inch(c.solidClearance)} above modeled H_s,max.
 ${tolerance ? `- Confirm the entered/assumed ±${pct(s.springRateTolerance)} rate and ±${dualLength(s.freeLengthTolerance)} free-length values, or replace this estimate with supplier-guaranteed loads at the four specified heights.` : ""}
 - If those inputs are correct, decide whether to send this candidate for vendor review and prototype quotation.
@@ -346,7 +347,8 @@ We are seeking design-for-manufacture review and a prototype quotation. The spri
 - Interpretation: contact, critical-point, and end values are quasi-static spring forces, not dynamic impact-force claims.
 
 Constraint	Target / boundary	Status
-Armed spring force	≤ ${lbf(s.forceCap)}	Mechanism limit
+Nominal armed spring force	${lbf(s.forceTarget)}	Design target
+Absolute maximum armed spring force	≤ ${lbf(s.forceCap)}	Mechanism limit including tolerance
 Total axial package, B	${inch(s.axialBudget)}	Armed spring length + hammer run-up
 Critical release travel	${inch(s.latchTravel)}	Point-of-no-return window after hammer contact
 Total coupled travel	${inch(s.totalLatchTravel)}	Hammer and latch remain engaged to the final stop

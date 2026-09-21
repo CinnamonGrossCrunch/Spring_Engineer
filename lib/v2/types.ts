@@ -49,7 +49,9 @@ export interface V2Material {
  */
 export interface V2Scenario {
   // ── Actual mechanism boundaries ──
-  /** Maximum starting spring force F0 [lbf]. Candidates are evaluated AT this cap. */
+  /** Nominal starting spring-force target F0 [lbf]. Candidates are evaluated at this value. */
+  forceTarget: number;
+  /** Absolute maximum permitted starting spring force [lbf], including tolerance. */
   forceCap: number;
   /** Total axial budget B = compressed spring length + hammer run-up [in]. */
   axialBudget: number;

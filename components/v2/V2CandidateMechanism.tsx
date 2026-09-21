@@ -418,7 +418,7 @@ export function V2CandidateMechanism({ candidate: c }: Props) {
           <div className="mt-1.5 grid items-start gap-0" style={{ gridTemplateColumns: gridCols }}>
             <div />
             {[
-              { n: 1, accent: FORCE_COLORS[0], Lsym: "L₁", L: Lc, Fsym: "F₀", F: F0, extra: undefined as string | undefined, note: "Starting force at the cap." },
+              { n: 1, accent: FORCE_COLORS[0], Lsym: "L₁", L: Lc, Fsym: "F₀", F: F0, extra: undefined as string | undefined, note: "Nominal starting-force target." },
               { n: 2, accent: FORCE_COLORS[1], Lsym: "L₂", L: L2, Fsym: "F₂", F: F2, extra: `Hammer run-up work ${fmtWork(Whammer)}`, note: "Spring force at contact ≠ impact force." },
               { n: 3, accent: FORCE_COLORS[2], Lsym: "L₃", L: L3, Fsym: "F₃", F: F3, extra: `Critical-window work ${fmtWork(Wlatch)}`, note: "Release point; motion continues." },
               { n: 4, accent: FORCE_COLORS[3], Lsym: "L₄", L: L4, Fsym: "F₄", F: F4, extra: `Post-critical work ${fmtWork(WpostCritical)} gross / ${fmtWork(c.WpostCriticalNet)} net`, note: `Net end force ${c.netEndForce.toFixed(1)} lbf.` },

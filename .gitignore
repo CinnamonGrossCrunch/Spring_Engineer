@@ -49,3 +49,4 @@ cad-service/.venv/
 cad-service/__pycache__/
 cad-service/**/__pycache__/
 cad-service/.pytest_cache/
+.env*.local

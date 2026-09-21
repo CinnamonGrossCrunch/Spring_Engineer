@@ -220,16 +220,26 @@ export function V2ScenarioPanel({
         tag="Constraint"
         tagKind="mechanism"
         testId="scenario-section-mechanism"
-        info={<>Candidates are evaluated <strong>at</strong> the nominal force cap (F₀ = {scenario.forceCap} lbf). B is the spring length at hammer contact. The first post-contact distance is the critical release window; the hammer and latch then remain coupled through the total travel.</>}
+        info={<>Candidates are evaluated at the nominal target (F₀ = {scenario.forceTarget} lbf). When manufacturing tolerances are enabled, the estimated armed-force maximum is checked separately against the absolute {scenario.forceCap} lbf mechanism cap. B is the spring length at hammer contact.</>}
       >
         <NumberField
-          label="Starting force cap"
-          symbol="F₀ ≤"
-          value={scenario.forceCap}
+          label="Nominal starting force"
+          symbol="F₀"
+          value={scenario.forceTarget}
           step={5}
           min={0}
+          max={scenario.forceCap}
           unit="lbf"
-          onChange={(v) => onChange({ forceCap: v })}
+          onChange={(v) => onChange({ forceTarget: Math.min(v, scenario.forceCap) })}
+        />
+        <NumberField
+          label="Absolute maximum starting force"
+          symbol="F₀,max"
+          value={scenario.forceCap}
+          step={5}
+          min={scenario.forceTarget}
+          unit="lbf"
+          onChange={(v) => onChange({ forceCap: Math.max(v, scenario.forceTarget) })}
         />
         <NumberField
           label="Axial budget (spring + run-up stroke)"
@@ -474,7 +484,7 @@ export function V2ScenarioPanel({
           Prefilled values reflect the current quote, not a universal spring tolerance. ±{fmtInMm(scenario.freeLengthTolerance)} free length. When enabled, the selected-candidate panel, export sheet, and CSV show min / nominal / max estimates.
         </p>
         <p className="rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[9.5px] leading-snug text-amber-800">
-          The optimizer still sets nominal F₀ at the mechanism cap. Any positive tolerance can therefore put the estimated maximum above the cap; this pass reports that risk but does not remove candidates.
+          Nominal candidates are evaluated at {scenario.forceTarget.toFixed(1)} lbf. The independent tolerance estimate checks its armed-force maximum against the separate {scenario.forceCap.toFixed(1)} lbf absolute cap; this advisory check does not remove candidates.
         </p>
       </ScenarioAccordion>
 

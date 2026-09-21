@@ -143,8 +143,11 @@ export function V2Workbench({
           <span className="text-sm font-bold tracking-tight text-zinc-800">
             V2 · Spring / Hammer Optimization
           </span>
+          <span className="rounded bg-blue-700 px-1.5 py-0.5 font-mono text-[10.5px] text-white">
+            F₀ nominal = {scenario.forceTarget} lbf
+          </span>
           <span className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10.5px] text-white">
-            F₀ ≤ {scenario.forceCap} lbf
+            F₀ max ≤ {scenario.forceCap} lbf
           </span>
           <span className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10.5px] text-white">
             spring + hammer stroke = {formatValue(scenario.axialBudget)} in
@@ -251,7 +254,7 @@ export function V2Workbench({
                           </button>
                         </div>
                         <div className="mb-1 rounded bg-white/70 px-1.5 py-1 font-mono text-[9.5px] leading-4 text-zinc-500">
-                          B={savedScenario.axialBudget.toFixed(3)} in · ytotal={savedScenario.totalLatchTravel.toFixed(3)} in · Fend≥{savedScenario.minimumEndForce.toFixed(0)} lbf
+                          F₀={savedScenario.forceTarget.toFixed(0)} nominal / {savedScenario.forceCap.toFixed(0)} max · B={savedScenario.axialBudget.toFixed(3)} in
                           <br />
                           u≤{(savedScenario.maxDeflectionUtilization * 100).toFixed(0)}% · OD≤{savedScenario.housingInnerDiameter.toFixed(3)} in · TS={(savedScenario.stressBasisPsi / 1000).toFixed(0)} ksi
                         </div>

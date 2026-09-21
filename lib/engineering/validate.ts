@@ -135,7 +135,7 @@ console.log("\n── Canonical candidate + frozen comparison state ────
   check("canonical Engineer total coils", engineerModel.Nt?.value, defaultCandidate?.Nt ?? 0, 0.001);
 
   const scenarioA: V2Scenario = { ...DEFAULT_V2_SCENARIO };
-  const scenarioB: V2Scenario = { ...DEFAULT_V2_SCENARIO, axialBudget: 1.3 };
+  const scenarioB: V2Scenario = { ...DEFAULT_V2_SCENARIO, forceTarget: 120, axialBudget: 1.3 };
   const candidateA = evaluateV2Candidate(scenarioA, 0.14, 2.2);
   const candidateB = evaluateV2Candidate(scenarioB, 0.14, 2.2);
   const entryA = createV2ShortlistEntry(candidateA, scenarioA);
@@ -156,6 +156,7 @@ console.log("\n── Canonical candidate + frozen comparison state ────
   check("Engineer receives opposing preload", engineerScenarioB.F_opposing?.value, scenarioB.opposingPreload, 0.001);
   const engineerScenarioBSolved = solveModel(engineerScenarioB);
   assert("Engineer mapping remains equation-consistent at the shortlisted budget", engineerScenarioBSolved.conflicts.length === 0);
+  check("Engineer reproduces the nominal starting-force target", engineerScenarioBSolved.values.F1, scenarioB.forceTarget, 0.001);
   check("Engineer bridge reproduces L4", engineerScenarioBSolved.values.L4, candidateB.L4, 0.001);
   check("Engineer bridge reproduces F4", engineerScenarioBSolved.values.F4, candidateB.F4, 0.001);
   check("Engineer bridge reproduces net F4", engineerScenarioBSolved.values.F4_net, candidateB.netEndForce, 0.001);
@@ -583,8 +584,8 @@ console.log("\n── V2 (a) Candidate evaluator relationships ─────�
   check("V2 L3 = B + y", c.L3, B + y, 0.001);
   check("V2 L4 = B + total coupled travel", c.L4, B + yTotal, 0.001);
 
-  // Starting deflection + free length (F0 evaluated AT the cap)
-  check("V2 F0 = force cap", c.F0, sc.forceCap, 0.001);
+  // Starting deflection + free length (F0 evaluated at the nominal target)
+  check("V2 F0 = nominal force target", c.F0, sc.forceTarget, 0.001);
   check("V2 x0 = F0/k", c.x0, c.F0 / c.k, 0.001);
   check("V2 Lf = Lc + x0", c.Lf, c.Lc + c.x0, 0.001);
 
@@ -901,6 +902,7 @@ console.log("\n── V2 (g1) Manufacturing tolerance envelope ─────�
   };
   const enabled: V2Scenario = {
     ...DEFAULT_V2_SCENARIO,
+    forceTarget: 139.68252,
     forceCap: 140,
     manufacturingToleranceEnabled: true,
     springRateTolerance: 0.10,
@@ -960,7 +962,7 @@ console.log("\n── V2 (g1) Manufacturing tolerance envelope ─────�
   check("slack tolerance corner clamps released force to zero", slackEnvelope?.forces.released.min, 0, 0.0001);
   assert("slack tolerance corners never produce negative work", slackEnvelope?.corners.every((corner) => corner.hammerWork >= 0 && corner.latchWork >= 0 && corner.totalWork >= 0) === true);
 
-  const disabledSweep = sweepV2DesignSpace(DEFAULT_V2_SCENARIO);
+  const disabledSweep = sweepV2DesignSpace({ ...enabled, manufacturingToleranceEnabled: false });
   const enabledSweep = sweepV2DesignSpace(enabled);
   assert("advisory tolerances do not change Pareto membership", JSON.stringify(disabledSweep.paretoKeys) === JSON.stringify(enabledSweep.paretoKeys));
   assert("advisory tolerances do not change recommended candidates", JSON.stringify(disabledSweep.recommendedKeys) === JSON.stringify(enabledSweep.recommendedKeys));
@@ -971,6 +973,7 @@ console.log("\n── V2 (g1) Manufacturing tolerance envelope ─────�
   assert("tolerance export test has a coherent evaluated candidate", exportCandidate !== undefined);
   const mechanism = generateMechanismSummary({ candidate: exportCandidate, scenario: enabled, material, generatedAt: "2026-09-02T00:00:00.000Z" });
   const vendor = generateVendorRfq({ candidate: exportCandidate, scenario: enabled, material, generatedAt: "2026-09-02T00:00:00.000Z" });
+  assert("data sheets distinguish nominal target from absolute maximum", mechanism.includes("Nominal armed spring force target") && mechanism.includes("Absolute maximum armed spring force") && vendor.includes("Nominal armed spring force") && vendor.includes("Absolute maximum armed spring force"));
   assert("enabled mechanism sheet includes min/nominal/max tolerance estimates", mechanism.includes("Manufacturing Tolerance Estimate") && mechanism.includes("Minimum estimate*") && mechanism.includes("Maximum estimate*"));
   assert("enabled vendor RFQ asks supplier to replace advisory stack with guaranteed loads", vendor.includes("supplier-guaranteed loads") && vendor.includes("independent corner"));
   assert("tolerance exports disclaim statistical certainty and omitted contributors", mechanism.includes("not a statistical confidence interval") && mechanism.includes("temperature") && mechanism.includes("correlated production data") && mechanism.includes("remain nominal"));
@@ -979,10 +982,12 @@ console.log("\n── V2 (g1) Manufacturing tolerance envelope ─────�
 
   const oldStored = parseStoredV2Scenario(JSON.stringify({ forceCap: 125 }));
   assert("old stored scenarios receive disabled backward-compatible tolerance defaults", oldStored?.manufacturingToleranceEnabled === false && oldStored.springRateTolerance === DEFAULT_V2_SCENARIO.springRateTolerance && oldStored.freeLengthTolerance === DEFAULT_V2_SCENARIO.freeLengthTolerance);
+  assert("legacy force-cap scenarios migrate their old value to the nominal target with independent headroom", oldStored?.forceTarget === 125 && oldStored.forceCap === 140);
   assert("old stored scenarios receive four-state mechanism defaults", oldStored?.latchTravel === 0.07 && oldStored.totalLatchTravel === 0.20 && oldStored.minimumEndForce === 10 && oldStored.opposingPreload === 0.6 && oldStored.armedHeightConstraintEnabled === false);
   const restored = parseStoredV2Scenario(JSON.stringify(enabled));
-  assert("tolerance scenario round-trips through shared storage", restored?.manufacturingToleranceEnabled === true && restored.springRateTolerance === 0.10 && restored.freeLengthTolerance === 0.030);
+  assert("tolerance scenario round-trips through shared storage", restored?.manufacturingToleranceEnabled === true && restored.forceTarget === enabled.forceTarget && restored.forceCap === enabled.forceCap && restored.springRateTolerance === 0.10 && restored.freeLengthTolerance === 0.030);
   assert("shortlist identity includes tolerance assumptions", v2ScenarioSignature(enabled) !== v2ScenarioSignature({ ...enabled, springRateTolerance: 0.05 }));
+  assert("shortlist identity includes the nominal force target", v2ScenarioSignature(enabled) !== v2ScenarioSignature({ ...enabled, forceTarget: enabled.forceTarget - 5 }));
   for (const patch of [
     { latchTravel: 0.08 },
     { totalLatchTravel: 0.21 },
@@ -1012,6 +1017,7 @@ console.log("\n── V2 (g1) Manufacturing tolerance envelope ─────�
     onDeflectionConstraintChange: () => undefined,
   }));
   assert("scenario guidance header is renamed in the full panel", scenarioPanelHtml.includes("Derived Model Guidance") && !scenarioPanelHtml.includes("Lee-Derived Model Guidance"));
+  assert("scenario panel exposes distinct nominal and absolute starting-force controls", scenarioPanelHtml.includes("Nominal starting force") && scenarioPanelHtml.includes("Absolute maximum starting force"));
   assert("scenario panel exposes critical, total, end-force, preload, and optional armed-height controls", scenarioPanelHtml.includes("Critical release travel") && scenarioPanelHtml.includes("Total hammer / latch travel") && scenarioPanelHtml.includes("Minimum spring force at end") && scenarioPanelHtml.includes("Opposing latch preload") && scenarioPanelHtml.includes("Constrain armed spring height"));
 }
 
@@ -1068,7 +1074,7 @@ console.log("\n── V2 (h) Candidate CSV export ──────────
   assert("candidate CSV includes end-force and opposing-preload context", lines[0].includes("minimum_end_force_requirement_lbf") && lines[0].includes("end_force_margin_lbf") && lines[0].includes("opposing_preload_lbf") && lines[0].includes("net_end_force_lbf"));
   assert("candidate CSV includes gross and net post-critical work", lines[0].includes("post_critical_work_in_lbf") && lines[0].includes("opposing_preload_work_in_lbf") && lines[0].includes("net_post_critical_work_in_lbf") && lines[0].includes("full_coupled_travel_work_in_lbf"));
   assert("candidate CSV reserves explicit manufacturing-tolerance fields", lines[0].includes("manufacturing_tolerance_enabled") && lines[0].includes("independent_corner_estimate_armed_force_min_lbf") && lines[0].includes("independent_corner_estimate_ideal_release_work_max_in_lbf"));
-  assert("candidate CSV identifies tolerance method and cap context", lines[0].includes("manufacturing_tolerance_method") && lines[0].includes("mechanism_force_cap_lbf") && lines[0].includes("independent_corner_estimate_armed_force_cap_excess_lbf"));
+  assert("candidate CSV identifies tolerance method, nominal target, and cap context", lines[0].includes("manufacturing_tolerance_method") && lines[0].includes("nominal_starting_force_target_lbf") && lines[0].includes("mechanism_force_cap_lbf") && lines[0].includes("independent_corner_estimate_armed_force_cap_excess_lbf"));
   assert("candidate CSV includes every supplied row", lines.length === candidates.length + 1);
   assert("candidate CSV preserves table row order", candidates.length === 0 || lines[1].startsWith(candidates[0].key));
   assert("candidate CSV records shortlist state", candidates.length === 0 || lines[1].includes(",true,"));
@@ -1085,7 +1091,7 @@ console.log("\n── V2 (h) Candidate CSV export ──────────
   const toleranceValues = toleranceLines[1]?.split(",") ?? [];
   const csvValue = (header: string) => toleranceValues[toleranceHeaders.indexOf(header)];
   assert("enabled candidate CSV writes structurally aligned rows", candidates.length === 0 || toleranceValues.length === toleranceHeaders.length);
-  assert("enabled candidate CSV writes tolerance assumptions and mechanism provenance", candidates.length === 0 || (csvValue("manufacturing_tolerance_enabled") === "true" && csvValue("manufacturing_tolerance_method") === "independent_rate_free_length_corner_stack" && csvValue("mechanism_force_cap_lbf") === "140" && csvValue("critical_release_travel_in") === "0.07" && csvValue("total_coupled_travel_in") === "0.2" && csvValue("spring_rate_tolerance_pct") === "10" && csvValue("free_length_tolerance_in") === "0.03"));
+  assert("enabled candidate CSV writes tolerance assumptions and mechanism provenance", candidates.length === 0 || (csvValue("manufacturing_tolerance_enabled") === "true" && csvValue("manufacturing_tolerance_method") === "independent_rate_free_length_corner_stack" && csvValue("nominal_starting_force_target_lbf") === "140" && csvValue("mechanism_force_cap_lbf") === "140" && csvValue("critical_release_travel_in") === "0.07" && csvValue("total_coupled_travel_in") === "0.2" && csvValue("spring_rate_tolerance_pct") === "10" && csvValue("free_length_tolerance_in") === "0.03"));
   assert("enabled candidate CSV writes end-force tolerance results", candidates.length === 0 || csvValue("independent_corner_estimate_end_force_min_lbf") !== "" && csvValue("independent_corner_estimate_end_force_max_lbf") !== "" && csvValue("independent_corner_estimate_worst_case_end_force_pass") !== "");
 
   let exported = false;

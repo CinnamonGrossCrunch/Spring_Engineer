@@ -3,6 +3,7 @@ import type { V2Candidate, V2Scenario, V2ShortlistEntry } from "./types";
 /** Stable, explicit identity for every input that can change a V2 result. */
 export function v2ScenarioSignature(scenario: V2Scenario): string {
   return JSON.stringify([
+    scenario.forceTarget,
     scenario.forceCap,
     scenario.axialBudget,
     scenario.latchTravel,

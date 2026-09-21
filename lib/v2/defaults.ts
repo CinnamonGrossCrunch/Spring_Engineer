@@ -12,7 +12,7 @@ import {
  * The default V2 study scenario (Sweep #1).
  *
  * Epistemic tiers (see the scenario panel):
- *   · Actual mechanism boundaries — forceCap, axialBudget, critical/total travel, end force
+ *   · Actual mechanism boundaries — forceTarget, forceCap, axialBudget, critical/total travel, end force
  *   · Fixed for this study        — housing envelope / OD tolerance, material
  *   · Derived model guidance      — solidHeightTolerance, stress bands
  *   · Optional mfg. tolerances    — springRateTolerance, freeLengthTolerance
@@ -21,7 +21,8 @@ import {
  */
 export const DEFAULT_V2_SCENARIO: V2Scenario = {
   // Actual mechanism boundaries
-  forceCap: 140, // F0 ≤ 140 lbf; evaluated AT the cap for Sweep #1
+  forceTarget: 140, // nominal F0 used to evaluate candidates; saved 120 lbf studies retain 120
+  forceCap: 140, // absolute F0 ceiling after tolerance
   axialBudget: 1.15, // B = compressed spring length + hammer run-up [in]
   latchTravel: 0.07, // y_critical = point-of-no-return travel after contact [in]
   totalLatchTravel: 0.20, // y_total = full hammer/latch coupled travel after contact [in]
