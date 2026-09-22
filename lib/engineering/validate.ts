@@ -80,6 +80,10 @@ import {
   DEFAULT_PACKAGE_DISCOVERY_SETTINGS,
   discoverPackageFrontier,
 } from "../v2/packageDiscovery";
+import {
+  generatePackageDiscoveryCsv,
+  packageDiscoveryCsvFilename,
+} from "../v2/packageDiscoveryCsv";
 
 let failures = 0;
 
@@ -1291,6 +1295,24 @@ console.log("\n── V2 (j) Package–punch discovery ────────�
       Math.abs(point.candidate.L3 - (point.axialBudget + DEFAULT_PACKAGE_DISCOVERY_SETTINGS.criticalTravel)) < 1e-9 &&
       Math.abs(point.candidate.L4 - (point.axialBudget + DEFAULT_PACKAGE_DISCOVERY_SETTINGS.totalCoupledTravel)) < 1e-9
     ),
+  );
+  const csv = generatePackageDiscoveryCsv(discovery, {
+    ...DEFAULT_PACKAGE_DISCOVERY_SETTINGS,
+    packageMin: 0.9,
+    packageMax: 1.3,
+    packageStep: 0.05,
+  });
+  const csvLines = csv.trim().split(/\r?\n/);
+  assert("package discovery CSV exports every frontier point", csvLines.length === discovery.frontier.length + 1);
+  assert("package discovery CSV names package, force, work, and tolerance fields", (
+    csvLines[0].includes("axial_budget_in") &&
+    csvLines[0].includes("contact_force_lbf") &&
+    csvLines[0].includes("hammer_run_up_work_in_lbf") &&
+    csvLines[0].includes("worst_case_end_force_pass")
+  ));
+  assert(
+    "package discovery CSV filename identifies the frontier and date",
+    packageDiscoveryCsvFilename(new Date("2026-09-21T12:00:00.000Z")) === "spring-package-frontier_2026-09-21.csv",
   );
 }
 

@@ -10,8 +10,13 @@ import {
   type PackageRecommendationRole,
 } from "@/lib/v2/packageDiscovery";
 import { inchesToMillimeters, millimetersToInches } from "@/lib/v2/envelope";
+import {
+  generatePackageDiscoveryCsv,
+  packageDiscoveryCsvFilename,
+} from "@/lib/v2/packageDiscoveryCsv";
 import type { V2Candidate, V2Scenario } from "@/lib/v2/types";
 import { calculateManufacturingToleranceEnvelope } from "@/lib/v2/toleranceEnvelope";
+import { CandidateCsvButton } from "./CandidateCsvButton";
 import { V2CandidateMechanism } from "./V2CandidateMechanism";
 import { V2ForceWorkChart } from "./V2ForceWorkChart";
 import { fmtIn, fmtLbf, fmtPct, fmtRate, fmtWork } from "./v2format";
@@ -95,6 +100,18 @@ export function V2PackageDiscovery({
     setSettings((current) => sanitizeSettings({ ...current, ...patch }));
   };
 
+  const exportFrontierCsv = () => {
+    const csv = generatePackageDiscoveryCsv(result, settings);
+    const url = URL.createObjectURL(new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = packageDiscoveryCsvFilename();
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
+
   return (
     <div className="space-y-3">
       <section className="rounded-lg border border-violet-200 bg-gradient-to-r from-violet-50 via-white to-cyan-50 p-4 shadow-sm">
@@ -153,26 +170,30 @@ export function V2PackageDiscovery({
             })}
           </div>
 
-          <SearchSummary result={result} settings={settings} />
+          <SearchSummary
+            result={result}
+            settings={settings}
+            onExportCsv={exportFrontierCsv}
+          />
+
+          {selected ? (
+            <>
+              <V2CandidateMechanism
+                candidate={selected.candidate}
+                title="Selected Package-Frontier Candidate"
+                subtitle="The armed-height / package ratio is an optimized output, not an imposed input."
+              />
+              <SelectedDiscoverySummary point={selected} />
+              <V2ForceWorkChart candidate={selected.candidate} scenario={selected.scenario} />
+            </>
+          ) : (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-6 text-center text-sm text-amber-900">
+              No package-frontier candidate passes the current hard constraints. Expand the package or
+              geometry search, reduce the minimum ID, or review the enabled tolerance assumptions.
+            </div>
+          )}
         </div>
       </div>
-
-      {selected ? (
-        <>
-          <V2CandidateMechanism
-            candidate={selected.candidate}
-            title="Selected Package-Frontier Candidate"
-            subtitle="The armed-height / package ratio is an optimized output, not an imposed input."
-          />
-          <SelectedDiscoverySummary point={selected} />
-          <V2ForceWorkChart candidate={selected.candidate} scenario={selected.scenario} />
-        </>
-      ) : (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-6 text-center text-sm text-amber-900">
-          No package-frontier candidate passes the current hard constraints. Expand the package or
-          geometry search, reduce the minimum ID, or review the enabled tolerance assumptions.
-        </div>
-      )}
     </div>
   );
 }
@@ -416,14 +437,25 @@ function RecommendationCard({ role, point, selected, onSelect }: { role: Package
   );
 }
 
-function SearchSummary({ result, settings }: { result: ReturnType<typeof discoverPackageFrontier>; settings: PackageDiscoverySettings }) {
+function SearchSummary({
+  result,
+  settings,
+  onExportCsv,
+}: {
+  result: ReturnType<typeof discoverPackageFrontier>;
+  settings: PackageDiscoverySettings;
+  onExportCsv: () => void;
+}) {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-[10px] text-zinc-500">
-      <span><strong className="text-zinc-700">{result.searchedCount.toLocaleString()}</strong> geometries searched</span>
-      <span><strong className="text-emerald-700">{result.acceptedCount.toLocaleString()}</strong> passed</span>
-      <span><strong className="text-violet-700">{result.frontier.length}</strong> non-dominated package points</span>
-      <span>{settings.enforceManufacturingTolerance ? "Tolerance corners enforced" : "Nominal loads only"}</span>
-      <span className="text-amber-700">Vendor validation still required</span>
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-[10px] text-zinc-500">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <span><strong className="text-zinc-700">{result.searchedCount.toLocaleString()}</strong> geometries searched</span>
+        <span><strong className="text-emerald-700">{result.acceptedCount.toLocaleString()}</strong> passed</span>
+        <span><strong className="text-violet-700">{result.frontier.length}</strong> non-dominated package points</span>
+        <span>{settings.enforceManufacturingTolerance ? "Tolerance corners enforced" : "Nominal loads only"}</span>
+        <span className="text-amber-700">Vendor validation still required</span>
+      </div>
+      <CandidateCsvButton disabled={result.frontier.length === 0} onClick={onExportCsv} />
     </div>
   );
 }
