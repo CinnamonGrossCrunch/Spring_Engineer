@@ -156,7 +156,7 @@ export function V2PackageDiscovery({
           />
 
           <div className="grid gap-2 md:grid-cols-3">
-            {(["density", "knee", "punch"] as PackageRecommendationRole[]).map((role) => {
+            {(["knee", "density", "punch"] as PackageRecommendationRole[]).map((role) => {
               const point = result.recommendations[role];
               return (
                 <RecommendationCard
