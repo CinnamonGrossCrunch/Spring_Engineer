@@ -1,5 +1,6 @@
-import { inLbfToFtLbf, velocityFromKE, momentum, kineticEnergy } from "@/lib/engineering/hammer";
+import { G_C, inLbfToFtLbf, velocityFromKE, momentum, kineticEnergy } from "@/lib/engineering/hammer";
 import type { V2Candidate, V2Scenario } from "./types";
+import { resolveImpactBodyMassLbm } from "./impactMaterials";
 
 /**
  * OPTIONAL Advanced Impact Lens — NOT part of the primary V2 optimization.
@@ -14,6 +15,9 @@ export type V2EtaMode = "unspecified" | "ideal" | "assumed" | "measured";
 
 export interface V2ImpactLens {
   etaMode: V2EtaMode;
+  /** Effective moving masses actually used by the lens [lbm]. */
+  hammerMassLbm: number | undefined;
+  latchMassLbm: number | undefined;
   /** Effective efficiency (1.0 for ideal; the entered value for assumed/measured). */
   eta: number | undefined;
   /** η · W_hammer — energy available to the hammer before contact [in·lbf]. */
@@ -26,18 +30,34 @@ export interface V2ImpactLens {
   velocity: number | undefined;
   /** Hammer momentum at contact [lbm·ft/s] (requires mass). */
   momentum: number | undefined;
+  /** HF latch velocity immediately after the assumed 1-D collision [ft/s]. */
+  latchPostImpactVelocity: number | undefined;
+  /** Impulse delivered to the initially stationary latch [lbf·s]. */
+  impactImpulse: number | undefined;
   /** Latch kinetic energy immediately after the assumed 1-D collision [ft·lbf]. */
   latchPostImpactKE: number | undefined;
   /** Hammer kinetic energy immediately after the assumed 1-D collision [ft·lbf]. */
   hammerPostImpactKE: number | undefined;
   /** Total translational KE of hammer + latch immediately after collision [ft·lbf]. */
   combinedPostImpactKE: number | undefined;
+  /** Combined energy carried into and added through the critical window [in·lbf]. */
+  criticalDriveWork: number | undefined;
+  /** Energy-equivalent common speed at the critical release point [ft/s]. */
+  criticalCoupledVelocity: number | undefined;
+  /** Combined translational KE at the critical release point [ft·lbf]. */
+  criticalCoupledKE: number | undefined;
+  /** Critical-window energy divided by critical travel [lbf]. */
+  criticalAverageEquivalent: number | undefined;
   /** Post-impact translational KE plus efficiency-adjusted spring work, less modeled opposing-preload work [in·lbf]. */
   coupledDriveWork: number | undefined;
   /** Coupled-drive energy divided by the full post-contact coupled travel [lbf]. */
   coupledAverageEquivalent: number | undefined;
   /** 2× coupled average, only for a triangular force-over-travel assumption [lbf]. */
   coupledTriangularPeakEquivalent: number | undefined;
+  /** Energy-equivalent common speed immediately before the final stop [ft/s]. */
+  endCoupledVelocity: number | undefined;
+  /** Combined translational KE immediately before the final stop [ft·lbf]. */
+  endCoupledKE: number | undefined;
 }
 
 /**
@@ -58,18 +78,28 @@ export function applyImpactLens(
   if (eta === undefined) {
     return {
       etaMode,
+      hammerMassLbm: hammerMass,
+      latchMassLbm: latchMass,
       eta: undefined,
       WhammerAvailable: undefined,
       WreleaseEta: undefined,
       KE: undefined,
       velocity: undefined,
       momentum: undefined,
+      latchPostImpactVelocity: undefined,
+      impactImpulse: undefined,
       latchPostImpactKE: undefined,
       hammerPostImpactKE: undefined,
       combinedPostImpactKE: undefined,
+      criticalDriveWork: undefined,
+      criticalCoupledVelocity: undefined,
+      criticalCoupledKE: undefined,
+      criticalAverageEquivalent: undefined,
       coupledDriveWork: undefined,
       coupledAverageEquivalent: undefined,
       coupledTriangularPeakEquivalent: undefined,
+      endCoupledVelocity: undefined,
+      endCoupledKE: undefined,
     };
   }
 
@@ -96,6 +126,23 @@ export function applyImpactLens(
   const combinedPostImpactKE = latchPostImpactKE === undefined || hammerPostImpactKE === undefined
     ? undefined
     : latchPostImpactKE + hammerPostImpactKE;
+  const totalMovingMass = hasHammerMass && hasLatchMass ? hammerMass! + latchMass! : undefined;
+  const impactImpulse = latchVelocity === undefined || !hasLatchMass
+    ? undefined
+    : (latchMass! * latchVelocity) / G_C;
+  const criticalDriveWork = combinedPostImpactKE === undefined
+    ? undefined
+    : combinedPostImpactKE * 12 + eta * candidate.Wlatch;
+  const criticalCoupledKE = criticalDriveWork === undefined
+    ? undefined
+    : Math.max(0, criticalDriveWork / 12);
+  const criticalCoupledVelocity = criticalCoupledKE === undefined || totalMovingMass === undefined || criticalCoupledKE <= 0
+    ? undefined
+    : velocityFromKE(criticalCoupledKE, totalMovingMass);
+  const criticalTravel = candidate.L3 - candidate.L2;
+  const criticalAverageEquivalent = criticalDriveWork !== undefined && criticalTravel > 0
+    ? criticalDriveWork / criticalTravel
+    : undefined;
   const coupledDriveWork = combinedPostImpactKE === undefined
     ? undefined
     : combinedPostImpactKE * 12 + eta * candidate.Wcoupled - candidate.Wopposing;
@@ -103,33 +150,61 @@ export function applyImpactLens(
     coupledDriveWork !== undefined && candidate.L4 > candidate.L2
       ? coupledDriveWork / (candidate.L4 - candidate.L2)
       : undefined;
+  const endCoupledKE = coupledDriveWork === undefined
+    ? undefined
+    : Math.max(0, coupledDriveWork / 12);
+  const endCoupledVelocity = endCoupledKE === undefined || totalMovingMass === undefined || endCoupledKE <= 0
+    ? undefined
+    : velocityFromKE(endCoupledKE, totalMovingMass);
 
   return {
     etaMode,
+    hammerMassLbm: hasHammerMass ? hammerMass : undefined,
+    latchMassLbm: hasLatchMass ? latchMass : undefined,
     eta,
     WhammerAvailable,
     WreleaseEta,
     KE,
     velocity,
     momentum: p,
+    latchPostImpactVelocity: latchVelocity,
+    impactImpulse,
     latchPostImpactKE,
     hammerPostImpactKE,
     combinedPostImpactKE,
+    criticalDriveWork,
+    criticalCoupledVelocity,
+    criticalCoupledKE,
+    criticalAverageEquivalent,
     coupledDriveWork,
     coupledAverageEquivalent,
     coupledTriangularPeakEquivalent:
       coupledAverageEquivalent === undefined ? undefined : 2 * coupledAverageEquivalent,
+    endCoupledVelocity,
+    endCoupledKE,
   };
 }
 
 /** Shared-scenario convenience wrapper (100% efficiency is the default scenario assumption). */
 export function applyScenarioImpactLens(candidate: V2Candidate, scenario: V2Scenario): V2ImpactLens {
+  const hammerMass = resolveImpactBodyMassLbm({
+    mode: scenario.hammerMassInputMode ?? "direct",
+    materialId: scenario.hammerBodyMaterialId,
+    volumeIn3: scenario.hammerVolumeIn3,
+    directMassLbm: scenario.hammerMassLbm,
+  });
+  const latchMass = resolveImpactBodyMassLbm({
+    mode: scenario.latchMassInputMode ?? "direct",
+    materialId: scenario.latchBodyMaterialId,
+    volumeIn3: scenario.latchVolumeIn3,
+    directMassLbm: scenario.latchMassLbm,
+  });
   return applyImpactLens(
     candidate,
     "assumed",
     Math.max(0, Math.min(1, scenario.impactEfficiency)),
-    scenario.hammerMassLbm ?? undefined,
-    scenario.latchMassLbm ?? undefined,
+    hammerMass ?? undefined,
+    latchMass ?? undefined,
     scenario.impactRestitution,
   );
 }

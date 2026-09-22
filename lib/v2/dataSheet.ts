@@ -305,7 +305,7 @@ ${operatingStateTable(c, tolerance)}
 - Full coupled-travel spring work: ${work(c.Wcoupled)}
 - End-of-travel force: ${lbf(c.F4)}; ${lbf(c.endForceMargin)} above the configured floor; ${lbf(c.netEndForce)} after opposing preload
 - Ideal total release work: ${work(c.WreleaseIdeal)} (not measured delivered energy)
-- Impact assumptions: η = ${(s.impactEfficiency * 100).toFixed(0)}%; restitution e = ${s.impactRestitution.toFixed(2)}; hammer mass ${s.hammerMassLbm === null ? "TBD" : `${s.hammerMassLbm.toFixed(4)} lbm`}; latch mass ${s.latchMassLbm === null ? "TBD" : `${s.latchMassLbm.toFixed(4)} lbm`}
+- Impact assumptions: η = ${(s.impactEfficiency * 100).toFixed(0)}%; restitution e = ${s.impactRestitution.toFixed(2)}; hammer mass ${impact.hammerMassLbm === undefined ? "TBD" : `${impact.hammerMassLbm.toFixed(4)} lbm`}; latch mass ${impact.latchMassLbm === undefined ? "TBD" : `${impact.latchMassLbm.toFixed(4)} lbm`}
 - Collision lens: latch-only KE ${impact.latchPostImpactKE === undefined ? "not calculated — both masses are required" : work(impact.latchPostImpactKE * 12)}; coupled-drive work* ${impact.coupledDriveWork === undefined ? "not calculated — both masses are required" : work(impact.coupledDriveWork)}; coupled average* ${impact.coupledAverageEquivalent === undefined ? "not calculated — both masses are required" : `${lbf(impact.coupledAverageEquivalent)} over the full coupled travel`}
 - *Coupled drive counts total hammer+latch translational KE after collision plus efficiency-adjusted spring work over the full post-contact travel, less work against the modeled opposing preload. It is available only while the hammer remains engaged. No minimum velocity is imposed after the critical release point; positive residual spring force supplies the remaining drive. It is not peak contact force.
 - Nominal stress guidance: ${stressSummary(c)}
@@ -382,7 +382,7 @@ Nominal solid height	${inch(c.HsNom)}
 Modeled maximum solid height	${inch(c.HsMax)}
 Nominal armed-load shear stress	${ksi(c.tau)} (Wahl-corrected, K_w = ${c.Kw.toFixed(3)})
 Nominal stress screening	${pct(c.stressPctBasis)} at the selected ${ksi(s.stressBasisPsi)} tensile-strength basis; ${stressSummary(c)}
-Hammer / latch mass	${s.hammerMassLbm === null ? "TBD" : `${s.hammerMassLbm.toFixed(4)} lbm`} / ${s.latchMassLbm === null ? "TBD" : `${s.latchMassLbm.toFixed(4)} lbm`}
+Hammer / latch mass	${impact.hammerMassLbm === undefined ? "TBD" : `${impact.hammerMassLbm.toFixed(4)} lbm`} / ${impact.latchMassLbm === undefined ? "TBD" : `${impact.latchMassLbm.toFixed(4)} lbm`}
 Impact efficiency / restitution	${pct(s.impactEfficiency)} / e = ${s.impactRestitution.toFixed(2)}
 Critical / full-travel work	${work(c.Wlatch)} / ${work(c.Wcoupled)}	Spring work after contact through the critical point / final stop
 Post-critical gross / net work	${work(c.WpostCritical)} / ${work(c.WpostCriticalNet)}	Net subtracts ${work(c.Wopposing)} against the modeled opposing preload

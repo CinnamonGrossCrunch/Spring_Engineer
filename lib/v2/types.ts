@@ -42,6 +42,9 @@ export interface V2Material {
   note: string;
 }
 
+/** How a moving body's effective mass is supplied to the impact lens. */
+export type ImpactMassInputMode = "volume" | "direct";
+
 /**
  * A V2 study scenario: the fixed mechanism boundaries plus the numerical
  * search bounds. Values carry an explicit epistemic tier in the UI
@@ -89,6 +92,9 @@ export interface V2Scenario {
   hammerMassLbm: number | null;
   /** HF latch moving mass [lbm], or null when not supplied. */
   latchMassLbm: number | null;
+  /** Selects density × volume or direct moving-mass entry for each body. */
+  hammerMassInputMode: ImpactMassInputMode;
+  latchMassInputMode: ImpactMassInputMode;
   /** Assumed spring-work transfer efficiency [0..1]. Default 1.0. */
   impactEfficiency: number;
   /** Optional body-material presets used only for density-based mass estimates. */

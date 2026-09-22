@@ -4,6 +4,7 @@ import { DEFAULT_V2_SCENARIO } from "./defaults";
 import { getV2Material } from "./materials";
 import { sweepV2DesignSpace } from "./sweepDesignSpace";
 import type { V2Candidate, V2Scenario } from "./types";
+import { resolveImpactBodyMassLbm } from "./impactMaterials";
 
 /**
  * Map a selected V2 candidate into a compatible V1 `ModelState` so the existing
@@ -42,7 +43,15 @@ export function candidateToV1Model(candidate: V2Candidate, scenario: V2Scenario)
 
   // Material shear modulus from the V2 benchmark material.
   next.G = { value: scenario.shearModulusPsi, status: "assumed" };
-  next.m = { value: scenario.hammerMassLbm ?? undefined, status: "variable" };
+  next.m = {
+    value: resolveImpactBodyMassLbm({
+      mode: scenario.hammerMassInputMode,
+      materialId: scenario.hammerBodyMaterialId,
+      volumeIn3: scenario.hammerVolumeIn3,
+      directMassLbm: scenario.hammerMassLbm,
+    }) ?? undefined,
+    status: "variable",
+  };
   next.eta = { value: scenario.impactEfficiency, status: "assumed" };
 
   // Shared mechanism limits and engineering guidance from the active scenario.

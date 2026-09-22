@@ -940,7 +940,7 @@ console.log("\n── V2 (g) Spring vendor data sheet ────────�
   assert("vendor RFQ places utilization and clearance together in assumptions", vendor.includes("Maximum deflection utilization\t") && vendor.includes("Equivalent armed height above maximum solid\t"));
   assert("vendor RFQ explains mechanism use and distinguishes spring from impact force", vendor.includes("accelerate a hammer") && vendor.includes("not dynamic impact-force claims"));
   assert("vendor RFQ discloses ksi assumptions without unnecessary equation detail", vendor.includes(`${(material.tensileMinPsi / 1000).toFixed(1)} ksi–${(material.tensileMaxPsi / 1000).toFixed(1)} ksi`) && vendor.includes("not allowable shear stresses") && !vendor.includes("τ = K_w·8·F·D/(π·d³)"));
-  assert("exports disclose missing impact masses instead of inventing force", mechanism.includes("both masses are required") && vendor.includes("both masses required"));
+  assert("exports use the configured volume-derived impact masses", mechanism.includes("latch-only KE") && !mechanism.includes("both masses are required") && vendor.includes("coupled-drive work"));
   assert("exports cite the selected material source", mechanism.includes(material.sourceUrl) && vendor.includes(material.sourceUrl));
   assert("vendor RFQ requests optimization of material assumptions", vendor.includes("Recommend the production material") && vendor.includes("Replace with applicable values"));
   assert("vendor RFQ includes prototype quantity placeholder", vendor.includes("Prototype quantity: ___"));
@@ -1094,6 +1094,7 @@ console.log("\n── V2 (g1) Manufacturing tolerance envelope ─────�
   assert("old stored scenarios receive disabled backward-compatible tolerance defaults", oldStored?.manufacturingToleranceEnabled === false && oldStored.springRateTolerance === DEFAULT_V2_SCENARIO.springRateTolerance && oldStored.freeLengthTolerance === DEFAULT_V2_SCENARIO.freeLengthTolerance);
   assert("legacy force-cap scenarios migrate their old value to the nominal target with independent headroom", oldStored?.forceTarget === 125 && oldStored.forceCap === 140);
   assert("old stored scenarios receive four-state and radial-envelope defaults", oldStored?.latchTravel === 0.07 && oldStored.totalLatchTravel === 0.20 && oldStored.minimumEndForce === 10 && oldStored.opposingPreload === 0.6 && oldStored.minimumSpringInnerDiameter === 0.82 && oldStored.armedHeightConstraintEnabled === false);
+  assert("old stored scenarios receive volume-based impact defaults", oldStored?.hammerMassInputMode === "volume" && oldStored.latchMassInputMode === "volume" && oldStored.hammerVolumeIn3 === 0.31 && oldStored.latchVolumeIn3 === 0.16);
   const restored = parseStoredV2Scenario(JSON.stringify(enabled));
   assert("tolerance scenario round-trips through shared storage", restored?.manufacturingToleranceEnabled === true && restored.forceTarget === enabled.forceTarget && restored.forceCap === enabled.forceCap && restored.springRateTolerance === 0.10 && restored.freeLengthTolerance === 0.030);
   assert("shortlist identity includes tolerance assumptions", v2ScenarioSignature(enabled) !== v2ScenarioSignature({ ...enabled, springRateTolerance: 0.05 }));
@@ -1141,12 +1142,15 @@ console.log("\n── V2 (g2) Shared impact assumptions and persistence ──�
     ...DEFAULT_V2_SCENARIO,
     hammerMassLbm: 0.25,
     latchMassLbm: 0.05,
+    hammerMassInputMode: "direct",
+    latchMassInputMode: "direct",
     impactEfficiency: 1,
     impactRestitution: 0,
   };
   const lens = applyScenarioImpactLens(candidate, scenario);
   assert("impact lens calculates velocity when hammer mass exists", lens.velocity !== undefined && lens.velocity > 0);
   assert("impact lens calculates latch-only KE transfer when both masses exist", lens.latchPostImpactKE !== undefined && lens.latchPostImpactKE > 0);
+  assert("impact lens calculates latch impulse and critical-point motion", lens.impactImpulse !== undefined && lens.impactImpulse > 0 && lens.criticalCoupledVelocity !== undefined && lens.criticalCoupledVelocity > 0);
   assert("impact lens calculates coupled-drive equivalent when both masses exist", lens.coupledAverageEquivalent !== undefined && lens.coupledAverageEquivalent > 0);
   check("impact lens subtracts modeled opposing-preload work", lens.coupledDriveWork, (lens.combinedPostImpactKE ?? 0) * 12 + candidate.Wcoupled - candidate.Wopposing, 0.001);
   check("impact equivalent uses full post-contact coupled travel", lens.coupledAverageEquivalent, (lens.coupledDriveWork ?? 0) / (candidate.L4 - candidate.L2), 0.001);
@@ -1182,6 +1186,7 @@ console.log("\n── V2 (h) Candidate CSV export ──────────
   assert("candidate CSV includes solid-height fields", lines[0].includes("nominal_solid_height_in") && lines[0].includes("maximum_solid_height_in"));
   assert("candidate CSV includes deflection constraint fields", lines[0].includes("required_clearance_above_maximum_solid_in") && lines[0].includes("deflection_utilization_pct"));
   assert("candidate CSV includes selected stress-basis fields", lines[0].includes("stress_basis_psi") && lines[0].includes("stress_pct_selected_basis"));
+  assert("candidate CSV includes idealized impact-lens fields", lines[0].includes("approx_impact_impulse_lbf_s") && lines[0].includes("approx_critical_force_equivalent_lbf") && lines[0].includes("approx_full_travel_drive_equivalent_lbf"));
   assert("candidate CSV distinguishes critical and full-travel states", lines[0].includes("critical_release_length_in") && lines[0].includes("full_travel_end_length_in") && lines[0].includes("critical_release_force_lbf") && lines[0].includes("full_travel_end_force_lbf"));
   assert("candidate CSV includes end-force and opposing-preload context", lines[0].includes("minimum_end_force_requirement_lbf") && lines[0].includes("end_force_margin_lbf") && lines[0].includes("opposing_preload_lbf") && lines[0].includes("net_end_force_lbf"));
   assert("candidate CSV includes gross and net post-critical work", lines[0].includes("post_critical_work_in_lbf") && lines[0].includes("opposing_preload_work_in_lbf") && lines[0].includes("net_post_critical_work_in_lbf") && lines[0].includes("full_coupled_travel_work_in_lbf"));
@@ -1205,6 +1210,7 @@ console.log("\n── V2 (h) Candidate CSV export ──────────
   assert("enabled candidate CSV writes structurally aligned rows", candidates.length === 0 || toleranceValues.length === toleranceHeaders.length);
   assert("enabled candidate CSV writes tolerance assumptions and mechanism provenance", candidates.length === 0 || (csvValue("manufacturing_tolerance_enabled") === "true" && csvValue("manufacturing_tolerance_method") === "independent_rate_free_length_corner_stack" && csvValue("nominal_starting_force_target_lbf") === "140" && csvValue("mechanism_force_cap_lbf") === "140" && csvValue("critical_release_travel_in") === "0.07" && csvValue("total_coupled_travel_in") === "0.2" && csvValue("spring_rate_tolerance_pct") === "10" && csvValue("free_length_tolerance_in") === "0.03"));
   assert("enabled candidate CSV writes end-force tolerance results", candidates.length === 0 || csvValue("independent_corner_estimate_end_force_min_lbf") !== "" && csvValue("independent_corner_estimate_end_force_max_lbf") !== "" && csvValue("independent_corner_estimate_worst_case_end_force_pass") !== "");
+  assert("candidate CSV writes resolved impact values", candidates.length === 0 || (csvValue("hammer_effective_mass_lbm") !== "" && csvValue("latch_effective_mass_lbm") !== "" && csvValue("approx_impact_impulse_lbf_s") !== "" && csvValue("approx_critical_force_equivalent_lbf") !== "" && csvValue("approx_full_travel_drive_equivalent_lbf") !== ""));
 
   let exported = false;
   const button = CandidateCsvButton({ onClick: () => { exported = true; } });
@@ -1308,7 +1314,19 @@ console.log("\n── V2 (j) Package–punch discovery ────────�
     csvLines[0].includes("axial_budget_in") &&
     csvLines[0].includes("contact_force_lbf") &&
     csvLines[0].includes("hammer_run_up_work_in_lbf") &&
+    csvLines[0].includes("approx_impact_impulse_lbf_s") &&
+    csvLines[0].includes("approx_critical_force_equivalent_lbf") &&
     csvLines[0].includes("worst_case_end_force_pass")
+  ));
+  const frontierHeaders = csvLines[0].split(",");
+  const frontierValues = csvLines[1]?.split(",") ?? [];
+  const frontierCsvValue = (header: string) => frontierValues[frontierHeaders.indexOf(header)];
+  assert("package discovery CSV writes resolved impact values", discovery.frontier.length === 0 || (
+    frontierCsvValue("hammer_effective_mass_lbm") !== "" &&
+    frontierCsvValue("latch_effective_mass_lbm") !== "" &&
+    frontierCsvValue("approx_impact_impulse_lbf_s") !== "" &&
+    frontierCsvValue("approx_critical_force_equivalent_lbf") !== "" &&
+    frontierCsvValue("approx_full_travel_drive_equivalent_lbf") !== ""
   ));
   assert(
     "package discovery CSV filename identifies the frontier and date",

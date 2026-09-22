@@ -27,6 +27,7 @@ import { formatValue } from "../StatusBadge";
 import { canonicalName, canonicalSym } from "@/lib/engineering/nomenclature";
 import type { DeflectionConstraintState } from "@/lib/engineering/deflectionConstraint";
 import { V2PackageDiscovery } from "./V2PackageDiscovery";
+import { V2ImpactLensPanel } from "./V2ImpactLensPanel";
 
 const MAX_SHORTLIST = 3;
 
@@ -230,6 +231,7 @@ export function V2Workbench({
         {selected && (
           <div className="min-w-0 space-y-3 xl:col-span-4">
             <V2CandidateMechanism candidate={selected} />
+            <V2ImpactLensPanel candidate={selected} scenario={scenario} onChange={patchScenario} />
             {shortlist.length > 0 && (
               <div className="rounded-lg border border-zinc-200 bg-white p-3">
                 <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-zinc-500">

@@ -51,3 +51,20 @@ export function estimateBodyMassLbm(materialId: string, volumeIn3: number | null
   if (volumeIn3 === null || !Number.isFinite(volumeIn3) || volumeIn3 <= 0) return null;
   return getImpactBodyMaterial(materialId).densityLbmIn3 * volumeIn3;
 }
+
+export function resolveImpactBodyMassLbm({
+  mode,
+  materialId,
+  volumeIn3,
+  directMassLbm,
+}: {
+  mode: "volume" | "direct";
+  materialId: string;
+  volumeIn3: number | null;
+  directMassLbm: number | null;
+}): number | null {
+  if (mode === "volume") return estimateBodyMassLbm(materialId, volumeIn3);
+  return directMassLbm !== null && Number.isFinite(directMassLbm) && directMassLbm > 0
+    ? directMassLbm
+    : null;
+}

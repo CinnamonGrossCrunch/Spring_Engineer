@@ -1,5 +1,7 @@
 import type { V2Candidate, V2Scenario } from "./types";
 import { calculateManufacturingToleranceEnvelope } from "./toleranceEnvelope";
+import { applyScenarioImpactLens } from "./impactLens";
+import { getImpactBodyMaterial } from "./impactMaterials";
 
 export type CandidateCsvMode = "pareto" | "feasible";
 
@@ -47,6 +49,33 @@ const HEADERS = [
   "armed_through_end_work_in_lbf",
   "ideal_release_work_in_lbf",
   "ideal_equivalent_average_lbf",
+  "hammer_mass_input_mode",
+  "hammer_body_material",
+  "hammer_body_density_lbm_per_in3",
+  "hammer_volume_in3",
+  "hammer_effective_mass_lbm",
+  "latch_mass_input_mode",
+  "latch_body_material",
+  "latch_body_density_lbm_per_in3",
+  "latch_volume_in3",
+  "latch_effective_mass_lbm",
+  "impact_efficiency_pct",
+  "impact_restitution",
+  "approx_hammer_contact_ke_ft_lbf",
+  "approx_hammer_contact_speed_ft_per_s",
+  "approx_hammer_contact_momentum_lbm_ft_per_s",
+  "approx_latch_post_impact_speed_ft_per_s",
+  "approx_impact_impulse_lbf_s",
+  "approx_latch_post_impact_ke_ft_lbf",
+  "approx_combined_post_impact_ke_ft_lbf",
+  "approx_critical_drive_work_in_lbf",
+  "approx_critical_coupled_speed_ft_per_s",
+  "approx_critical_coupled_ke_ft_lbf",
+  "approx_critical_force_equivalent_lbf",
+  "approx_full_travel_coupled_drive_work_in_lbf",
+  "approx_full_travel_coupled_speed_ft_per_s",
+  "approx_full_travel_coupled_ke_ft_lbf",
+  "approx_full_travel_drive_equivalent_lbf",
   "wahl_factor",
   "shear_stress_psi",
   "stress_basis_psi",
@@ -96,6 +125,9 @@ function candidateRow(candidate: V2Candidate, shortlisted: boolean, scenario?: V
   const tolerance = scenario
     ? calculateManufacturingToleranceEnvelope(candidate, scenario)
     : null;
+  const impact = scenario ? applyScenarioImpactLens(candidate, scenario) : null;
+  const hammerMaterial = scenario ? getImpactBodyMaterial(scenario.hammerBodyMaterialId) : null;
+  const latchMaterial = scenario ? getImpactBodyMaterial(scenario.latchBodyMaterialId) : null;
   return [
     candidate.key,
     shortlisted,
@@ -140,6 +172,33 @@ function candidateRow(candidate: V2Candidate, shortlisted: boolean, scenario?: V
     candidate.WthroughEnd,
     candidate.WreleaseIdeal,
     candidate.FeqAvgIdeal,
+    scenario?.hammerMassInputMode ?? "",
+    hammerMaterial?.name ?? "",
+    hammerMaterial?.densityLbmIn3 ?? "",
+    scenario?.hammerVolumeIn3 ?? "",
+    impact?.hammerMassLbm ?? "",
+    scenario?.latchMassInputMode ?? "",
+    latchMaterial?.name ?? "",
+    latchMaterial?.densityLbmIn3 ?? "",
+    scenario?.latchVolumeIn3 ?? "",
+    impact?.latchMassLbm ?? "",
+    scenario ? scenario.impactEfficiency * 100 : "",
+    scenario?.impactRestitution ?? "",
+    impact?.KE ?? "",
+    impact?.velocity ?? "",
+    impact?.momentum ?? "",
+    impact?.latchPostImpactVelocity ?? "",
+    impact?.impactImpulse ?? "",
+    impact?.latchPostImpactKE ?? "",
+    impact?.combinedPostImpactKE ?? "",
+    impact?.criticalDriveWork ?? "",
+    impact?.criticalCoupledVelocity ?? "",
+    impact?.criticalCoupledKE ?? "",
+    impact?.criticalAverageEquivalent ?? "",
+    impact?.coupledDriveWork ?? "",
+    impact?.endCoupledVelocity ?? "",
+    impact?.endCoupledKE ?? "",
+    impact?.coupledAverageEquivalent ?? "",
     candidate.Kw,
     candidate.tau,
     candidate.stressBasisPsi,

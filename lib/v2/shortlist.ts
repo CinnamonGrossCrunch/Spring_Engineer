@@ -21,6 +21,8 @@ export function v2ScenarioSignature(scenario: V2Scenario): string {
     scenario.shearModulusPsi,
     scenario.hammerMassLbm,
     scenario.latchMassLbm,
+    scenario.hammerMassInputMode,
+    scenario.latchMassInputMode,
     scenario.impactEfficiency,
     scenario.hammerBodyMaterialId,
     scenario.latchBodyMaterialId,

@@ -19,6 +19,7 @@ import { calculateManufacturingToleranceEnvelope } from "@/lib/v2/toleranceEnvel
 import { CandidateCsvButton } from "./CandidateCsvButton";
 import { V2CandidateMechanism } from "./V2CandidateMechanism";
 import { V2ForceWorkChart } from "./V2ForceWorkChart";
+import { V2ImpactLensPanel } from "./V2ImpactLensPanel";
 import { fmtIn, fmtLbf, fmtPct, fmtRate, fmtWork } from "./v2format";
 
 const STORAGE_KEY = "sigma-spring-engine:package-discovery:v1";
@@ -182,6 +183,11 @@ export function V2PackageDiscovery({
                 candidate={selected.candidate}
                 title="Selected Package-Frontier Candidate"
                 subtitle="The armed-height / package ratio is an optimized output, not an imposed input."
+              />
+              <V2ImpactLensPanel
+                candidate={selected.candidate}
+                scenario={selected.scenario}
+                onChange={onScenarioChange}
               />
               <SelectedDiscoverySummary point={selected} />
               <V2ForceWorkChart candidate={selected.candidate} scenario={selected.scenario} />
@@ -357,8 +363,9 @@ function PackageFrontierChart({
   const xMax = points.length ? Math.max(...points.map((point) => point.axialBudget)) : 1;
   const yMin = 0;
   const yMax = points.length ? Math.max(...points.map((point) => point.candidate.Whammer)) * 1.08 : 1;
-  const x = (value: number) => pad.left + ((value - xMin) / Math.max(1e-9, xMax - xMin)) * (width - pad.left - pad.right);
-  const y = (value: number) => height - pad.bottom - ((value - yMin) / Math.max(1e-9, yMax - yMin)) * (height - pad.top - pad.bottom);
+  const svgCoordinate = (value: number) => Number(value.toFixed(4));
+  const x = (value: number) => svgCoordinate(pad.left + ((value - xMin) / Math.max(1e-9, xMax - xMin)) * (width - pad.left - pad.right));
+  const y = (value: number) => svgCoordinate(height - pad.bottom - ((value - yMin) / Math.max(1e-9, yMax - yMin)) * (height - pad.top - pad.bottom));
   const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${x(point.axialBudget)} ${y(point.candidate.Whammer)}`).join(" ");
 
   return (

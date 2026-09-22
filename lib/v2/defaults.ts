@@ -43,11 +43,13 @@ export const DEFAULT_V2_SCENARIO: V2Scenario = {
 
   hammerMassLbm: null,
   latchMassLbm: null,
+  hammerMassInputMode: "volume",
+  latchMassInputMode: "volume",
   impactEfficiency: 1.0,
-  hammerBodyMaterialId: "stainless17_4",
+  hammerBodyMaterialId: "tungstenHeavyAlloy",
   latchBodyMaterialId: "stainless17_4",
-  hammerVolumeIn3: null,
-  latchVolumeIn3: null,
+  hammerVolumeIn3: 0.31,
+  latchVolumeIn3: 0.16,
   impactRestitution: 0,
 
   // Derived model guidance

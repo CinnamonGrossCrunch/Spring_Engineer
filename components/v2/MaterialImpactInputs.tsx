@@ -1,17 +1,10 @@
 "use client";
 
-import {
-  CommitNumberInput,
-  OptionalCommitNumberInput,
-} from "@/components/CommitNumberInput";
+import { CommitNumberInput } from "@/components/CommitNumberInput";
 import type { V2Candidate, V2Scenario } from "@/lib/v2/types";
 import { getV2Material, listV2Materials } from "@/lib/v2/materials";
-import {
-  IMPACT_BODY_MATERIALS,
-  estimateBodyMassLbm,
-  getImpactBodyMaterial,
-} from "@/lib/v2/impactMaterials";
 import { applyScenarioImpactLens } from "@/lib/v2/impactLens";
+import { ImpactBodyControl, type ImpactBodyPatch } from "./ImpactBodyControl";
 
 interface Props {
   scenario: V2Scenario;
@@ -22,71 +15,6 @@ interface Props {
 
 interface EmbeddedProps extends Omit<Props, "compact"> {
   embedded?: boolean;
-}
-
-function OptionalNumber({
-  value,
-  onChange,
-  step,
-  placeholder,
-}: {
-  value: number | null;
-  onChange: (value: number | null) => void;
-  step: number;
-  placeholder: string;
-}) {
-  return (
-    <OptionalCommitNumberInput
-      value={value}
-      min={0}
-      step={step}
-      placeholder={placeholder}
-      onCommit={onChange}
-      className="w-full rounded border border-zinc-300 bg-white px-2 py-1 text-right font-mono text-[11px] text-zinc-800 focus:border-blue-500 focus:outline-none"
-    />
-  );
-}
-
-function BodyInput({
-  label,
-  materialId,
-  volume,
-  mass,
-  onMaterial,
-  onVolume,
-  onMass,
-}: {
-  label: string;
-  materialId: string;
-  volume: number | null;
-  mass: number | null;
-  onMaterial: (value: string) => void;
-  onVolume: (value: number | null) => void;
-  onMass: (value: number | null) => void;
-}) {
-  const material = getImpactBodyMaterial(materialId);
-  const estimate = estimateBodyMassLbm(materialId, volume);
-  return (
-    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-2">
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold text-zinc-700">{label}</span>
-        <a href={material.sourceUrl} target="_blank" rel="noreferrer" className="text-[9px] text-blue-600 hover:underline">density source</a>
-      </div>
-      <select value={materialId} onChange={(e) => onMaterial(e.target.value)} className="mb-1.5 w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-[10.5px]">
-        {Object.values(IMPACT_BODY_MATERIALS).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-      </select>
-      <div className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-1 text-[9.5px] text-zinc-500">
-        <OptionalNumber value={volume} onChange={onVolume} step={0.001} placeholder="volume" /><span>in³</span>
-        <OptionalNumber value={mass} onChange={onMass} step={0.001} placeholder="mass" /><span>lbm</span>
-      </div>
-      <div className="mt-1 flex items-center justify-between text-[9px] text-zinc-400">
-        <span>ρ = {material.densityLbmIn3.toFixed(3)} lb/in³</span>
-        <button type="button" disabled={estimate === null} onClick={() => onMass(estimate)} className="rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-zinc-600 hover:bg-zinc-100 disabled:opacity-40">
-          Use estimate{estimate === null ? "" : ` ${estimate.toFixed(3)} lbm`}
-        </button>
-      </div>
-    </div>
-  );
 }
 
 function PanelShell({ embedded, children }: { embedded: boolean; children: React.ReactNode }) {
@@ -121,6 +49,18 @@ export function SpringMaterialInputs({ scenario, onChange, embedded = false }: E
 
 export function ImpactEquivalentInputs({ scenario, onChange, candidate, embedded = false }: EmbeddedProps) {
   const lens = candidate ? applyScenarioImpactLens(candidate, scenario) : null;
+  const patchHammer = (patch: ImpactBodyPatch) => onChange({
+    ...(patch.mode !== undefined ? { hammerMassInputMode: patch.mode } : {}),
+    ...(patch.materialId !== undefined ? { hammerBodyMaterialId: patch.materialId } : {}),
+    ...(patch.volumeIn3 !== undefined ? { hammerVolumeIn3: patch.volumeIn3 } : {}),
+    ...(patch.massLbm !== undefined ? { hammerMassLbm: patch.massLbm } : {}),
+  });
+  const patchLatch = (patch: ImpactBodyPatch) => onChange({
+    ...(patch.mode !== undefined ? { latchMassInputMode: patch.mode } : {}),
+    ...(patch.materialId !== undefined ? { latchBodyMaterialId: patch.materialId } : {}),
+    ...(patch.volumeIn3 !== undefined ? { latchVolumeIn3: patch.volumeIn3 } : {}),
+    ...(patch.massLbm !== undefined ? { latchMassLbm: patch.massLbm } : {}),
+  });
   return (
     <PanelShell embedded={embedded}>
         <div className="mb-2 flex items-center justify-between gap-2">
@@ -128,8 +68,8 @@ export function ImpactEquivalentInputs({ scenario, onChange, candidate, embedded
           <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">not peak contact force</span>
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
-          <BodyInput label="Hammer" materialId={scenario.hammerBodyMaterialId} volume={scenario.hammerVolumeIn3} mass={scenario.hammerMassLbm} onMaterial={(hammerBodyMaterialId) => onChange({ hammerBodyMaterialId })} onVolume={(hammerVolumeIn3) => onChange({ hammerVolumeIn3 })} onMass={(hammerMassLbm) => onChange({ hammerMassLbm })} />
-          <BodyInput label="HF latch" materialId={scenario.latchBodyMaterialId} volume={scenario.latchVolumeIn3} mass={scenario.latchMassLbm} onMaterial={(latchBodyMaterialId) => onChange({ latchBodyMaterialId })} onVolume={(latchVolumeIn3) => onChange({ latchVolumeIn3 })} onMass={(latchMassLbm) => onChange({ latchMassLbm })} />
+          <ImpactBodyControl label="Hammer" mode={scenario.hammerMassInputMode} materialId={scenario.hammerBodyMaterialId} volumeIn3={scenario.hammerVolumeIn3} massLbm={scenario.hammerMassLbm} defaultVolumeIn3={0.31} onChange={patchHammer} />
+          <ImpactBodyControl label="HF latch" mode={scenario.latchMassInputMode} materialId={scenario.latchBodyMaterialId} volumeIn3={scenario.latchVolumeIn3} massLbm={scenario.latchMassLbm} defaultVolumeIn3={0.16} onChange={patchLatch} />
         </div>
         <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] text-zinc-600">
           <label>Transfer efficiency η<CommitNumberInput min={0} max={1} step={0.05} value={scenario.impactEfficiency} onCommit={(next) => onChange({ impactEfficiency: Math.max(0, Math.min(1, next)) })} className="mt-0.5 w-full rounded border border-zinc-300 px-2 py-1 text-right font-mono" /></label>
