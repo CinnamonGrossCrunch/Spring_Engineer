@@ -351,7 +351,7 @@ function PackageFrontierChart({
   onSelect: (key: string) => void;
 }) {
   const width = 760;
-  const height = 310;
+  const height = 155;
   const pad = { left: 58, right: 24, top: 24, bottom: 46 };
   const xMin = points.length ? Math.min(...points.map((point) => point.axialBudget)) : 0;
   const xMax = points.length ? Math.max(...points.map((point) => point.axialBudget)) : 1;
