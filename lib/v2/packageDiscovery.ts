@@ -21,6 +21,7 @@ export interface PackageDiscoverySettings {
   packageStep: number;
   preferredWireDiameter: number;
   minimumInnerDiameter: number;
+  includeSolidHeightAllowance: boolean;
   maxDeflectionUtilization: number;
   maximumStressRatio: number;
   enforceManufacturingTolerance: boolean;
@@ -69,6 +70,9 @@ export const DEFAULT_PACKAGE_DISCOVERY_SETTINGS: PackageDiscoverySettings = {
   // The prior 0.820 in feature is a CAD preference, not an immutable spring
   // boundary in spring-first mode. Keep the smaller assumption visible and editable.
   minimumInnerDiameter: 0.8,
+  // Historical Lee stock guidance used for the package screen. Custom vendor
+  // approval may allow the nominal solid-height reference to be used instead.
+  includeSolidHeightAllowance: true,
   // Mirrors the quoted 17-7 geometry as a screening assumption. It is not a
   // universal presetting limit and remains user-editable in the UI.
   maxDeflectionUtilization: 0.84,
@@ -109,6 +113,7 @@ export function discoverPackageFrontier(
     shearModulusPsi: material.shearModulusPsi,
     stressBasisPsi: material.tensileMinPsi,
     minimumSpringInnerDiameter: Math.max(0, settings.minimumInnerDiameter),
+    solidHeightTolerance: settings.includeSolidHeightAllowance ? 0.05 : 0,
     maxDeflectionUtilization: clamp(settings.maxDeflectionUtilization, 0.05, 0.99),
     manufacturingToleranceEnabled: settings.enforceManufacturingTolerance,
   };

@@ -259,10 +259,15 @@ function DiscoveryControls({
             <CompactNumber label="B max" value={settings.packageMax} step={0.01} onCommit={(packageMax) => onSettingsChange({ packageMax })} />
             <CompactNumber label="step" value={settings.packageStep} step={0.005} onCommit={(packageStep) => onSettingsChange({ packageStep })} />
           </div>
+          <ToggleRow
+            label="Include +5% solid-height allowance"
+            checked={settings.includeSolidHeightAllowance}
+            onChange={(includeSolidHeightAllowance) => onSettingsChange({ includeSolidHeightAllowance })}
+          />
           <DiscoveryNumber label="Maximum working deflection" value={settings.maxDeflectionUtilization * 100} step={1} unit="%" onCommit={(percent) => onSettingsChange({ maxDeflectionUtilization: percent / 100 })} />
           <p className="text-[9.5px] leading-snug text-zinc-400">
-            The default 84% is a transparent screening assumption derived from the quoted geometry,
-            not a universal preset limit.
+            The 5% allowance and default 84% utilization are historical screening assumptions,
+            not universal preset limits.
           </p>
         </ControlGroup>
 
@@ -530,6 +535,7 @@ function sanitizeSettings(settings: PackageDiscoverySettings): PackageDiscoveryS
     packageStep: Math.max(0.001, finite(settings.packageStep, DEFAULT_PACKAGE_DISCOVERY_SETTINGS.packageStep)),
     preferredWireDiameter: Math.max(0.001, finite(settings.preferredWireDiameter, DEFAULT_PACKAGE_DISCOVERY_SETTINGS.preferredWireDiameter)),
     minimumInnerDiameter: Math.max(0, finite(settings.minimumInnerDiameter, DEFAULT_PACKAGE_DISCOVERY_SETTINGS.minimumInnerDiameter)),
+    includeSolidHeightAllowance: settings.includeSolidHeightAllowance !== false,
     maxDeflectionUtilization: Math.min(0.99, Math.max(0.05, finite(settings.maxDeflectionUtilization, DEFAULT_PACKAGE_DISCOVERY_SETTINGS.maxDeflectionUtilization))),
     maximumStressRatio: Math.min(2, Math.max(0.1, finite(settings.maximumStressRatio, DEFAULT_PACKAGE_DISCOVERY_SETTINGS.maximumStressRatio))),
     enforceManufacturingTolerance: settings.enforceManufacturingTolerance !== false,

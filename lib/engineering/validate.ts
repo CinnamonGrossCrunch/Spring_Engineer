@@ -1292,6 +1292,10 @@ console.log("\n── V2 (j) Package–punch discovery ────────�
   assert("package discovery identifies a balanced knee", Boolean(discovery.recommendations.knee));
   assert("package discovery identifies maximum punch", Boolean(discovery.recommendations.punch));
   assert(
+    "package discovery applies the enabled 5% solid-height allowance",
+    discovery.frontier.every((point) => Math.abs(point.scenario.solidHeightTolerance - 0.05) < 1e-9),
+  );
+  assert(
     "maximum-punch recommendation is the frontier work maximum",
     discovery.recommendations.punch?.candidate.Whammer === Math.max(...discovery.frontier.map((point) => point.candidate.Whammer)),
   );
@@ -1316,6 +1320,8 @@ console.log("\n── V2 (j) Package–punch discovery ────────�
     csvLines[0].includes("hammer_run_up_work_in_lbf") &&
     csvLines[0].includes("approx_impact_impulse_lbf_s") &&
     csvLines[0].includes("approx_critical_force_equivalent_lbf") &&
+    csvLines[0].includes("solid_height_allowance_enabled") &&
+    csvLines[0].includes("solid_height_allowance_pct") &&
     csvLines[0].includes("worst_case_end_force_pass")
   ));
   const frontierHeaders = csvLines[0].split(",");
@@ -1328,6 +1334,33 @@ console.log("\n── V2 (j) Package–punch discovery ────────�
     frontierCsvValue("approx_critical_force_equivalent_lbf") !== "" &&
     frontierCsvValue("approx_full_travel_drive_equivalent_lbf") !== ""
   ));
+  assert("package discovery CSV records the enabled 5% allowance", discovery.frontier.length === 0 || (
+    frontierCsvValue("solid_height_allowance_enabled") === "true" &&
+    frontierCsvValue("solid_height_allowance_pct") === "5"
+  ));
+  const noSolidAllowance = discoverPackageFrontier(
+    {
+      ...DEFAULT_V2_SCENARIO,
+      wireMin: 0.138,
+      wireMax: 0.138,
+      wireStep: 0.001,
+      activeCoilsMin: 3.3,
+      activeCoilsMax: 3.3,
+      activeCoilsStep: 0.1,
+    },
+    {
+      ...DEFAULT_PACKAGE_DISCOVERY_SETTINGS,
+      includeSolidHeightAllowance: false,
+      enforceManufacturingTolerance: false,
+      packageMin: 1.3,
+      packageMax: 1.3,
+    },
+  );
+  assert(
+    "package discovery disables the solid-height allowance in candidate scenarios",
+    noSolidAllowance.frontier.length > 0 &&
+      noSolidAllowance.frontier.every((point) => point.scenario.solidHeightTolerance === 0),
+  );
   assert(
     "package discovery CSV filename identifies the frontier and date",
     packageDiscoveryCsvFilename(new Date("2026-09-21T12:00:00.000Z")) === "spring-package-frontier_2026-09-21.csv",
